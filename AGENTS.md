@@ -1,13 +1,14 @@
 # lucene-rag-server — instructions for agents
 
-An MCP server that indexes prepared project knowledge (Markdown, DocBook, TSV, YAML, JSONL) into
+An MCP server that indexes prepared project knowledge (Markdown, TSV, YAML, JSONL, SQL) into
 Apache Lucene and serves hybrid search over it: BM25 plus dense vectors kept in the same Lucene
 index. It retrieves; it does not generate answers. User-facing overview: `README.md`.
 
-**Current status:** stage 1 of `docs/plan.md` section 4 and the first step of stage 2 are
-implemented: Markdown collections with configurable `split` and `map`, lexical search, the
-`rag-index` and `rag-search` commands and the tools `listCollections`, `search` and
-`getDocument`. Other formats, vectors and hybrid search are not implemented.
+**Current status:** stage 1 of `docs/plan.md` section 4 and steps 0 and 1 of stage 2 are
+implemented: Markdown collections with configurable `split` and `map`, built by the five-step
+source pipeline in `ingest/`, lexical search, the `rag-index` and `rag-search` commands and the
+tools `listCollections`, `search` and `getDocument`. Named readers, other formats, commands as
+steps, vectors and hybrid search are not implemented.
 
 ## Repository contents
 
@@ -91,11 +92,23 @@ then keeps the summary and links to the owner.
 - Code copied from a sibling project names its source project and commit in the class Javadoc.
 - Tests use the synthetic knowledge under `testdata/` and temporary directories. Never copy text
   from a real project into `testdata/` or a test (invariant 1).
+- `testdata/` and the examples in the documents copy the shape of the first real corpus —
+  formats, directory layout, front matter keys, column and key structure — with invented content
+  (D20). When you add a format or a layout, look at how the real corpus uses it (its location is
+  in `.local/` or comes from the user) and make the synthetic files look the same.
 - Changing index fields, their analysis or the shape of the manifest raises `Manifest.SCHEMA`; an
   index of another schema is not served.
 - No layout of a particular project's files is fixed in code (D14). A reader exposes named
   values; which of them become the id, title, text and fields is the source's `map` block, and
-  the defaults of a format are ordinary templates in `RecordMapper`.
+  the defaults of a format are ordinary templates in its `Format.mapDefaults()`.
+- A source is built by the five steps of D15 (`docs/plan.md` section 3.1). A new format, origin or
+  converter is a step implementation registered by name; do not add a branch for it to the
+  indexer or to the collections loader. The recipe is at the end of `docs/plan.md` section 3.6.
+- A step implementation is a `@Component` and is also listed in `StepRegistry.builtIn()`, which
+  the unit tests use; `StepBeansTest` fails when the two differ. Step interfaces and the classes
+  in `ingest/` name no Spring type other than that annotation.
+- `rag-index` runs inside a Spring context without the MCP server; it must print nothing but its
+  report to stdout and nothing to stderr on success.
 - Change dependency versions in `gradle/libs.versions.toml`, not in the build script.
 
 Sibling projects used as references (same author):

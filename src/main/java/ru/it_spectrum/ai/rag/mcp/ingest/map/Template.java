@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.ingest.map;
 
 import java.util.ArrayList;
 import java.util.List;

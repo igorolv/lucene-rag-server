@@ -1,7 +1,14 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest.map;
 
+import org.springframework.stereotype.Component;
 import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.Template;
+import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
+import ru.it_spectrum.ai.rag.mcp.ingest.Format;
+import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
+import ru.it_spectrum.ai.rag.mcp.ingest.Mapper;
+import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;
+import ru.it_spectrum.ai.rag.mcp.ingest.Unit;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,31 +21,26 @@ import java.util.regex.Pattern;
 
 /**
  * Lays the units of a document out as records by {@link MapSettings}: the step between "how to
- * cut" and what is indexed.
+ * cut" and what is indexed. It knows no format: the values come from the document and the unit,
+ * the templates a source leaves out come from the format's {@link MapDefaults}.
  *
  * <p>Values are computed in a fixed order, each available to the templates after it: document
  * key, title, slug, breadcrumb, text, id, fields. Whatever the id template gives, ids are made
  * unique inside the document: a repeated id gets {@code -2}, {@code -3}, and the parts of a text
  * split by {@code maxChars} get {@code ~2}, {@code ~3}.
  */
-public final class RecordMapper {
+@Component
+public final class TemplateMapper implements Mapper {
 
-    static final String DEFAULT_DOCUMENT = "{frontmatter.id|document.path}";
-    static final String DEFAULT_TITLE = "{heading}";
-    static final String DEFAULT_ID = "{document.key}#{slug}";
-    static final String DEFAULT_TEXT = "{body}";
-
-    private RecordMapper() {
+    @Override
+    public void check(MapSettings map, SplitSettings split, Format format) {
+        TemplateCheck.check(map, split, format);
     }
 
-    /**
-     * @param maxChars a longer text is split into several records
-     * @throws IllegalArgumentException when a document key or a record id comes out empty
-     */
-    public static List<ChunkRecord> map(SourceDocument document, List<Chunker.Unit> units, MapSettings map,
-                                        int maxChars) {
-        Map<String, List<String>> base = new HashMap<>();
-        document.fields().forEach((name, values) -> base.put("frontmatter." + name, values));
+    @Override
+    public List<ChunkRecord> map(ParsedDocument document, List<Unit> units, MapSettings map, MapDefaults defaults,
+                                 int maxChars) {
+        Map<String, List<String>> base = new HashMap<>(document.values());
         String[] segments = document.path().split("/");
         for (int i = 0; i < segments.length; i++) {
             put(base, "path[" + i + "]", segments[i]);
@@ -61,22 +63,23 @@ public final class RecordMapper {
         put(base, "document.path", document.path());
         put(base, "document.title", document.title());
 
-        String key = Template.render(or(map.document(), DEFAULT_DOCUMENT), base::get).strip();
+        String key = Template.render(or(map.document(), defaults.document()), base::get).strip();
         if (key.isEmpty()) {
             throw new IllegalArgumentException("map.document gives an empty key for " + document.path());
         }
         put(base, "document.key", key);
 
+        String textTemplate = or(map.text(), defaults.text());
+        if (textTemplate == null) {
+            throw new IllegalArgumentException("map.text is required: the format has no default text");
+        }
         List<ChunkRecord> records = new ArrayList<>();
         Map<String, Integer> usedIds = new HashMap<>();
-        for (Chunker.Unit unit : units) {
+        for (Unit unit : units) {
             Map<String, List<String>> values = new HashMap<>(base);
-            put(values, "heading", unit.heading());
-            unit.groups().forEach((name, value) -> put(values, "heading." + name, value));
-            put(values, "parents", String.join(ChunkRecord.BREADCRUMB_SEPARATOR, unit.ancestors()));
-            put(values, "body", unit.text());
+            values.putAll(unit.values());
 
-            String title = Template.render(or(map.title(), DEFAULT_TITLE), values::get).strip();
+            String title = Template.render(or(map.title(), defaults.title()), values::get).strip();
             put(values, "title", title);
             String slug = unit.intro() ? "intro" : slug(title);
             put(values, "slug", slug.isEmpty() ? "section" : slug);
@@ -84,29 +87,29 @@ public final class RecordMapper {
             String breadcrumb = breadcrumb(document, unit, title, map, values);
             put(values, "breadcrumb", breadcrumb);
 
-            String text = Template.render(or(map.text(), DEFAULT_TEXT), values::get).strip();
+            String text = Template.render(textTemplate, values::get).strip();
             if (text.isEmpty()) {
                 continue;
             }
-            String id = Template.render(or(map.id(), DEFAULT_ID), values::get).strip();
+            String id = Template.render(or(map.id(), defaults.id()), values::get).strip();
             if (id.isEmpty()) {
-                throw new IllegalArgumentException("map.id gives an empty id for \"" + unit.heading()
+                throw new IllegalArgumentException("map.id gives an empty id for \"" + title
                         + "\" in " + document.path());
             }
             int seen = usedIds.merge(id, 1, Integer::sum);
-            String base_id = seen == 1 ? id : id + "-" + seen;
+            String uniqueId = seen == 1 ? id : id + "-" + seen;
 
             Map<String, List<String>> fields = fields(document, map, values);
-            List<String> parts = Chunker.split(text, maxChars);
+            List<String> parts = TextParts.split(text, maxChars);
             for (int i = 0; i < parts.size(); i++) {
-                records.add(new ChunkRecord(i == 0 ? base_id : base_id + "~" + (i + 1), key, title, breadcrumb,
+                records.add(new ChunkRecord(i == 0 ? uniqueId : uniqueId + "~" + (i + 1), key, title, breadcrumb,
                         parts.get(i), document.path(), records.size(), fields));
             }
         }
         return records;
     }
 
-    private static String breadcrumb(SourceDocument document, Chunker.Unit unit, String title, MapSettings map,
+    private static String breadcrumb(ParsedDocument document, Unit unit, String title, MapSettings map,
                                      Map<String, List<String>> values) {
         List<String> parts = new ArrayList<>();
         if (map.breadcrumb() != null) {
@@ -130,7 +133,7 @@ public final class RecordMapper {
         return String.join(ChunkRecord.BREADCRUMB_SEPARATOR, parts);
     }
 
-    private static Map<String, List<String>> fields(SourceDocument document, MapSettings map,
+    private static Map<String, List<String>> fields(ParsedDocument document, MapSettings map,
                                                     Map<String, List<String>> values) {
         Map<String, List<String>> fields = new LinkedHashMap<>();
         List<String> inherit = map.inheritFields() == null ? List.of(MapSettings.ALL_FIELDS) : map.inheritFields();

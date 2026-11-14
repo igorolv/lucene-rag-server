@@ -1,8 +1,13 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest.map;
 
 import org.junit.jupiter.api.Test;
 import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
+import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;
+import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownFormat;
+import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownReader;
+import ru.it_spectrum.ai.rag.mcp.ingest.split.HeadingSplitter;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Laying units out as records with a configured mapping. */
-class RecordMapperTest {
+class TemplateMapperTest {
 
     private static final String SPEC = """
             ---
@@ -31,8 +36,9 @@ class RecordMapperTest {
     private static final SplitSettings REQUIREMENTS = new SplitSettings(3, "^Requirement: (?<name>.+)$", 2500, 0);
 
     private static List<ChunkRecord> records(String path, String content, SplitSettings split, MapSettings map) {
-        SourceDocument document = MarkdownReader.read(path, content);
-        return RecordMapper.map(document, Chunker.units(document, split), map, split.maxChars());
+        SectionTree document = MarkdownReader.read(path, content);
+        return new TemplateMapper().map(document, new HeadingSplitter().split(document, split), map,
+                new MarkdownFormat().mapDefaults(), split.maxChars());
     }
 
     private static MapSettings map(String document, String id, String title, List<String> breadcrumb, String text,

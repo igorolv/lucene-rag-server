@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D13, proposals as P1…P6).
+reasons are in `docs/decisions.md` (cited here as D1…D21, proposals as P1…P11).
 
 ## 1. Idea
 
@@ -18,24 +18,30 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Stage 1 and the first step of stage 2, 2026-11-14: collections described in `collections.json`
-are built from Markdown sources into one Lucene index each and searched lexically; every source
-configures how it is cut (`split`) and how a unit becomes a record (`map`).
+Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
+built from Markdown sources into one Lucene index each and searched lexically; every source
+configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
+by the five-step pipeline of section 3.1 with one implementation of each step.
 
-- Implemented: the collections file loader, the `markdown` reader, the chunker, the `split` and
-  `map` settings with their template language, the index with its manifest, BM25 search with filters and snippets, server-side response limits, the commands
-  `rag-index` and `rag-search`, the tool groups `collections` (`listCollections`) and `search`
-  (`search`, `getDocument`). User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (59 tests on the synthetic knowledge in `testdata/`), by a stdio
-  session calling every tool including error cases, and by building collections from a real
-  knowledge directory: 304 Markdown files gave 2,376 records in about 2 seconds, and a
-  `rag-search` run takes under a second including JVM start. Requirement files without front
-  matter were laid out by `split.headingPattern` and `map` alone: 141 files gave 601 records with
-  the directory name as the document key and a part of it as a filter field.
+- Implemented: the collections file loader; the step interfaces, the registry and
+  `SourcePipeline` in `ingest/`; the `files` origin, the `markdown` format, the heading splitter
+  and the template mapper as step beans; the index with its manifest; BM25 search with filters
+  and snippets; server-side response limits; the commands `rag-index` (in a Spring context
+  without the MCP server) and `rag-search`; the tool groups `collections` (`listCollections`) and
+  `search` (`search`, `getDocument`). User documents: `docs/collections.md`, `docs/search.md`.
+- Verified by `gradlew build` (64 tests on the synthetic knowledge in `testdata/`) and by running
+  the jar: `rag-index` builds a collection in under 2 seconds including the context start and
+  writes nothing but its report, a misspelled template value and an unknown format are reported
+  as configuration errors by `rag-index` and by `listCollections`, `rag-search` and a stdio
+  session work as before. Before the pipeline was introduced, collections were built from a real
+  knowledge directory: 304 Markdown files gave 2,376 records in about 2 seconds, and requirement
+  files without front matter were laid out by `split.headingPattern` and `map` alone (141 files,
+  601 records). That build has not been repeated on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about formats other than Markdown, `where`, models, vectors, hybrid
-search and the tool groups after `search` is the target design, not implemented.
+In section 3, everything about origins other than files, `convert`, formats other than Markdown,
+named readers, `where`, models, vectors, hybrid search and the tool groups after `search` is the
+target design, not implemented.
 
 ## 3. Architecture
 
@@ -50,29 +56,37 @@ model files ──────┘                 index + manifest             �
                                                                  └─ rag-search (command line)
 ```
 
-Per source, while building:
+Per source, while building, a fixed pipeline of five steps (D15). It is extract, transform, load:
+origin and `convert` extract, `format`, `split` and `map` transform, the indexer loads.
 
 ```
-file ─► format reader ─► tree of sections ─► chunker ─► records ─► analyzer + embedding ─► Lucene
-        (markdown, docbook)                             ▲
-        tsv / yaml / jsonl / command ───────────────────┘   (already records)
+origin ─► convert ─► format ─┬─► section tree ─► split ─► units ─┐
+ items     text       parse  └─► rows ──────────────────────────┴─► map ─► records ─► Lucene
 ```
 
-- A **reader** knows one format and produces a tree: section, title, text, children, plus
-  document fields (Markdown front matter, DocBook ids and page names).
-- The **chunker** is shared by tree formats: it cuts the tree into units by the source's `split`
-  block.
-- The **mapper** is shared by all formats: it turns the named values of a unit into a record by
-  the source's `map` block, then splits a long text and makes ids unique (D14).
-- **Record formats** skip the chunker: one TSV row, YAML list item or JSONL line is one unit whose
-  values are its columns or keys.
-- `command` runs an external program that prints JSONL records (D10).
+| Step | In → out | Configured by | Implementations |
+|---|---|---|---|
+| origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
+| `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
+| `format` | text → section tree or rows | `format` | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql` |
+| `split` | section tree → units | `split` | one: by heading level and pattern |
+| `map` | unit → records | `map` | one: templates (D14) |
 
-```
-file ─► reader ─► section tree ─► chunker (split) ─► units ─┐
-tsv / yaml / jsonl rows ───────────────────────────────────┼─► mapper (map) ─► records ─► Lucene
-command output ────────────────────────────────────────────┘
-```
+- Three shapes travel between the steps: **text** (with the item's relative path), a **section
+  tree** (section, title, text, children, plus document fields such as Markdown front matter) and
+  a **unit** of named values.
+- A row format skips `split`: one TSV row, YAML list item, JSONL line or SQL file is one unit
+  whose values are its columns, keys or header lines.
+- A format declares the names of the values it gives, its default `map` templates and its default
+  `include`; the template check of a source uses that declaration instead of a class of rules per
+  format.
+- A command is never a format (D10). As the origin it replaces `path`; in `convert` it runs for
+  every item, receives the file path or the previous step's text, and prints text. Both are an
+  argument array without a shell, with a timeout, in the directory of `collections.json`.
+- origin, `convert` and `format` have named implementations found through one registry; `split`
+  and `map` are interfaces with one implementation each until a second one is needed.
+- `mail-mcp-server` reads attachments the same way: Pandoc turns many formats into Markdown. Here
+  Pandoc is an example of a `convert` command and not a dependency (D17).
 
 ### 3.2 Collections file
 
@@ -95,9 +109,13 @@ target shape; the remaining field names are fixed by the stage that implements t
           "format": "markdown", "split": { "level": "h2", "maxChars": 2500 },
           "map": { "fields": { "area": "{path[0]}" } },
           "where": { "status": { "not": "skeleton" } } },
-        { "path": "C:/projects/billing-doc/manual.xml", "format": "docbook" },
-        { "format": "command", "command": ["python", "-I", "tools/export_help.py"],
-          "timeoutSeconds": 300 }
+        { "path": "C:/projects/billing/knowledge/queries", "include": "**/*.sql", "format": "sql" },
+        { "path": "C:/projects/billing/manuals", "include": "**/*.docx",
+          "convert": [ { "command": ["pandoc", "-f", "docx", "-t", "gfm", "{file}"],
+                         "timeoutSeconds": 60 } ],
+          "format": "markdown" },
+        { "command": ["python", "-I", "tools/export_help.py"], "timeoutSeconds": 300,
+          "format": "jsonl" }
       ],
       "language": "ru",
       "vectors": { "model": "e5-base" }
@@ -113,12 +131,16 @@ target shape; the remaining field names are fixed by the stage that implements t
 - The key is the collection name, the directory name under the data directory and the value
   tools take as `collection`. Form `<part>@<project>`; the same character rules as connection
   names in `jdbc-mcp-server`.
-- `format` selects the reader; without it the file extension decides.
+- A source has either `path` (files) or `command` (one run) as its origin.
+- `format` says how the text is parsed; without it the file extension decides. With `convert` it
+  is the format of the converted text.
+- A top-level `readers` object holds named sets of `convert`, `format`, `split` and `map`; a
+  source names one with `reader` and may override single keys (D18).
 - `where` selects records by field values.
 - A collection without `vectors` is lexical only (catalogs of codes and names).
 - Relative paths resolve against the directory of `collections.json`. String values may reference
   `${VAR}`.
-- A file with `command` sources is executable configuration: do not use one from an untrusted
+- A file with commands is executable configuration: do not use one from an untrusted
   origin.
 
 ### 3.3 Collection directory and manifest
@@ -192,25 +214,48 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 
 ```
 tools/ ──► search/ ──► index/
-  └──────► collections/        (listCollections shows collections that are not built)
-cli/ ───► collections/, index/, search/     (commands, without Spring)
-index/ ──► source/ ──► collections/         (build: scan, read, chunk, write)
+  └──────► collections/, ingest/    (listCollections shows collections that are not built)
+cli/ ───► collections/, ingest/, index/, search/
+index/ ──► ingest/ ──► collections/           (build: list, convert, parse, split, map, write)
 api/     — MCP wire records returned by tools
 config/  — Spring wiring, properties, MCP customizer
 ```
 
 | Package | Responsibility |
 |---|---|
-| `collections/` | `collections.json`: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `SplitSettings`, `MapSettings`, `Template` (the `{value}` language), `MarkdownMapRules` (which values a template may use), name rules, `${VAR}` placeholders |
-| `source/` | `SourceScanner` (files of a source), `MarkdownReader` (file to `SourceDocument` with a `Section` tree), `Chunker` (tree to units by `split`), `RecordMapper` (units to `ChunkRecord` by `map`) |
+| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
+| `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
+| `ingest/origin/` | `FilesOrigin`. Planned: `CommandOrigin` |
+| `ingest/convert/` | Planned: `CommandConverter` |
+| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`. Planned: `TsvFormat`, `YamlFormat`, `JsonlFormat`, `SqlFormat` |
+| `ingest/split/` | `HeadingSplitter` |
+| `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
+| `ingest/exec/` | Planned: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
-| `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before Spring starts |
+| `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools` |
 | `api/` | Response records with `@Schema` |
-| `config/` | `RagMcpProperties`, `RagConfig`, `McpServerConfig` |
+| `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig` |
 
 Planned: `embedding/` (model interface, ONNX implementation, cache) in stage 3.
+
+How the pipeline is wired:
+
+- `collections/` reads a source entry into a definition with the raw settings of each step.
+  `StepRegistry.checked` resolves the step names and reports a setting that does not fit as the
+  configuration error of the collection; every caller of `CollectionsLoader.load` applies it.
+- `CollectionIndexer` asks `SourcePipeline` for items and for the records of an item and names no
+  step implementation.
+- A step implementation is a `@Component`; the registry is a bean that receives every step bean
+  (D19). The step interfaces name no Spring type. `StepRegistry.builtIn()` gives the same steps
+  without a context for unit tests, and `StepBeansTest` fails when the two sets differ.
+- `rag-index` starts the application context with `spring.ai.mcp.server.enabled=false` and
+  `spring.ai.mcp.server.annotation-scanner.enabled=false`, so the stdio transport is not opened;
+  `rag-search` runs without Spring (D13).
+- Adding a format: a class in `ingest/format/` implementing `Format` and annotated `@Component`,
+  a line in `StepRegistry.builtIn()`, synthetic files in `testdata/` (D20), the format's section
+  in `docs/collections.md`. Nothing else changes.
 
 ## 4. Stages
 
@@ -221,7 +266,7 @@ done here. A stage is taken only when the user asks for it.
 |---|---|---|---|
 | 0 | Scaffold | Build, stdio server, `listCollections` stub, documents | done 2026-11-14 |
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
-| 2 | Remaining formats | `tsv`, `yaml`, `jsonl`, `docbook`, `command`; `where` conditions; `lookup` group | ⬜ |
+| 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | ⬜ |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
@@ -231,18 +276,36 @@ Stage 2 in more detail, as the next one:
 
 0. Done 2026-11-14: `split` and `map` on every source (D14), so the formats below only have to
    name their values and their defaults.
-1. A reader interface in `source/` chosen by `format`, or by file extension when `format` is
-   absent; `SourceScanner` takes its default `include` from the reader, and each format gets its
-   own rules of which values a template may use, as `MarkdownMapRules` does for Markdown.
-2. Record formats, one unit per item, no chunker: `tsv` (a row; values `{column.<name>}` from the
+1. Done 2026-11-15: the pipeline of section 3.1 in the packages of section 3.6, with the existing
+   Markdown reader, chunker and mapper moved behind the step interfaces and no change of
+   behavior. `format` is chosen by name, or by file extension when absent; the format gives the
+   default `include`, the default `map` templates and the value names a template may use.
+   Not done in this step: named readers (D18), see below.
+2. Row formats, one unit per item, no `split`: `tsv` (a row; values `{column.<name>}` from the
    header row), `yaml` (an item of a named list), `jsonl` (a line; values `{record.<key>}`). They
    have no default `text`, so `map.text` is required.
-3. `docbook`: a StAX reader of nested `section` elements into the section tree, with `xml:id` and
-   the page name from `<?dbhtml filename?>` as values.
-4. `command`: an external program printing JSONL records; argument array, no shell, timeout,
-   working directory of `collections.json` (D10).
-5. `where`: selection of records by field values, applied after reading.
+3. `sql` (D21): one file is one unit. The leading block of `--` comment lines is the header: a
+   line `-- key: value` gives the value `{header.<key>}`, the whole block without the dashes is
+   `{comment}`, the statement after it is `{sql}`, and `{body}` is the file as it is. Defaults:
+   the document key is `{header.id|document.path}`, the title is `{header.purpose|path.name}`, the
+   text is `{body}`. No SQL parsing.
+4. Commands (D10): `ingest/exec/`, the `command` origin and the `command` converter; argument
+   array, no shell, timeout, working directory of `collections.json`. `docs/collections.md` gets
+   a Pandoc example.
+5. `where`: selection of records by field values, applied after `map`.
 6. The `lookup` tool group for exact lookups in catalog collections.
+
+Every format step adds synthetic files of the same shape as the first real corpus to `testdata/`
+and is checked by building a collection from that corpus (D20). The corpus has Markdown, YAML,
+TSV, SQL and JSONL files, and these are the formats of this stage.
+
+`docbook` is not in this stage (D17). If it is written, it is a StAX reader of nested `section`
+elements into the section tree, with `xml:id` and the page name from `<?dbhtml filename?>` as
+values.
+
+Named readers (D18) are the next thing to do, before the formats: `CollectionsLoader` reads the
+top-level `readers` object and resolves a source that names a `reader` against it — the keys of
+the source replace the keys of the reader — before `StepRegistry.checked` sees the source.
 
 Left out of stage 1 and not assigned to a stage: the source revision in the manifest (it needs a
 decision on calling `git`, which invariant 6 of `AGENTS.md` does not allow today) and user
@@ -256,7 +319,8 @@ response text.
 
 - How the assistant service connects to this server and to other MCP servers (D1).
 - Which model and API the target site provides; whether it has an embedding endpoint.
-- Converters to Markdown for PDF and Office sources (code exists in `mail-mcp-server` `convert/`).
-- A format for SQL files with a metadata header, or describing them through a YAML source.
+- Built-in converters for PDF and Office sources (code exists in `mail-mcp-server` `convert/`), if
+  a `convert` command with Pandoc turns out not to be enough (D17).
+- When the DocBook reader is written (D17).
 - The license (P1) and the other proposals in `docs/decisions.md` section 3.
 - Legacy HTTP API (D2), if a client needs it.

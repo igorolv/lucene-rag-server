@@ -1,6 +1,8 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest.format;
 
 import org.junit.jupiter.api.Test;
+import ru.it_spectrum.ai.rag.mcp.ingest.Section;
+import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;
 
 import java.util.List;
 
@@ -10,7 +12,7 @@ class MarkdownReaderTest {
 
     @Test
     void frontMatterBecomesFieldsAndIsRemovedFromTheText() {
-        SourceDocument document = MarkdownReader.read("a/payments.md", """
+        SectionTree document = MarkdownReader.read("a/payments.md", """
                 ---
                 id: article.payments
                 kind: article
@@ -35,7 +37,7 @@ class MarkdownReaderTest {
 
     @Test
     void headingsBuildATreeByLevel() {
-        SourceDocument document = MarkdownReader.read("doc.md", """
+        SectionTree document = MarkdownReader.read("doc.md", """
                 Before any heading.
 
                 # Title
@@ -58,7 +60,7 @@ class MarkdownReaderTest {
 
     @Test
     void hashLinesInsideFencedCodeAreNotHeadings() {
-        SourceDocument document = MarkdownReader.read("doc.md", """
+        SectionTree document = MarkdownReader.read("doc.md", """
                 # Title
 
                 ```bash
@@ -77,7 +79,7 @@ class MarkdownReaderTest {
 
     @Test
     void withoutFrontMatterTheFileNameIsTheFallbackTitle() {
-        SourceDocument document = MarkdownReader.read("notes/release plan.md", "## Only a section\ntext\n");
+        SectionTree document = MarkdownReader.read("notes/release plan.md", "## Only a section\ntext\n");
 
         assertThat(document.path()).isEqualTo("notes/release plan.md");
         assertThat(document.title()).isEqualTo("release plan");
@@ -86,17 +88,17 @@ class MarkdownReaderTest {
 
     @Test
     void invalidOrUnterminatedFrontMatterStaysText() {
-        SourceDocument unterminated = MarkdownReader.read("a.md", "---\nid: x\n\n# Title\n");
+        SectionTree unterminated = MarkdownReader.read("a.md", "---\nid: x\n\n# Title\n");
         assertThat(unterminated.fields()).isEmpty();
         assertThat(unterminated.preamble()).contains("id: x");
 
-        SourceDocument invalid = MarkdownReader.read("b.md", "---\nid: [unclosed\n---\n# Title\n");
+        SectionTree invalid = MarkdownReader.read("b.md", "---\nid: [unclosed\n---\n# Title\n");
         assertThat(invalid.fields()).isEmpty();
     }
 
     @Test
     void headingMarkupIsStrippedFromTitles() {
-        SourceDocument document = MarkdownReader.read("a.md", "# The `search` tool and [docs](http://example.com)\n");
+        SectionTree document = MarkdownReader.read("a.md", "# The `search` tool and [docs](http://example.com)\n");
 
         assertThat(document.sections()).extracting(Section::title)
                 .isEqualTo(List.of("The search tool and docs"));

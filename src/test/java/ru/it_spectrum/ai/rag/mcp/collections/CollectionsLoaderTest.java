@@ -2,6 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.collections;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,7 +21,7 @@ class CollectionsLoaderTest {
     private List<CollectionDefinition> load(String json, Map<String, String> env) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, json);
-        return CollectionsLoader.load(file, env::get);
+        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, env::get));
     }
 
     @Test

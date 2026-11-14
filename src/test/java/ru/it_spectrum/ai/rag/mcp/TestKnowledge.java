@@ -4,6 +4,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,7 +53,7 @@ public final class TestKnowledge {
         Path file = writeCollectionsFile(dataDir);
         List<CollectionDefinition> definitions = CollectionsLoader.load(file, name -> null);
         for (CollectionDefinition definition : definitions) {
-            CollectionIndexer.build(definition, dataDir, "test");
+            CollectionIndexer.build(definition, StepRegistry.builtIn(), dataDir, "test");
         }
         return new RagMcpProperties(dataDir.toString(), null);
     }

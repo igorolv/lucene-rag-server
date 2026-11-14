@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest;
 
 import java.util.List;
 

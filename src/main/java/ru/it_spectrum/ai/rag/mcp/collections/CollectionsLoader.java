@@ -21,6 +21,10 @@ import java.util.function.UnaryOperator;
  * whose top level has the wrong shape, is an error. A single bad entry is reported through
  * {@link CollectionDefinition#configError()} and leaves the others usable.
  *
+ * <p>Only the shape of the file is read here. Whether a source fits its steps — the format
+ * exists, the templates of {@code map} use values the format gives — is checked by
+ * {@code ingest.StepRegistry#checked}, which callers apply to the result.
+ *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
  *
@@ -107,12 +111,6 @@ public final class CollectionsLoader {
             throw new IllegalArgumentException("\"chunk\" was renamed to \"split\" (and splitBy to level)");
         }
         String format = text(node.get("format"));
-        if (format == null) {
-            format = SourceDefinition.MARKDOWN;
-        }
-        if (!SourceDefinition.MARKDOWN.equals(format)) {
-            throw new IllegalArgumentException("format \"" + format + "\" is not supported; supported: markdown");
-        }
         String rawPath = EnvironmentPlaceholders.resolve(text(node.get("path")), where + ".path", env);
         if (rawPath == null || rawPath.isBlank()) {
             throw new IllegalArgumentException("\"path\" is required");
@@ -124,7 +122,6 @@ public final class CollectionsLoader {
         Path path = baseDir.resolve(rawPath).normalize();
         SplitSettings split = split(node.get("split"));
         MapSettings map = map(node.get("map"));
-        MarkdownMapRules.check(map, split);
         return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map);
     }
 

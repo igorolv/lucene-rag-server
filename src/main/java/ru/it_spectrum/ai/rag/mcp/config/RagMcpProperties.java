@@ -52,7 +52,7 @@ public record RagMcpProperties(String dataDir, String collectionsFile, Search se
     public static final String RESPONSE_MAX_CHARS_ENV = "RAG_MCP_RESPONSE_MAX_CHARS";
 
     /**
-     * Settings read straight from the environment, for user-run commands without Spring.
+     * Settings read straight from the environment, for a user-run command without Spring.
      * Mirrors the {@code rag-mcp.*} block of {@code application.yml}.
      *
      * @throws IllegalArgumentException when a numeric variable is not a whole number

@@ -6,6 +6,7 @@ import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -35,7 +36,7 @@ class CommandsTest {
     }
 
     private int index(String... args) {
-        return RagIndexCommand.run(args, properties(), out, name -> null, "test");
+        return RagIndexCommand.run(args, properties(), StepRegistry.builtIn(), out, name -> null, "test");
     }
 
     private int search(String... args) {

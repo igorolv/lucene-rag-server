@@ -1,9 +1,11 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest.format;
 
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
+import ru.it_spectrum.ai.rag.mcp.ingest.Section;
+import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,7 +39,7 @@ public final class MarkdownReader {
      * @param path    path relative to the source root, {@code /}-separated
      * @param content file text
      */
-    public static SourceDocument read(String path, String content) {
+    public static SectionTree read(String path, String content) {
         String text = content.replace("\r\n", "\n").replace('\r', '\n');
         if (text.startsWith("﻿")) {
             text = text.substring(1);
@@ -78,7 +80,10 @@ public final class MarkdownReader {
             title = sections.stream().filter(s -> s.level() == 1).map(Section::title).findFirst()
                     .orElseGet(() -> fileName(path));
         }
-        return new SourceDocument(path, title, Map.copyOf(fields), root.text.toString().strip(), sections);
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        fields.forEach((name, found) -> values.put(MarkdownFormat.FRONT_MATTER + name, found));
+        return new SectionTree(path, title, Map.copyOf(fields), Map.copyOf(values), root.text.toString().strip(),
+                sections);
     }
 
     private static String frontMatter(String text, Map<String, List<String>> fields) {

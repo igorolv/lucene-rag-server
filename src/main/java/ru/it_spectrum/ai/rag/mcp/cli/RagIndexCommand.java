@@ -1,10 +1,13 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -13,8 +16,9 @@ import java.util.Locale;
 import java.util.function.UnaryOperator;
 
 /**
- * User-run build of collections from their sources. Runs without Spring and never opens the MCP
- * transport.
+ * User-run build of collections from their sources. It starts the application context to get the
+ * same step beans the server has, with the MCP server switched off, so the stdio transport is
+ * never opened and stdout carries only the report (docs/decisions.md D19).
  *
  * <p>Exit codes: 0 built, 1 unexpected error, 2 usage or configuration, 4 a source could not be
  * read or the index could not be written.
@@ -26,19 +30,28 @@ public final class RagIndexCommand {
     private RagIndexCommand() {
     }
 
-    public static int run(String[] args) {
-        Cli.useCliLogging();
-        try {
-            return run(args, RagMcpProperties.fromEnvironment(System::getenv), System.out, System::getenv,
-                    Cli.serverVersion());
+    /**
+     * @param application the Spring Boot application class; passed in because this package must
+     *                    not depend on the root package
+     */
+    public static int run(Class<?> application, String[] args) {
+        Cli.quietLucene();
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(application)
+                .properties("spring.ai.mcp.server.enabled=false",
+                        "spring.ai.mcp.server.annotation-scanner.enabled=false",
+                        "logging.config=classpath:logback-cli.xml")
+                .logStartupInfo(false)
+                .run()) {
+            return run(args, context.getBean(RagMcpProperties.class), context.getBean(StepRegistry.class),
+                    System.out, System::getenv, Cli.serverVersion());
         } catch (RuntimeException e) {
             System.out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 1;
         }
     }
 
-    static int run(String[] args, RagMcpProperties properties, PrintStream out, UnaryOperator<String> env,
-                   String serverVersion) {
+    static int run(String[] args, RagMcpProperties properties, StepRegistry registry, PrintStream out,
+                   UnaryOperator<String> env, String serverVersion) {
         if (args.length != 1 || List.of("--help", "-h").contains(args[0])) {
             out.println("Usage: java -jar lucene-rag-server.jar rag-index <collection> | --all");
             out.println("Builds collections from their sources as described in collections.json.");
@@ -46,7 +59,7 @@ public final class RagIndexCommand {
         }
         final List<CollectionDefinition> definitions;
         try {
-            definitions = CollectionsLoader.load(properties, env);
+            definitions = registry.checked(CollectionsLoader.load(properties, env));
         } catch (IllegalStateException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 2;
@@ -78,7 +91,8 @@ public final class RagIndexCommand {
             out.println("Collection " + definition.name());
             long start = System.nanoTime();
             try {
-                Manifest manifest = CollectionIndexer.build(definition, properties.resolvedDataDir(), serverVersion);
+                Manifest manifest = CollectionIndexer.build(definition, registry, properties.resolvedDataDir(),
+                        serverVersion);
                 out.println(String.format(Locale.ROOT, "  files %d, documents %d, records %d, %.1f s",
                         manifest.files(), manifest.documents(), manifest.records(),
                         (System.nanoTime() - start) / 1e9));

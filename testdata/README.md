@@ -1,7 +1,8 @@
 # testdata
 
-Synthetic knowledge of an invented billing system, used by the tests and safe to publish. Nothing
-here comes from a real project.
+Synthetic knowledge of an invented billing system, used by the tests and safe to publish. No text
+or name here comes from a real project; the formats and the layout of the files follow the first
+real corpus the server is built for (`docs/decisions.md` D20).
 
 | Path | What it is |
 |---|---|

@@ -9,12 +9,11 @@ import java.nio.file.Path;
  * @param include glob on the path relative to {@code path}, {@code /}-separated; {@code null}
  *                means the format's default
  * @param exclude glob of files to skip, or {@code null}
- * @param format  reader name
+ * @param format  name of the format step, or {@code null} when the source names none and the
+ *                file extension decides
  * @param split   how a file is cut into units
  * @param map     how a unit is laid out as a record
  */
 public record SourceDefinition(Path path, String include, String exclude, String format,
                                SplitSettings split, MapSettings map) {
-
-    public static final String MARKDOWN = "markdown";
 }

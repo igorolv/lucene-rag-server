@@ -12,6 +12,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,10 +37,12 @@ public class CollectionTools {
 
     private final CollectionStore store;
     private final RagMcpProperties properties;
+    private final StepRegistry registry;
 
-    public CollectionTools(CollectionStore store, RagMcpProperties properties) {
+    public CollectionTools(CollectionStore store, RagMcpProperties properties, StepRegistry registry) {
         this.store = store;
         this.properties = properties;
+        this.registry = registry;
     }
 
     @McpTool(
@@ -60,7 +63,8 @@ public class CollectionTools {
         }
         Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
         try {
-            for (CollectionDefinition definition : CollectionsLoader.load(properties, System::getenv)) {
+            for (CollectionDefinition definition
+                    : registry.checked(CollectionsLoader.load(properties, System::getenv))) {
                 if (!builtNames.contains(definition.name())) {
                     infos.add(new CollectionInfo(definition.name(), definition.description(), false, null,
                             null, null, definition.configError()));

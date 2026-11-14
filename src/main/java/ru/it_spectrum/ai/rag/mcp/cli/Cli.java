@@ -14,11 +14,19 @@ final class Cli {
     private Cli() {
     }
 
-    /** Commands report on stdout, so logging goes to stderr only ({@code logback-cli.xml}). */
+    /**
+     * Commands report on stdout, so logging goes to stderr only ({@code logback-cli.xml}). For a
+     * command that runs without Spring; one that starts a context names the same file in
+     * {@code logging.config} and calls {@link #quietLucene()}.
+     */
     static void useCliLogging() {
         if (System.getProperty("logback.configurationFile") == null) {
             System.setProperty("logback.configurationFile", "logback-cli.xml");
         }
+        quietLucene();
+    }
+
+    static void quietLucene() {
         LUCENE_VECTORIZATION.setLevel(java.util.logging.Level.SEVERE);
     }
 

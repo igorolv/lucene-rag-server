@@ -1,6 +1,12 @@
-package ru.it_spectrum.ai.rag.mcp.source;
+package ru.it_spectrum.ai.rag.mcp.ingest.split;
 
+import org.springframework.stereotype.Component;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
+import ru.it_spectrum.ai.rag.mcp.ingest.Section;
+import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;
+import ru.it_spectrum.ai.rag.mcp.ingest.Splitter;
+import ru.it_spectrum.ai.rag.mcp.ingest.Unit;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,7 +17,7 @@ import java.util.regex.Pattern;
 
 /**
  * Cuts a section tree into units by {@link SplitSettings}. Shared by every tree format; what a
- * unit becomes is decided afterwards by {@link RecordMapper}.
+ * unit becomes is decided afterwards by the mapper.
  *
  * <ol>
  *   <li>Each section at the split level becomes one unit together with everything nested in it.
@@ -24,28 +30,16 @@ import java.util.regex.Pattern;
  *       parent when the result still fits {@code maxChars}.</li>
  * </ol>
  *
- * Splitting a long unit by {@code maxChars} happens after mapping, on the final text
- * ({@link #split}).
+ * Splitting a long unit by {@code maxChars} happens after mapping, on the final text.
+ *
+ * <p>A unit carries the values {@link Unit#HEADING}, {@link Unit#PARENTS}, {@link Unit#BODY} and
+ * one {@code heading.<group>} per named group of the heading pattern that matched.
  */
-public final class Chunker {
+@Component
+public final class HeadingSplitter implements Splitter {
 
-    private Chunker() {
-    }
-
-    /**
-     * One piece of a document.
-     *
-     * @param ancestors headings above the unit, outermost first
-     * @param level     heading level of the unit; 0 for the introduction and for a whole document
-     * @param heading   heading of the unit; the document title when the unit has none
-     * @param groups    named groups of the heading pattern that matched the heading
-     * @param text      text of the unit, nested sections included with their headings
-     * @param intro     the unit is the text before the first heading
-     */
-    public record Unit(List<String> ancestors, int level, String heading, Map<String, String> groups,
-                       String text, boolean intro) { }
-
-    public static List<Unit> units(SourceDocument document, SplitSettings settings) {
+    @Override
+    public List<Unit> split(SectionTree document, SplitSettings settings) {
         List<Draft> drafts = new ArrayList<>();
         if (settings.level() == SplitSettings.DOCUMENT) {
             StringBuilder text = new StringBuilder(document.preamble());
@@ -65,8 +59,7 @@ public final class Chunker {
             }
             drafts = merge(drafts, settings);
         }
-        return drafts.stream().map(d -> new Unit(d.ancestors, d.level, d.heading, d.groups, d.text.toString(),
-                d.intro)).toList();
+        return drafts.stream().map(Draft::toUnit).toList();
     }
 
     private static void collect(Section section, List<String> ancestors, int splitLevel, Pattern pattern,
@@ -136,58 +129,6 @@ public final class Chunker {
         return merged;
     }
 
-    /** Parts of a text no longer than {@code maxChars}: cut at blank lines, then line ends, then inside a line. */
-    public static List<String> split(String text, int maxChars) {
-        if (text.length() <= maxChars) {
-            return List.of(text);
-        }
-        List<String> pieces = new ArrayList<>();
-        for (String paragraph : text.split("\n[ \\t]*\n")) {
-            if (paragraph.length() <= maxChars) {
-                pieces.add(paragraph);
-                continue;
-            }
-            StringBuilder block = new StringBuilder();
-            for (String line : paragraph.split("\n")) {
-                while (line.length() > maxChars) {
-                    if (!block.isEmpty()) {
-                        pieces.add(block.toString());
-                        block.setLength(0);
-                    }
-                    pieces.add(line.substring(0, maxChars));
-                    line = line.substring(maxChars);
-                }
-                if (!block.isEmpty() && block.length() + 1 + line.length() > maxChars) {
-                    pieces.add(block.toString());
-                    block.setLength(0);
-                }
-                if (!block.isEmpty()) {
-                    block.append('\n');
-                }
-                block.append(line);
-            }
-            if (!block.isEmpty()) {
-                pieces.add(block.toString());
-            }
-        }
-        List<String> parts = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        for (String piece : pieces) {
-            if (!current.isEmpty() && current.length() + 2 + piece.length() > maxChars) {
-                parts.add(current.toString());
-                current.setLength(0);
-            }
-            if (!current.isEmpty()) {
-                current.append("\n\n");
-            }
-            current.append(piece);
-        }
-        if (!current.isEmpty()) {
-            parts.add(current.toString());
-        }
-        return parts;
-    }
-
     private static final class Draft {
         final List<String> ancestors;
         final int level;
@@ -204,6 +145,19 @@ public final class Chunker {
             this.groups = groups;
             this.text = new StringBuilder(text);
             this.intro = intro;
+        }
+
+        Unit toUnit() {
+            Map<String, List<String>> values = new LinkedHashMap<>();
+            values.put(Unit.HEADING, one(heading));
+            groups.forEach((name, value) -> values.put(Unit.HEADING_GROUP + name, one(value)));
+            values.put(Unit.PARENTS, one(String.join(ChunkRecord.BREADCRUMB_SEPARATOR, ancestors)));
+            values.put(Unit.BODY, one(text.toString()));
+            return new Unit(ancestors, intro, values);
+        }
+
+        private static List<String> one(String value) {
+            return value == null || value.isEmpty() ? List.of() : List.of(value);
         }
     }
 }

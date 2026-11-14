@@ -10,15 +10,12 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.FSDirectory;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
-import ru.it_spectrum.ai.rag.mcp.source.ChunkRecord;
-import ru.it_spectrum.ai.rag.mcp.source.Chunker;
-import ru.it_spectrum.ai.rag.mcp.source.MarkdownReader;
-import ru.it_spectrum.ai.rag.mcp.source.RecordMapper;
-import ru.it_spectrum.ai.rag.mcp.source.SourceDocument;
-import ru.it_spectrum.ai.rag.mcp.source.SourceScanner;
+import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
+import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
+import ru.it_spectrum.ai.rag.mcp.ingest.SourcePipeline;
+import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -33,7 +30,8 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
- * Builds one collection from its sources into {@code <data-dir>/<collection>/}.
+ * Builds one collection from its sources into {@code <data-dir>/<collection>/}. How a source
+ * becomes records is the business of its {@link SourcePipeline}; no step is named here.
  *
  * <p>The index is written into a temporary sibling directory and replaces the previous one only
  * after it is complete, so a failed build leaves the old collection in place. The replacement is
@@ -48,14 +46,15 @@ public final class CollectionIndexer {
 
     /**
      * @param definition    a usable collection definition
+     * @param registry      the steps sources are built with
      * @param dataDir       server data directory
      * @param serverVersion recorded in the manifest
      * @return the manifest of the collection just built
      * @throws IOException              when a source cannot be read or the index cannot be written
      * @throws IllegalArgumentException when the definition is unusable or two records share an id
      */
-    public static Manifest build(CollectionDefinition definition, Path dataDir, String serverVersion)
-            throws IOException {
+    public static Manifest build(CollectionDefinition definition, StepRegistry registry, Path dataDir,
+                                 String serverVersion) throws IOException {
         if (!definition.usable()) {
             throw new IllegalArgumentException("Collection " + definition.name() + ": " + definition.configError());
         }
@@ -64,7 +63,7 @@ public final class CollectionIndexer {
         Path building = dataDir.resolve(BUILD_PREFIX + definition.name() + "-" + System.nanoTime());
         try {
             Files.createDirectories(building);
-            Manifest manifest = write(definition, building, serverVersion);
+            Manifest manifest = write(definition, registry, building, serverVersion);
             deleteTree(target);
             Files.move(building, target);
             return manifest;
@@ -73,8 +72,8 @@ public final class CollectionIndexer {
         }
     }
 
-    private static Manifest write(CollectionDefinition definition, Path dir, String serverVersion)
-            throws IOException {
+    private static Manifest write(CollectionDefinition definition, StepRegistry registry, Path dir,
+                                  String serverVersion) throws IOException {
         int files = 0;
         int documents = 0;
         int records = 0;
@@ -84,22 +83,20 @@ public final class CollectionIndexer {
         try (var directory = FSDirectory.open(dir.resolve(Manifest.INDEX_DIR));
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             for (SourceDefinition source : definition.sources()) {
+                SourcePipeline pipeline = registry.pipeline(source);
                 sources.add(new Manifest.Source(source.path().toString(), source.include(), source.exclude(),
-                        source.format(), source.split(), source.map()));
-                for (SourceScanner.SourceFile file : SourceScanner.files(source)) {
+                        pipeline.format(), source.split(), source.map()));
+                for (SourceItem item : pipeline.items()) {
                     files++;
-                    SourceDocument document = MarkdownReader.read(file.relativePath(),
-                            Files.readString(file.file(), StandardCharsets.UTF_8));
-                    List<ChunkRecord> chunks = RecordMapper.map(document, Chunker.units(document, source.split()),
-                            source.map(), source.split().maxChars());
+                    List<ChunkRecord> chunks = pipeline.records(item);
                     if (!chunks.isEmpty()) {
                         documents++;
                     }
                     for (ChunkRecord record : chunks) {
-                        String other = ids.putIfAbsent(record.id(), file.file().toString());
+                        String other = ids.putIfAbsent(record.id(), item.location());
                         if (other != null) {
                             throw new IllegalArgumentException("Two records share the id '" + record.id()
-                                    + "': " + other + " and " + file.file()
+                                    + "': " + other + " and " + item.location()
                                     + ". Make the document keys or the map.id template distinguish them");
                         }
                         fieldNames.addAll(record.fields().keySet());

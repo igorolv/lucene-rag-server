@@ -15,6 +15,11 @@ public record CollectionDefinition(String name, String description, List<SourceD
         return configError == null;
     }
 
+    /** This entry as a broken one: a source of it does not fit its steps. */
+    public CollectionDefinition withError(String error) {
+        return new CollectionDefinition(name, description, sources, error);
+    }
+
     static CollectionDefinition broken(String name, String description, String error) {
         return new CollectionDefinition(name, description, List.of(), error);
     }
