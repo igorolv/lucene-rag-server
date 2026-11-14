@@ -1,10 +1,11 @@
 # Search
 
-How the `search` and `getDocument` tools and the `rag-search` command find records, and how the
-server bounds what one call returns.
+How the `search`, `lookup` and `getDocument` tools and the `rag-search` command find records, and
+how the server bounds what one call returns.
 
 - [Queries](#queries)
 - [Filters](#filters)
+- [Exact lookup](#exact-lookup)
 - [Results](#results)
 - [Limits](#limits)
 - [The rag-search command](#the-rag-search-command)
@@ -36,6 +37,24 @@ Search is lexical (BM25) over the built collections named in the call.
   of them equals the filter.
 - Several filters must all hold. An unknown field name is an error that lists the known ones.
 - With filters the query may be omitted: the call then lists the matching records in index order.
+
+## Exact lookup
+
+`lookup` finds catalog records by a value without the name of the field it is in: a code, an
+identifier, a class or table name, a message text. It is for the case where the caller has the
+value, as an error text from a screen or a parameter code, and not the words to describe it.
+
+- The value is compared whole with every value of the key fields of the collections: without
+  surrounding blanks and ignoring case, as a filter compares. Words are not matched one by one,
+  word forms do not match, and a part of a value finds nothing.
+- The key fields are those the operator listed in `map.keys` of the sources
+  ([collections.md](collections.md#mapping)); `listCollections` shows them as `keys`. A
+  collection without keys is skipped; naming only such collections is an error that lists the
+  collections that have keys.
+- Results come in index order, with the passage as the snippet, and are paged and capped like
+  the results of `search`. `getDocument` reads a hit in full.
+- With a field name at hand, `search` with `filters` and no query is the same exact match on that
+  field alone.
 
 ## Results
 
@@ -75,10 +94,15 @@ java -jar lucene-rag-server.jar rag-search docs@billing "отмена плате
 java -jar lucene-rag-server.jar rag-search docs@billing,api@billing --filter kind=playbook
 ```
 
-The first argument is one or more collection names separated by commas; the remaining words are
-the query. `--filter name=value` may be repeated. Exit codes: 0 searched (also with no matches),
-1 unexpected error, 2 wrong usage or an unknown collection or filter field, 4 an index could not
-be read.
+```bash
+java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STATUS_ENUM
+```
+
+The first argument is one or more collection names separated by commas; the remaining words are the
+query. `--filter name=value` may be repeated. `--lookup value` makes an [exact
+lookup](#exact-lookup) instead and takes no query and no filters. Exit codes: 0 searched (also with
+no matches), 1 unexpected error, 2 wrong usage or an unknown collection or filter field, 4 an index
+could not be read.
 
 ## Known limits
 

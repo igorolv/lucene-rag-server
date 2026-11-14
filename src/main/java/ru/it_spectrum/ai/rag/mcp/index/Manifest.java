@@ -26,13 +26,19 @@ import java.util.Map;
  * @param documents     documents that produced at least one record
  * @param records       records in the index
  * @param fields        names of the document fields usable as filters, sorted
+ * @param keys          names of the fields the {@code lookup} tool searches, sorted; empty for none
  * @param sources       what the collection was built from
  */
 public record Manifest(int schema, String name, String description, String builtAt, String serverVersion,
-                       int files, int documents, int records, List<String> fields, List<Source> sources) {
+                       int files, int documents, int records, List<String> fields, List<String> keys,
+                       List<Source> sources) {
+
+    public Manifest {
+        keys = keys == null ? List.of() : List.copyOf(keys);
+    }
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 5;
+    public static final int SCHEMA = 6;
 
     public static final String FILE_NAME = "manifest.json";
     public static final String INDEX_DIR = "index";

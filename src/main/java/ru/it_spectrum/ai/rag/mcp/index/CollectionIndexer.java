@@ -79,12 +79,14 @@ public final class CollectionIndexer {
         int documents = 0;
         int records = 0;
         var fieldNames = new TreeSet<String>();
+        var keyNames = new TreeSet<String>();
         Map<String, String> ids = new HashMap<>();
         List<Manifest.Source> sources = new ArrayList<>();
         try (var directory = FSDirectory.open(dir.resolve(Manifest.INDEX_DIR));
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             for (SourceDefinition source : definition.sources()) {
                 SourcePipeline pipeline = registry.pipeline(source);
+                List<String> keys = source.map().keys() == null ? List.of() : source.map().keys();
                 sources.add(new Manifest.Source(source.path() == null ? null : source.path().toString(),
                         source.include(), source.exclude(), pipeline.format(), source.split(), source.map(),
                         source.command() == null ? null : source.command().command(),
@@ -104,7 +106,12 @@ public final class CollectionIndexer {
                                     + ". Make the document keys or the map.id template distinguish them");
                         }
                         fieldNames.addAll(record.fields().keySet());
-                        writer.addDocument(document(definition.name(), record));
+                        for (String key : keys) {
+                            if (record.fields().containsKey(key)) {
+                                keyNames.add(key);
+                            }
+                        }
+                        writer.addDocument(document(definition.name(), record, keys));
                         records++;
                     }
                 }
@@ -113,12 +120,12 @@ public final class CollectionIndexer {
         }
         Manifest manifest = new Manifest(Manifest.SCHEMA, definition.name(), definition.description(),
                 Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
-                files, documents, records, List.copyOf(fieldNames), List.copyOf(sources));
+                files, documents, records, List.copyOf(fieldNames), List.copyOf(keyNames), List.copyOf(sources));
         manifest.write(dir);
         return manifest;
     }
 
-    private static Document document(String collection, ChunkRecord record) {
+    private static Document document(String collection, ChunkRecord record, List<String> keys) {
         Document doc = new Document();
         doc.add(new StringField(IndexFields.ID, record.id(), Field.Store.YES));
         doc.add(new StringField(IndexFields.DOCUMENT, record.document(), Field.Store.YES));
@@ -137,6 +144,11 @@ public final class CollectionIndexer {
                 doc.add(new StringField(IndexFields.FILTER_PREFIX + field.getKey(), filterTerm(value),
                         Field.Store.NO));
                 doc.add(new StoredField(IndexFields.VALUE_PREFIX + field.getKey(), value));
+            }
+        }
+        for (String key : keys) {
+            for (String value : record.fields().getOrDefault(key, List.of())) {
+                doc.add(new StringField(IndexFields.LOOKUP, filterTerm(value), Field.Store.NO));
             }
         }
         return doc;

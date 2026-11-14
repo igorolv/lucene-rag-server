@@ -284,7 +284,7 @@ public final class CollectionsLoader {
         return new MapSettings(text(node.get("pathPattern")), text(node.get("document")), text(node.get("id")), text(node.get("title")),
                 strings(node.get("breadcrumb"), "map.breadcrumb"), text(node.get("text")),
                 fields == null ? null : Collections.unmodifiableMap(fields),
-                strings(node.get("inheritFields"), "map.inheritFields"));
+                strings(node.get("inheritFields"), "map.inheritFields"), strings(node.get("keys"), "map.keys"));
     }
 
     private static List<String> strings(JsonNode node, String field) {

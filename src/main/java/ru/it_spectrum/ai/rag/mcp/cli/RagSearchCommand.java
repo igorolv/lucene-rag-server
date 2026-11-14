@@ -42,6 +42,7 @@ public final class RagSearchCommand {
 
     static int run(String[] args, RagMcpProperties properties, PrintStream out) {
         Integer limit = null;
+        String lookup = null;
         Map<String, String> filters = new LinkedHashMap<>();
         List<String> positional = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
@@ -50,13 +51,15 @@ public final class RagSearchCommand {
                 usage(out);
                 return 0;
             }
-            if (List.of("--limit", "--filter").contains(arg)) {
+            if (List.of("--limit", "--filter", "--lookup").contains(arg)) {
                 if (i + 1 >= args.length) {
                     usage(out);
                     return 2;
                 }
                 String value = args[++i];
-                if ("--limit".equals(arg)) {
+                if ("--lookup".equals(arg)) {
+                    lookup = value;
+                } else if ("--limit".equals(arg)) {
                     try {
                         limit = Integer.valueOf(value);
                     } catch (NumberFormatException e) {
@@ -75,7 +78,9 @@ public final class RagSearchCommand {
                 positional.add(arg);
             }
         }
-        if (positional.isEmpty() || (positional.size() == 1 && filters.isEmpty())) {
+        boolean byLookup = lookup != null;
+        if (positional.isEmpty() || (byLookup && (positional.size() > 1 || !filters.isEmpty()))
+                || (!byLookup && positional.size() == 1 && filters.isEmpty())) {
             usage(out);
             return 2;
         }
@@ -84,8 +89,9 @@ public final class RagSearchCommand {
         String query = String.join(" ", positional.subList(1, positional.size()));
         final SearchPage page;
         try {
-            page = new SearchService(new CollectionStore(properties.resolvedDataDir()), properties)
-                    .search(collections, query, filters, limit, null);
+            SearchService service = new SearchService(new CollectionStore(properties.resolvedDataDir()), properties);
+            page = byLookup ? service.lookup(collections, lookup, limit, null)
+                    : service.search(collections, query, filters, limit, null);
         } catch (IllegalArgumentException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 2;
@@ -115,5 +121,8 @@ public final class RagSearchCommand {
                 + " [--limit N] [--filter name=value]...");
         out.println("Searches built collections. Words are optional, \"quoted words\" are a phrase.");
         out.println("With --filter the query may be omitted to list matching records.");
+        out.println("   or: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] --lookup <value>"
+                + " [--limit N]");
+        out.println("Finds records whose key fields (map.keys) have the exact value, ignoring case.");
     }
 }

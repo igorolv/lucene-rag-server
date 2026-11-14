@@ -32,6 +32,9 @@ public record CollectionInfo(
         @Schema(description = "Field names accepted by the 'filters' argument of search",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> fields,
+        @Schema(description = "Fields whose values the lookup tool finds records by; absent when none",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        List<String> keys,
         @Schema(description = "Why the collection cannot be built, when its configuration is wrong",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String configError) {

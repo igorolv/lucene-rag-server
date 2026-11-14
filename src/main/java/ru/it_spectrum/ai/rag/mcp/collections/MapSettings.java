@@ -19,10 +19,12 @@ import java.util.regex.PatternSyntaxException;
  * @param text          template of the indexed and returned passage
  * @param fields        filter field name to the template of its values
  * @param inheritFields document fields copied to the record as they are; {@code *} for all
+ * @param keys          fields whose values the {@code lookup} tool finds the record by; {@code null}
+ *                      for none
  */
 public record MapSettings(String pathPattern, String document, String id, String title,
                           List<String> breadcrumb, String text, Map<String, String> fields,
-                          List<String> inheritFields) {
+                          List<String> inheritFields, List<String> keys) {
 
     public static final String ALL_FIELDS = "*";
 
@@ -51,5 +53,11 @@ public record MapSettings(String pathPattern, String document, String id, String
         return pathPattern == null ? null : Pattern.compile(pathPattern);
     }
 
-    public static final MapSettings DEFAULT = new MapSettings(null, null, null, null, null, null, null, null);
+    public static final MapSettings DEFAULT = new MapSettings(null, null, null, null, null, null, null, null, null);
+
+    /** Settings without {@code keys}. */
+    public MapSettings(String pathPattern, String document, String id, String title, List<String> breadcrumb,
+                       String text, Map<String, String> fields, List<String> inheritFields) {
+        this(pathPattern, document, id, title, breadcrumb, text, fields, inheritFields, null);
+    }
 }

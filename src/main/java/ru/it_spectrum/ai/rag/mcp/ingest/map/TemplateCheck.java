@@ -62,6 +62,13 @@ final class TemplateCheck {
                 check.template("map.fields." + field.getKey(), field.getValue(), 3);
             }
         }
+        if (map.keys() != null) {
+            for (String name : map.keys()) {
+                if (!FIELD_NAME.matcher(name).matches()) {
+                    throw new IllegalArgumentException("map.keys: \"" + name + "\" is not a field name");
+                }
+            }
+        }
         if (map.inheritFields() != null) {
             for (String name : map.inheritFields()) {
                 if (!MapSettings.ALL_FIELDS.equals(name) && !FIELD_NAME.matcher(name).matches()) {

@@ -18,30 +18,31 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
+Stages 1 and 2, 2026-11-15: collections described in `collections.json` are
 built from Markdown sources into one Lucene index each and searched lexically; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
 by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats and
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
-named reader and select its records with `where`.
+named reader and select its records with `where`; catalog records are found by an exact value of
+their key fields.
 
-- Implemented: the collections file loader with named readers; the step interfaces, the registry and
-  `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command` converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter
-  and the template mapper as step beans; the index with its manifest; BM25 search with filters
-  and snippets; server-side response limits; the commands `rag-index` (in a Spring context
-  without the MCP server) and `rag-search`; the tool groups `collections` (`listCollections`) and
-  `search` (`search`, `getDocument`). User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (64 tests on the synthetic knowledge in `testdata/`) and by running
-  the jar: `rag-index` builds a collection in under 2 seconds including the context start and
-  writes nothing but its report, a misspelled template value and an unknown format are reported
-  as configuration errors by `rag-index` and by `listCollections`, `rag-search` and a stdio
-  session work as before. Before the pipeline was introduced, collections were built from a real
-  knowledge directory: 304 Markdown files gave 2,376 records in about 2 seconds, and requirement
-  files without front matter were laid out by `split.headingPattern` and `map` alone (141 files,
-  601 records). That build has not been repeated on the pipeline.
+- Implemented: the collections file loader with named readers; the step interfaces, the
+  registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
+  converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter and
+  the template mapper as step beans; `where`; the index with its manifest; BM25 search with
+  filters and snippets; exact lookup by key fields; server-side response limits; the commands
+  `rag-index` (in a Spring context without the MCP server) and `rag-search`; the tool groups
+  `collections` (`listCollections`), `search` (`search`, `getDocument`) and `lookup` (`lookup`).
+  User documents: `docs/collections.md`, `docs/search.md`.
+- Verified by `gradlew build` (111 tests on the synthetic knowledge in `testdata/`) and by running
+  the jar: `rag-index` writes nothing but its report, and a stdio session lists the four tools,
+  answers `lookup` and drops it with `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where` and
+  `lookup` were checked by building collections from the first real corpus (numbers in section
+  4, stage 2). Requirement files without front matter (stage 1: 141 files, 601 records) have not
+  been rebuilt on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about models, vectors, hybrid search and the tool groups after `search`
+In section 3, everything about models, vectors, hybrid search and the tool groups after `lookup`
 is the target design, not implemented.
 
 ## 3. Architecture
@@ -196,7 +197,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 |---|---|---|
 | `collections` | `listCollections` | done |
 | `search` | `search`, `getDocument` | done |
-| `lookup` | exact lookups in catalog collections | 2 |
+| `lookup` | `lookup`: exact lookups by the key fields of catalog collections (D23) | done |
 | `admin` | `rebuildCollection` | 5 |
 | `browse` | list by filters, facets, related records | 6 |
 | `debug` | analyzer output, score explanation, mode comparison | 6 |
@@ -237,7 +238,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
-| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools` |
+| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig` |
 
@@ -269,13 +270,13 @@ done here. A stage is taken only when the user asks for it.
 |---|---|---|---|
 | 0 | Scaffold | Build, stdio server, `listCollections` stub, documents | done 2026-11-14 |
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
-| 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | ⬜ |
+| 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
-Stage 2 in more detail, as the next one:
+Stage 2 in more detail; the next stage is 3:
 
 0. Done 2026-11-14: `split` and `map` on every source (D14), so the formats below only have to
    name their values and their defaults.
@@ -291,12 +292,13 @@ Stage 2 in more detail, as the next one:
    line; values `{record.<key>}`). They have no default `text`, so `map.text` is required.
    Checked on the first corpus: 11 TSV files gave 5,216 records, 37 YAML files 148 records,
    1 JSONL file 20 records.
-3. Done 2026-11-15: `sql` (D21): one file is one unit. The leading block of `--` comment lines
-   is the header: a line `-- key: value` gives the value `{header.<key>}`, the whole block without the dashes is
-   `{comment}`, the statement after it is `{sql}`, and `{body}` is the file as it is. Defaults:
-   the document key is `{header.id|document.path}`, the title is `{header.purpose|path.name}`, the
-   text is `{body}`, the id is `{document.key}`. No SQL parsing. Checked on the first corpus: 9
-   query files gave 12 records, 8 catalog generators with a free comment 9 records.
+3. Done 2026-11-15: `sql` (D21): one file is one unit. The leading block of `--` comment lines is
+   the header: a line `-- key: value` gives the value `{header.<key>}`, the whole block without the
+   dashes is `{comment}`, the statement after it is `{sql}`, and `{body}` is the file as it is.
+   Defaults: the document key is `{header.id|document.path}`, the title is
+   `{header.purpose|path.name}`, the text is `{body}`, the id is `{document.key}`. No SQL parsing.
+   Checked on the first corpus: 9 query files gave 12 records, 8 catalog generators with a free
+   comment 9 records.
 4. Done 2026-11-15: commands (D10): `ingest/exec/`, the `command` origin and the `command`
    converter; argument array, no shell, timeout (default 60 seconds), working directory of
    `collections.json`, output read as UTF-8. A `convert` step names its converter by a key and is
@@ -308,7 +310,11 @@ Stage 2 in more detail, as the next one:
    `SourcePipeline`; equality and `not`, compared as filters compare. The manifest keeps the
    conditions. Checked on the first corpus: 222 Markdown files gave 133 documents without one
    `kind`, 5 with another.
-6. The `lookup` tool group for exact lookups in catalog collections.
+6. Done 2026-11-15: the `lookup` tool group (D23): `map.keys` names the key fields of a source,
+   their values are indexed as one exact lower-cased term each in a field of their own, and the
+   manifest lists the keys; `lookup` and `rag-search --lookup` match a value against them.
+   Checked on the first corpus: 6 catalog files gave 3,416 records, and a parameter code in
+   either case, a message text, a job class and a menu id and address were each found.
 
 Every format step adds synthetic files of the same shape as the first real corpus to `testdata/`
 and is checked by building a collection from that corpus (D20). The corpus has Markdown, YAML,

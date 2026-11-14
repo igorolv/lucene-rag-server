@@ -68,6 +68,7 @@ The server speaks MCP over stdio. Register it in an MCP client as
 | `listCollections` | `collections` | Collections of this server, their descriptions and filter fields |
 | `search` | `search` | Passages matching a query and filters in one or more collections ([docs/search.md](docs/search.md)) |
 | `getDocument` | `search` | One record in full |
+| `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 
 ## Settings
 
@@ -77,6 +78,7 @@ The server speaks MCP over stdio. Register it in an MCP client as
 | `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json` | Collection definitions; needed to build, not to serve |
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
+| `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |
 | `RAG_MCP_SEARCH_MAX_LIMIT` | `50` | The most hits per page a call can get |
 | `RAG_MCP_RESPONSE_MAX_CHARS` | `20000` | Characters of passage text in one response |

@@ -87,10 +87,6 @@ public final class SearchService {
         if (text.length() > MAX_QUERY_CHARS) {
             throw new IllegalArgumentException("query is longer than " + MAX_QUERY_CHARS + " characters");
         }
-        int pageSize = limit == null ? properties.searchDefaultLimit()
-                : Math.min(properties.searchMaxLimit(), Math.max(1, limit));
-        int skip = offset == null ? 0 : Math.max(0, offset);
-
         Query textQuery = text.isEmpty() ? null : parse(text);
         var builder = new BooleanQuery.Builder();
         builder.add(textQuery == null ? new MatchAllDocsQuery() : textQuery, BooleanClause.Occur.MUST);
@@ -108,8 +104,45 @@ public final class SearchService {
                         CollectionIndexer.filterTerm(filter.getValue()))), BooleanClause.Occur.FILTER);
             }
         }
-        Query full = builder.build();
+        return page(manifests, builder.build(), textQuery, limit, offset);
+    }
 
+    /**
+     * Records of which a key field ({@code map.keys}) has the value, compared as filters compare:
+     * without surrounding blanks and ignoring case. Results come in index order.
+     *
+     * @param collections names of built collections; at least one has key fields
+     * @throws IllegalArgumentException for an unknown collection, a blank value or collections
+     *                                  without key fields
+     */
+    public SearchPage lookup(List<String> collections, String value, Integer limit, Integer offset)
+            throws IOException {
+        List<Manifest> manifests = resolve(collections);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("value is required");
+        }
+        if (value.length() > MAX_QUERY_CHARS) {
+            throw new IllegalArgumentException("value is longer than " + MAX_QUERY_CHARS + " characters");
+        }
+        if (manifests.stream().allMatch(m -> m.keys().isEmpty())) {
+            throw new IllegalArgumentException(String.join(", ", manifests.stream().map(Manifest::name).toList())
+                    + " has no key fields to look up (map.keys). Collections with keys: " + withKeys());
+        }
+        Query query = new TermQuery(new Term(IndexFields.LOOKUP, CollectionIndexer.filterTerm(value)));
+        return page(manifests, query, null, limit, offset);
+    }
+
+    private String withKeys() {
+        List<String> names = store.built().stream().filter(m -> !m.keys().isEmpty()).map(Manifest::name).toList();
+        return names.isEmpty() ? "none" : String.join(", ", names);
+    }
+
+    /** One page of the records a query matches, with snippets of the words of {@code textQuery}. */
+    private SearchPage page(List<Manifest> manifests, Query full, Query textQuery, Integer limit, Integer offset)
+            throws IOException {
+        int pageSize = limit == null ? properties.searchDefaultLimit()
+                : Math.min(properties.searchMaxLimit(), Math.max(1, limit));
+        int skip = offset == null ? 0 : Math.max(0, offset);
         try (Opened opened = open(manifests)) {
             IndexSearcher searcher = new IndexSearcher(opened.reader);
             int total = searcher.count(full);

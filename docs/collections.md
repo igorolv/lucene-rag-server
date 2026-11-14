@@ -303,6 +303,7 @@ The same steps written once as a [named reader](#named-readers):
 | `text` | `{body}` | The passage. A unit whose text comes out empty yields no record |
 | `id` | `{document.key}#{slug}` | Record id. Ids are still made unique: a repeated id gets `-2`, `-3`, and the parts of a split text get `~2`, `~3` |
 | `fields` | none | Object of field name to template. A template without placeholders is a constant. A field whose template gives nothing is absent |
+| `keys` | none | Field names, from `fields` or inherited, whose values the `lookup` tool finds the record by ([search.md](search.md#exact-lookup)). A listed field a record does not have is skipped |
 | `inheritFields` | `["*"]` | Front matter fields copied to the record as they are: a list of names, `["*"]` for all, `[]` for none. A field of the same name in `fields` replaces the inherited one |
 
 Values of a Markdown source, in the order they become available — a template may use only the
@@ -415,8 +416,13 @@ error	ValidationException	Сумма платежа должна быть бол
 { "path": "C:/projects/billing/knowledge/catalogs/messages", "format": "tsv",
   "map": { "title": "{column.text}",
            "text": "{column.text}\nClass: {column.file}, method {column.method}",
-           "fields": { "kind": "{column.kind}", "catalog": "messages" } } }
+           "fields": { "kind": "{column.kind}", "catalog": "messages",
+                       "text": "{column.text}", "method": "{column.method}" },
+           "keys": ["text", "method"] } }
 ```
+
+With `keys`, `lookup` finds the row by the whole text of the message or by the name of the
+method that raises it.
 
 Descriptions of enumerations, one record per value, with the enumeration as the document:
 

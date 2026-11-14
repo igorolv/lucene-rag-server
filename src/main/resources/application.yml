@@ -31,3 +31,4 @@ rag-mcp:
   tools:
     collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
     search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument
+    lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup

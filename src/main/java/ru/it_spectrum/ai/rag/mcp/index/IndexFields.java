@@ -30,6 +30,8 @@ public final class IndexFields {
 
     /** Prefix of a document field indexed as one lower-cased exact term per value. */
     public static final String FILTER_PREFIX = "f.";
+    /** Every value of the key fields of the record ({@code map.keys}) as one lower-cased exact term. */
+    public static final String LOOKUP = "k";
     /** Prefix of the stored original values of a document field. */
     public static final String VALUE_PREFIX = "v.";
 
