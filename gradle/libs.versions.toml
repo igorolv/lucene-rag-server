@@ -1,0 +1,21 @@
+[versions]
+# Same line as mail-mcp-server (C:\git\mail-mcp-server @ gradle/libs.versions.toml); move both to
+# the final releases together.
+spring-boot = "4.2.0-RC1"
+spring-ai = "2.1.0-RC1"
+# Not on the classpath yet: the Lucene modules are added by the stage that first uses them
+# (docs/plan.md section 4). The version is fixed here so every stage takes the same one.
+lucene = "10.5.2"
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }
+
+[libraries]
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-ai-mcp-server = { module = "org.springframework.ai:spring-ai-starter-mcp-server", version.ref = "spring-ai" }
+lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
+lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
+lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }
+lucene-highlighter = { module = "org.apache.lucene:lucene-highlighter", version.ref = "lucene" }

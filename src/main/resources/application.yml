@@ -1,0 +1,24 @@
+spring:
+  main:
+    web-application-type: none
+    banner-mode: off
+  ai:
+    mcp:
+      server:
+        name: lucene-rag-server
+        version: "@version@"
+        stdio: true
+
+# Top-level server data directory — all local storage is rooted here. Each collection gets its own
+# directory <data-dir>/<collection>/ holding its Lucene index and manifest; the shared log is
+# written under <data-dir>/logs/.
+rag-mcp:
+  data-dir: ${RAG_MCP_DATA_DIR:${user.home}/.lucene-rag-server}
+  # JSON file describing the named collections this server can build. Defaults to
+  # <data-dir>/collections.json. Serving an already built index does not need it.
+  collections-file: ${RAG_MCP_COLLECTIONS_FILE:}
+  # Which tool groups are exposed in the MCP tools/list manifest. Every group is on by default;
+  # turn groups off to shrink the manifest for a small-context model. Each flag toggles one
+  # @Service. Groups are added here together with their tools (docs/plan.md section 3.4).
+  tools:
+    collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections

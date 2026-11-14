@@ -1,0 +1,52 @@
+plugins {
+    java
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+group = "ru.it_spectrum.ai.rag.mcp"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation(libs.spring.boot.starter)
+    implementation(libs.spring.ai.mcp.server)
+
+    testImplementation(libs.spring.boot.starter.test)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.jar {
+    enabled = false
+}
+
+// The version the MCP server reports comes from gradle.properties, or -Pversion on a release.
+tasks.processResources {
+    val serverVersion = project.version.toString()
+    inputs.property("serverVersion", serverVersion)
+    filesMatching("application.yml") {
+        filter { line: String -> line.replace("@version@", serverVersion) }
+    }
+}
+
+tasks.bootJar {
+    archiveBaseName.set("lucene-rag-server")
+    archiveVersion.set("")
+    archiveClassifier.set("")
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
