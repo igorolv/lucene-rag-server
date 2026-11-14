@@ -3,8 +3,6 @@
 # the final releases together.
 spring-boot = "4.2.0-RC1"
 spring-ai = "2.1.0-RC1"
-# Not on the classpath yet: the Lucene modules are added by the stage that first uses them
-# (docs/plan.md section 4). The version is fixed here so every stage takes the same one.
 lucene = "10.5.2"
 
 [plugins]

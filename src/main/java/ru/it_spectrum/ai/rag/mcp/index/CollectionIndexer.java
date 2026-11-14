@@ -1,0 +1,158 @@
+package ru.it_spectrum.ai.rag.mcp.index;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.FSDirectory;
+import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
+import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.source.ChunkRecord;
+import ru.it_spectrum.ai.rag.mcp.source.Chunker;
+import ru.it_spectrum.ai.rag.mcp.source.MarkdownReader;
+import ru.it_spectrum.ai.rag.mcp.source.SourceDocument;
+import ru.it_spectrum.ai.rag.mcp.source.SourceScanner;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeSet;
+import java.util.stream.Stream;
+
+/**
+ * Builds one collection from its sources into {@code <data-dir>/<collection>/}.
+ *
+ * <p>The index is written into a temporary sibling directory and replaces the previous one only
+ * after it is complete, so a failed build leaves the old collection in place. The replacement is
+ * a delete followed by a move: on Windows it fails while another process has the old index open.
+ */
+public final class CollectionIndexer {
+
+    private static final String BUILD_PREFIX = ".building-";
+
+    private CollectionIndexer() {
+    }
+
+    /**
+     * @param definition    a usable collection definition
+     * @param dataDir       server data directory
+     * @param serverVersion recorded in the manifest
+     * @return the manifest of the collection just built
+     * @throws IOException              when a source cannot be read or the index cannot be written
+     * @throws IllegalArgumentException when the definition is unusable or two records share an id
+     */
+    public static Manifest build(CollectionDefinition definition, Path dataDir, String serverVersion)
+            throws IOException {
+        if (!definition.usable()) {
+            throw new IllegalArgumentException("Collection " + definition.name() + ": " + definition.configError());
+        }
+        Files.createDirectories(dataDir);
+        Path target = dataDir.resolve(definition.name());
+        Path building = dataDir.resolve(BUILD_PREFIX + definition.name() + "-" + System.nanoTime());
+        try {
+            Files.createDirectories(building);
+            Manifest manifest = write(definition, building, serverVersion);
+            deleteTree(target);
+            Files.move(building, target);
+            return manifest;
+        } finally {
+            deleteTree(building);
+        }
+    }
+
+    private static Manifest write(CollectionDefinition definition, Path dir, String serverVersion)
+            throws IOException {
+        int files = 0;
+        int documents = 0;
+        int records = 0;
+        var fieldNames = new TreeSet<String>();
+        Map<String, String> ids = new HashMap<>();
+        List<Manifest.Source> sources = new ArrayList<>();
+        try (var directory = FSDirectory.open(dir.resolve(Manifest.INDEX_DIR));
+             var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
+            for (SourceDefinition source : definition.sources()) {
+                sources.add(new Manifest.Source(source.path().toString(), source.include(), source.exclude(),
+                        source.format(), source.chunk().splitBy(), source.chunk().maxChars(),
+                        source.chunk().minChars()));
+                for (SourceScanner.SourceFile file : SourceScanner.files(source)) {
+                    files++;
+                    SourceDocument document = MarkdownReader.read(file.relativePath(),
+                            Files.readString(file.file(), StandardCharsets.UTF_8));
+                    List<ChunkRecord> chunks = Chunker.chunk(document, source.chunk());
+                    if (!chunks.isEmpty()) {
+                        documents++;
+                    }
+                    for (ChunkRecord record : chunks) {
+                        String other = ids.putIfAbsent(record.id(), file.file().toString());
+                        if (other != null) {
+                            throw new IllegalArgumentException("Two records share the id '" + record.id()
+                                    + "': " + other + " and " + file.file()
+                                    + ". Give the documents different 'id' fields or paths");
+                        }
+                        fieldNames.addAll(record.fields().keySet());
+                        writer.addDocument(document(definition.name(), record));
+                        records++;
+                    }
+                }
+            }
+            writer.commit();
+        }
+        Manifest manifest = new Manifest(Manifest.SCHEMA, definition.name(), definition.description(),
+                Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
+                files, documents, records, List.copyOf(fieldNames), List.copyOf(sources));
+        manifest.write(dir);
+        return manifest;
+    }
+
+    private static Document document(String collection, ChunkRecord record) {
+        Document doc = new Document();
+        doc.add(new StringField(IndexFields.ID, record.id(), Field.Store.YES));
+        doc.add(new StringField(IndexFields.DOCUMENT, record.document(), Field.Store.YES));
+        doc.add(new StoredField(IndexFields.COLLECTION, collection));
+        doc.add(new TextField(IndexFields.TEXT, record.text(), Field.Store.NO));
+        doc.add(new TextField(IndexFields.TEXT_EN, record.text(), Field.Store.NO));
+        doc.add(new TextField(IndexFields.TITLE, record.breadcrumb(), Field.Store.NO));
+        doc.add(new TextField(IndexFields.TITLE_EN, record.breadcrumb(), Field.Store.NO));
+        doc.add(new StoredField(IndexFields.STORED_TEXT, record.text()));
+        doc.add(new StoredField(IndexFields.STORED_TITLE, record.title()));
+        doc.add(new StoredField(IndexFields.STORED_BREADCRUMB, record.breadcrumb()));
+        doc.add(new StoredField(IndexFields.STORED_SOURCE, record.source()));
+        doc.add(new StoredField(IndexFields.STORED_ORDINAL, record.ordinal()));
+        for (var field : record.fields().entrySet()) {
+            for (String value : field.getValue()) {
+                doc.add(new StringField(IndexFields.FILTER_PREFIX + field.getKey(), filterTerm(value),
+                        Field.Store.NO));
+                doc.add(new StoredField(IndexFields.VALUE_PREFIX + field.getKey(), value));
+            }
+        }
+        return doc;
+    }
+
+    /** The exact term a field value is indexed and filtered by. */
+    public static String filterTerm(String value) {
+        return value.strip().toLowerCase(Locale.ROOT);
+    }
+
+    private static void deleteTree(Path dir) throws IOException {
+        if (!Files.exists(dir)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(dir)) {
+            for (Path path : (Iterable<Path>) walk.sorted(Comparator.reverseOrder())::iterator) {
+                Files.delete(path);
+            }
+        }
+    }
+}

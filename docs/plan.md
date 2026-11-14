@@ -18,12 +18,21 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Scaffold, 2026-11-14: Gradle build, Spring Boot entry point, stdio MCP transport, one tool group
-(`collections`) with `listCollections` returning an empty list, the settings `RAG_MCP_DATA_DIR`,
-`RAG_MCP_COLLECTIONS_FILE` and `RAG_MCP_TOOLS_COLLECTIONS`. Verified by `gradlew build` and by a
-stdio session (`initialize`, `tools/list`, `tools/call`), with the group on and off.
+Stage 1, 2026-11-14: collections described in `collections.json` are built from Markdown sources
+into one Lucene index each and searched lexically.
 
-Everything in section 3 beyond that is the target design, not implemented.
+- Implemented: the collections file loader, the `markdown` reader, the chunker, the index with its
+  manifest, BM25 search with filters and snippets, server-side response limits, the commands
+  `rag-index` and `rag-search`, the tool groups `collections` (`listCollections`) and `search`
+  (`search`, `getDocument`). User documents: `docs/collections.md`, `docs/search.md`.
+- Verified by `gradlew build` (42 tests on the synthetic knowledge in `testdata/`), by a stdio
+  session calling every tool including error cases, and by building two collections from a real
+  knowledge directory: 304 Markdown files gave 2,376 records in about 2 seconds, and a
+  `rag-search` run takes under a second including JVM start.
+- Not measured: search quality. That is stage 4.
+
+In section 3, everything about formats other than Markdown, `where`, models, vectors, hybrid
+search and the tool groups after `search` is the target design, not implemented.
 
 ## 3. Architecture
 
@@ -55,8 +64,10 @@ file ─► format reader ─► tree of sections ─► chunker ─► records 
 
 ### 3.2 Collections file
 
-`<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. Sketch of the target
-shape; field names are fixed by the stage that implements them:
+`<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
+described in `docs/collections.md`, which owns the format: `description` and `sources` with
+`path`, `include`, `exclude`, `format: markdown` and `chunk`. The sketch below is the target
+shape; the remaining field names are fixed by the stage that implements them:
 
 ```json
 {
@@ -111,19 +122,29 @@ shape; field names are fixed by the stage that implements them:
     index/                    Lucene index
 ```
 
-- The server serves every collection directory it finds, filtered by the allowed list (P3). It
-  reads the manifest, not `collections.json` (D7).
-- A build writes a new directory and swaps it in whole, so a running server never sees a partial
-  index.
+Implemented so far: `<collection>/manifest.json` (schema, name, description, build time, server
+version, counts, field names, sources with their chunking parameters) and `<collection>/index/`.
+The model, the analyzer description and the source revision are added to the manifest by the
+stages that need them.
+
+- The server serves every collection directory it finds, filtered by the allowed list (P3, not
+  implemented). It reads the manifest, not `collections.json` (D7).
+- Nothing is cached between calls: the data directory is listed and an index is opened per call,
+  so a rebuilt collection is seen at once.
+- A build writes a temporary sibling directory and replaces the collection only when complete.
+  The replacement is a delete and a move, not atomic: a call in flight on Windows makes it fail,
+  and a call between the two steps sees no collection. Stage 5 makes it atomic.
 - Searching vectors requires the model named in the manifest to be present; a mismatch is an error
   for vector and hybrid search, while lexical search keeps working.
 - Delivery to another site: the collection directories and `models/`.
 
 ### 3.4 Search and tools
 
-- One Lucene document per record: analyzed text (Russian and English analysis ported from
-  `mail-mcp-server`), title, keyword fields for filters, the stored record, a vector field when
-  the collection has vectors.
+- One Lucene document per record: the text and the breadcrumb, each analyzed with Russian and with
+  English stemming (modeled on `mail-mcp-server`), one exact lower-cased term per value of a
+  document field for filters, the stored record, a vector field when the collection has vectors.
+  Field names are in `index/IndexFields`; the behavior a user sees is in `docs/search.md`.
+- Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (P7).
 - Modes: `lexical` (BM25), `vector` (kNN), `hybrid` — both, fused by RRF (D12). Lucene 10 has a
   built-in RRF helper on `TopDocs`; the exact class and the version that introduced it are to
   verify in stage 3.
@@ -135,8 +156,8 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 
 | Group | Tools | Stage |
 |---|---|---|
-| `collections` | `listCollections` | scaffold, filled in stage 1 |
-| `search` | `search`, `getDocument` | 1 |
+| `collections` | `listCollections` | done |
+| `search` | `search`, `getDocument` | done |
 | `lookup` | exact lookups in catalog collections | 2 |
 | `admin` | `rebuildCollection` | 5 |
 | `browse` | list by filters, facets, related records | 6 |
@@ -154,12 +175,29 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 
 ### 3.6 Packages
 
-Root `ru.it_spectrum.ai.rag.mcp`. Existing: `config/` (properties, MCP customizer), `api/` (MCP
-wire records), `tools/` (one `@Service` per tool group). Planned, added by the stage that needs
-them: `collections/` (file, definitions, registry), `source/` (readers, tree, chunker, external
-command), `index/` (analyzers, writer, manifest, committed readers), `embedding/` (model
-interface, ONNX implementation, cache), `search/` (modes, fusion, snippets), `cli/` (commands
-dispatched before Spring starts).
+Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
+
+```
+tools/ ──► search/ ──► index/
+  └──────► collections/        (listCollections shows collections that are not built)
+cli/ ───► collections/, index/, search/     (commands, without Spring)
+index/ ──► source/ ──► collections/         (build: scan, read, chunk, write)
+api/     — MCP wire records returned by tools
+config/  — Spring wiring, properties, MCP customizer
+```
+
+| Package | Responsibility |
+|---|---|
+| `collections/` | `collections.json`: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `ChunkSettings`, name rules, `${VAR}` placeholders |
+| `source/` | `SourceScanner` (files of a source), `MarkdownReader` (file to `SourceDocument` with a `Section` tree), `Chunker` (tree to `ChunkRecord`) |
+| `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
+| `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
+| `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before Spring starts |
+| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools` |
+| `api/` | Response records with `@Schema` |
+| `config/` | `RagMcpProperties`, `RagConfig`, `McpServerConfig` |
+
+Planned: `embedding/` (model interface, ONNX implementation, cache) in stage 3.
 
 ## 4. Stages
 
@@ -169,25 +207,34 @@ done here. A stage is taken only when the user asks for it.
 | # | Stage | Result | State |
 |---|---|---|---|
 | 0 | Scaffold | Build, stdio server, `listCollections` stub, documents | done 2026-11-14 |
-| 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | ⬜ |
+| 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Remaining formats | `tsv`, `yaml`, `jsonl`, `docbook`, `command`; `where` conditions; `lookup` group | ⬜ |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
-Stage 1 in more detail, as the next one:
+Stage 2 in more detail, as the next one:
 
-1. `collections/`: file shape, loader with `${VAR}` placeholders, name validation, registry —
-   modeled on `jdbc-mcp-server` package `connection/`.
-2. `source/`: section tree, `markdown` reader (front matter scalars and lists become fields),
-   chunker with `splitBy`, `maxChars`, `minChars`, stable chunk ids.
-3. `index/`: analyzers and word forms ported from `mail-mcp-server` `index/`, writer, manifest,
-   committed reader without the writer lock.
-4. `search/`: BM25 over text and title, filters, snippets with `UnifiedHighlighter`.
-5. `cli/`: `rag-index <collection>`, `rag-search <collection> <query>`.
-6. `tools/`: `search` group; server-side limits.
-7. Synthetic test knowledge under `testdata/`; no real project data in the repository.
+1. A reader interface in `source/` chosen by `format`, or by file extension when `format` is
+   absent; `SourceScanner` takes its default `include` from the reader.
+2. Record formats, one record per item, no chunker: `tsv` (a row; the header row names the
+   fields), `yaml` (an item of a named list), `jsonl` (a line).
+3. `docbook`: a StAX reader of nested `section` elements into the section tree, with `xml:id` as
+   the stable id and the page name from `<?dbhtml filename?>` as a field.
+4. `command`: an external program printing JSONL records; argument array, no shell, timeout,
+   working directory of `collections.json` (D10).
+5. `where`: selection of records by field values, applied after reading.
+6. The `lookup` tool group for exact lookups in catalog collections; which fields of a record
+   format are searchable text and which are filters is decided here.
+
+Left out of stage 1 and not assigned to a stage: the source revision in the manifest (it needs a
+decision on calling `git`, which invariant 6 of `AGENTS.md` does not allow today) and user
+word-form rules (`docs/decisions.md` P9).
+
+Observed while verifying stage 1, for stage 4: a lexical query phrased differently from the text
+ranks an unrelated record first; Spring AI repeats the message of a tool error twice in the
+response text.
 
 ## 5. Open questions
 

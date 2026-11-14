@@ -17,8 +17,17 @@ rag-mcp:
   # JSON file describing the named collections this server can build. Defaults to
   # <data-dir>/collections.json. Serving an already built index does not need it.
   collections-file: ${RAG_MCP_COLLECTIONS_FILE:}
+  # Bounds on what one call returns, whatever the call asks for: lower them for a small-context
+  # model. default-limit applies when a call names no limit; max-chars caps the passage text of
+  # one response.
+  search:
+    default-limit: ${RAG_MCP_SEARCH_DEFAULT_LIMIT:10}
+    max-limit: ${RAG_MCP_SEARCH_MAX_LIMIT:50}
+  response:
+    max-chars: ${RAG_MCP_RESPONSE_MAX_CHARS:20000}
   # Which tool groups are exposed in the MCP tools/list manifest. Every group is on by default;
   # turn groups off to shrink the manifest for a small-context model. Each flag toggles one
   # @Service. Groups are added here together with their tools (docs/plan.md section 3.4).
   tools:
     collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
+    search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument
