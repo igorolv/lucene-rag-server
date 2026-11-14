@@ -10,9 +10,11 @@ import java.nio.file.Path;
  *                means the format's default
  * @param exclude glob of files to skip, or {@code null}
  * @param format  reader name
- * @param chunk   how the source is cut into records
+ * @param split   how a file is cut into units
+ * @param map     how a unit is laid out as a record
  */
-public record SourceDefinition(Path path, String include, String exclude, String format, ChunkSettings chunk) {
+public record SourceDefinition(Path path, String include, String exclude, String format,
+                               SplitSettings split, MapSettings map) {
 
     public static final String MARKDOWN = "markdown";
 }

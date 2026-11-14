@@ -13,6 +13,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.source.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.source.Chunker;
 import ru.it_spectrum.ai.rag.mcp.source.MarkdownReader;
+import ru.it_spectrum.ai.rag.mcp.source.RecordMapper;
 import ru.it_spectrum.ai.rag.mcp.source.SourceDocument;
 import ru.it_spectrum.ai.rag.mcp.source.SourceScanner;
 
@@ -84,13 +85,13 @@ public final class CollectionIndexer {
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             for (SourceDefinition source : definition.sources()) {
                 sources.add(new Manifest.Source(source.path().toString(), source.include(), source.exclude(),
-                        source.format(), source.chunk().splitBy(), source.chunk().maxChars(),
-                        source.chunk().minChars()));
+                        source.format(), source.split(), source.map()));
                 for (SourceScanner.SourceFile file : SourceScanner.files(source)) {
                     files++;
                     SourceDocument document = MarkdownReader.read(file.relativePath(),
                             Files.readString(file.file(), StandardCharsets.UTF_8));
-                    List<ChunkRecord> chunks = Chunker.chunk(document, source.chunk());
+                    List<ChunkRecord> chunks = RecordMapper.map(document, Chunker.units(document, source.split()),
+                            source.map(), source.split().maxChars());
                     if (!chunks.isEmpty()) {
                         documents++;
                     }
@@ -99,7 +100,7 @@ public final class CollectionIndexer {
                         if (other != null) {
                             throw new IllegalArgumentException("Two records share the id '" + record.id()
                                     + "': " + other + " and " + file.file()
-                                    + ". Give the documents different 'id' fields or paths");
+                                    + ". Make the document keys or the map.id template distinguish them");
                         }
                         fieldNames.addAll(record.fields().keySet());
                         writer.addDocument(document(definition.name(), record));

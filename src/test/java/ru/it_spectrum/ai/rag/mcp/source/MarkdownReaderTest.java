@@ -25,7 +25,6 @@ class MarkdownReaderTest {
                 Вступление.
                 """);
 
-        assertThat(document.key()).isEqualTo("article.payments");
         assertThat(document.title()).isEqualTo("Платежи");
         assertThat(document.fields()).containsOnlyKeys("id", "kind", "sf");
         assertThat(document.fields().get("sf")).containsExactly("101", "102");
@@ -77,10 +76,10 @@ class MarkdownReaderTest {
     }
 
     @Test
-    void withoutFrontMatterThePathIsTheKeyAndTheFileNameTheFallbackTitle() {
+    void withoutFrontMatterTheFileNameIsTheFallbackTitle() {
         SourceDocument document = MarkdownReader.read("notes/release plan.md", "## Only a section\ntext\n");
 
-        assertThat(document.key()).isEqualTo("notes/release plan.md");
+        assertThat(document.path()).isEqualTo("notes/release plan.md");
         assertThat(document.title()).isEqualTo("release plan");
         assertThat(document.fields()).isEmpty();
     }

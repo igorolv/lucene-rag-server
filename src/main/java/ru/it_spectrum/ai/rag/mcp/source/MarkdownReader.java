@@ -73,14 +73,12 @@ public final class MarkdownReader {
         }
 
         List<Section> sections = root.children.stream().map(Node::toSection).toList();
-        String key = first(fields, "id");
         String title = first(fields, "title");
         if (title == null) {
             title = sections.stream().filter(s -> s.level() == 1).map(Section::title).findFirst()
                     .orElseGet(() -> fileName(path));
         }
-        return new SourceDocument(path, key == null ? path : key, title, Map.copyOf(fields),
-                root.text.toString().strip(), sections);
+        return new SourceDocument(path, title, Map.copyOf(fields), root.text.toString().strip(), sections);
     }
 
     private static String frontMatter(String text, Map<String, List<String>> fields) {

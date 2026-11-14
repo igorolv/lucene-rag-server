@@ -4,9 +4,10 @@ An MCP server that indexes prepared project knowledge (Markdown, DocBook, TSV, Y
 Apache Lucene and serves hybrid search over it: BM25 plus dense vectors kept in the same Lucene
 index. It retrieves; it does not generate answers. User-facing overview: `README.md`.
 
-**Current status:** stage 1 of `docs/plan.md` section 4 is implemented: Markdown collections,
-lexical search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
-`search` and `getDocument`. Other formats, vectors and hybrid search are not implemented.
+**Current status:** stage 1 of `docs/plan.md` section 4 and the first step of stage 2 are
+implemented: Markdown collections with configurable `split` and `map`, lexical search, the
+`rag-index` and `rag-search` commands and the tools `listCollections`, `search` and
+`getDocument`. Other formats, vectors and hybrid search are not implemented.
 
 ## Repository contents
 
@@ -33,7 +34,7 @@ Read this file first. Then read only the documents whose `When` matches the task
 |---|---|---|
 | `docs/plan.md` | any design question; starting or finishing a stage; adding a setting, a format or a tool | status, architecture, configuration sketch, stages, open questions |
 | `docs/decisions.md` | any design question; before adding a dependency, a tool, a format or a setting; recording a user decision | decisions with reasons, what not to add without the user, unconfirmed proposals |
-| `docs/collections.md` | changing the collections file format, a reader, chunking, record ids, `rag-index` output or exit codes, the collection directory layout | the user-facing description; the single source for formats, output and exit codes |
+| `docs/collections.md` | changing the collections file format, a reader, `split`, `map`, the values a template may use, record ids, `rag-index` output or exit codes, the collection directory layout | the user-facing description; the single source for formats, output and exit codes |
 | `docs/search.md` | changing query analysis, ranking, filters, snippets, response limits, a search tool's arguments or `rag-search` | the user-facing description of search behavior and limits |
 
 User documents describe what a user sees and does; a change of user-visible behavior updates
@@ -90,8 +91,11 @@ then keeps the summary and links to the owner.
 - Code copied from a sibling project names its source project and commit in the class Javadoc.
 - Tests use the synthetic knowledge under `testdata/` and temporary directories. Never copy text
   from a real project into `testdata/` or a test (invariant 1).
-- Changing index fields or their analysis raises `Manifest.SCHEMA`; an index of another schema is
-  not served.
+- Changing index fields, their analysis or the shape of the manifest raises `Manifest.SCHEMA`; an
+  index of another schema is not served.
+- No layout of a particular project's files is fixed in code (D14). A reader exposes named
+  values; which of them become the id, title, text and fields is the source's `map` block, and
+  the defaults of a format are ordinary templates in `RecordMapper`.
 - Change dependency versions in `gradle/libs.versions.toml`, not in the build script.
 
 Sibling projects used as references (same author):

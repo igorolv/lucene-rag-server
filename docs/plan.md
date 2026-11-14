@@ -18,17 +18,20 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Stage 1, 2026-11-14: collections described in `collections.json` are built from Markdown sources
-into one Lucene index each and searched lexically.
+Stage 1 and the first step of stage 2, 2026-11-14: collections described in `collections.json`
+are built from Markdown sources into one Lucene index each and searched lexically; every source
+configures how it is cut (`split`) and how a unit becomes a record (`map`).
 
-- Implemented: the collections file loader, the `markdown` reader, the chunker, the index with its
-  manifest, BM25 search with filters and snippets, server-side response limits, the commands
+- Implemented: the collections file loader, the `markdown` reader, the chunker, the `split` and
+  `map` settings with their template language, the index with its manifest, BM25 search with filters and snippets, server-side response limits, the commands
   `rag-index` and `rag-search`, the tool groups `collections` (`listCollections`) and `search`
   (`search`, `getDocument`). User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (42 tests on the synthetic knowledge in `testdata/`), by a stdio
-  session calling every tool including error cases, and by building two collections from a real
+- Verified by `gradlew build` (59 tests on the synthetic knowledge in `testdata/`), by a stdio
+  session calling every tool including error cases, and by building collections from a real
   knowledge directory: 304 Markdown files gave 2,376 records in about 2 seconds, and a
-  `rag-search` run takes under a second including JVM start.
+  `rag-search` run takes under a second including JVM start. Requirement files without front
+  matter were laid out by `split.headingPattern` and `map` alone: 141 files gave 601 records with
+  the directory name as the document key and a part of it as a filter field.
 - Not measured: search quality. That is stage 4.
 
 In section 3, everything about formats other than Markdown, `where`, models, vectors, hybrid
@@ -55,19 +58,28 @@ file ─► format reader ─► tree of sections ─► chunker ─► records 
         tsv / yaml / jsonl / command ───────────────────┘   (already records)
 ```
 
-- A **reader** knows one format and produces a tree: section, title, stable id, text, children,
-  plus document fields (Markdown front matter, DocBook ids and page names).
-- The **chunker** is shared by tree formats: it takes sections, merges small ones, splits large
-  ones at paragraph boundaries and prefixes each chunk with a breadcrumb of ancestor titles.
-- **Record formats** skip the chunker: one TSV row, YAML list item or JSONL line is one record.
+- A **reader** knows one format and produces a tree: section, title, text, children, plus
+  document fields (Markdown front matter, DocBook ids and page names).
+- The **chunker** is shared by tree formats: it cuts the tree into units by the source's `split`
+  block.
+- The **mapper** is shared by all formats: it turns the named values of a unit into a record by
+  the source's `map` block, then splits a long text and makes ids unique (D14).
+- **Record formats** skip the chunker: one TSV row, YAML list item or JSONL line is one unit whose
+  values are its columns or keys.
 - `command` runs an external program that prints JSONL records (D10).
+
+```
+file ─► reader ─► section tree ─► chunker (split) ─► units ─┐
+tsv / yaml / jsonl rows ───────────────────────────────────┼─► mapper (map) ─► records ─► Lucene
+command output ────────────────────────────────────────────┘
+```
 
 ### 3.2 Collections file
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
 described in `docs/collections.md`, which owns the format: `description` and `sources` with
-`path`, `include`, `exclude`, `format: markdown` and `chunk`. The sketch below is the target
-shape; the remaining field names are fixed by the stage that implements them:
+`path`, `include`, `exclude`, `format: markdown`, `split` and `map`. The sketch below is the
+target shape; the remaining field names are fixed by the stage that implements them:
 
 ```json
 {
@@ -80,7 +92,8 @@ shape; the remaining field names are fixed by the stage that implements them:
       "description": "Billing: requirements, glossary, articles, troubleshooting playbooks",
       "sources": [
         { "path": "C:/projects/billing/knowledge/articles", "include": "**/*.md",
-          "format": "markdown", "chunk": { "splitBy": "h2", "maxChars": 2500 },
+          "format": "markdown", "split": { "level": "h2", "maxChars": 2500 },
+          "map": { "fields": { "area": "{path[0]}" } },
           "where": { "status": { "not": "skeleton" } } },
         { "path": "C:/projects/billing-doc/manual.xml", "format": "docbook" },
         { "format": "command", "command": ["python", "-I", "tools/export_help.py"],
@@ -188,8 +201,8 @@ config/  — Spring wiring, properties, MCP customizer
 
 | Package | Responsibility |
 |---|---|
-| `collections/` | `collections.json`: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `ChunkSettings`, name rules, `${VAR}` placeholders |
-| `source/` | `SourceScanner` (files of a source), `MarkdownReader` (file to `SourceDocument` with a `Section` tree), `Chunker` (tree to `ChunkRecord`) |
+| `collections/` | `collections.json`: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `SplitSettings`, `MapSettings`, `Template` (the `{value}` language), `MarkdownMapRules` (which values a template may use), name rules, `${VAR}` placeholders |
+| `source/` | `SourceScanner` (files of a source), `MarkdownReader` (file to `SourceDocument` with a `Section` tree), `Chunker` (tree to units by `split`), `RecordMapper` (units to `ChunkRecord` by `map`) |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before Spring starts |
@@ -216,17 +229,20 @@ done here. A stage is taken only when the user asks for it.
 
 Stage 2 in more detail, as the next one:
 
+0. Done 2026-11-14: `split` and `map` on every source (D14), so the formats below only have to
+   name their values and their defaults.
 1. A reader interface in `source/` chosen by `format`, or by file extension when `format` is
-   absent; `SourceScanner` takes its default `include` from the reader.
-2. Record formats, one record per item, no chunker: `tsv` (a row; the header row names the
-   fields), `yaml` (an item of a named list), `jsonl` (a line).
-3. `docbook`: a StAX reader of nested `section` elements into the section tree, with `xml:id` as
-   the stable id and the page name from `<?dbhtml filename?>` as a field.
+   absent; `SourceScanner` takes its default `include` from the reader, and each format gets its
+   own rules of which values a template may use, as `MarkdownMapRules` does for Markdown.
+2. Record formats, one unit per item, no chunker: `tsv` (a row; values `{column.<name>}` from the
+   header row), `yaml` (an item of a named list), `jsonl` (a line; values `{record.<key>}`). They
+   have no default `text`, so `map.text` is required.
+3. `docbook`: a StAX reader of nested `section` elements into the section tree, with `xml:id` and
+   the page name from `<?dbhtml filename?>` as values.
 4. `command`: an external program printing JSONL records; argument array, no shell, timeout,
    working directory of `collections.json` (D10).
 5. `where`: selection of records by field values, applied after reading.
-6. The `lookup` tool group for exact lookups in catalog collections; which fields of a record
-   format are searchable text and which are filters is decided here.
+6. The `lookup` tool group for exact lookups in catalog collections.
 
 Left out of stage 1 and not assigned to a stage: the source revision in the manifest (it needs a
 decision on calling `git`, which invariant 6 of `AGENTS.md` does not allow today) and user

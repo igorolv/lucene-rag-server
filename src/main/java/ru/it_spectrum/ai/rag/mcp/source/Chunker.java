@@ -1,76 +1,108 @@
 package ru.it_spectrum.ai.rag.mcp.source;
 
-import ru.it_spectrum.ai.rag.mcp.collections.ChunkSettings;
+import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Cuts a section tree into records. Shared by every tree format.
+ * Cuts a section tree into units by {@link SplitSettings}. Shared by every tree format; what a
+ * unit becomes is decided afterwards by {@link RecordMapper}.
  *
  * <ol>
- *   <li>Each section at the {@code splitBy} level becomes one unit together with everything
- *       nested in it. A section above that level contributes only its own text, and the text
- *       before the first heading is a unit of its own.</li>
+ *   <li>Each section at the split level becomes one unit together with everything nested in it.
+ *       A section above that level contributes only its own text, and the text before the first
+ *       heading is a unit of its own. With the {@code document} level the whole file is one
+ *       unit.</li>
+ *   <li>With a heading pattern only the sections at the split level whose heading contains the
+ *       pattern become units; the rest of the file is left out.</li>
  *   <li>A unit shorter than {@code minChars} is appended to the previous unit under the same
  *       parent when the result still fits {@code maxChars}.</li>
- *   <li>A unit longer than {@code maxChars} is split at blank lines, then at line ends, and only
- *       then inside a line.</li>
  * </ol>
+ *
+ * Splitting a long unit by {@code maxChars} happens after mapping, on the final text
+ * ({@link #split}).
  */
 public final class Chunker {
 
     private Chunker() {
     }
 
-    public static List<ChunkRecord> chunk(SourceDocument document, ChunkSettings settings) {
-        List<Unit> units = new ArrayList<>();
-        if (!document.preamble().isBlank()) {
-            units.add(new Unit(List.of(), 1, document.title(), "intro", document.preamble()));
-        }
-        for (Section section : document.sections()) {
-            collect(section, List.of(), settings.splitBy(), units);
-        }
-        units = merge(units, settings);
+    /**
+     * One piece of a document.
+     *
+     * @param ancestors headings above the unit, outermost first
+     * @param level     heading level of the unit; 0 for the introduction and for a whole document
+     * @param heading   heading of the unit; the document title when the unit has none
+     * @param groups    named groups of the heading pattern that matched the heading
+     * @param text      text of the unit, nested sections included with their headings
+     * @param intro     the unit is the text before the first heading
+     */
+    public record Unit(List<String> ancestors, int level, String heading, Map<String, String> groups,
+                       String text, boolean intro) { }
 
-        List<ChunkRecord> records = new ArrayList<>();
-        Map<String, Integer> used = new HashMap<>();
-        for (Unit unit : units) {
-            String slug = unit.slug.isEmpty() ? "section" : unit.slug;
-            int seen = used.merge(slug, 1, Integer::sum);
-            String base = document.key() + "#" + (seen == 1 ? slug : slug + "-" + seen);
-            String breadcrumb = breadcrumb(document.title(), unit);
-            List<String> parts = split(unit.text.toString(), settings.maxChars());
-            for (int i = 0; i < parts.size(); i++) {
-                records.add(new ChunkRecord(i == 0 ? base : base + "~" + (i + 1), document.key(), unit.title,
-                        breadcrumb, parts.get(i), document.path(), records.size(), document.fields()));
+    public static List<Unit> units(SourceDocument document, SplitSettings settings) {
+        List<Draft> drafts = new ArrayList<>();
+        if (settings.level() == SplitSettings.DOCUMENT) {
+            StringBuilder text = new StringBuilder(document.preamble());
+            for (Section section : document.sections()) {
+                render(section, text);
             }
+            if (!text.toString().isBlank()) {
+                drafts.add(new Draft(List.of(), 0, document.title(), Map.of(), text.toString().strip(), false));
+            }
+        } else {
+            Pattern pattern = settings.compiledHeadingPattern();
+            if (pattern == null && !document.preamble().isBlank()) {
+                drafts.add(new Draft(List.of(), 0, document.title(), Map.of(), document.preamble(), true));
+            }
+            for (Section section : document.sections()) {
+                collect(section, List.of(), settings.level(), pattern, drafts);
+            }
+            drafts = merge(drafts, settings);
         }
-        return records;
+        return drafts.stream().map(d -> new Unit(d.ancestors, d.level, d.heading, d.groups, d.text.toString(),
+                d.intro)).toList();
     }
 
-    private static void collect(Section section, List<String> ancestors, int splitBy, List<Unit> units) {
-        if (section.level() >= splitBy) {
+    private static void collect(Section section, List<String> ancestors, int splitLevel, Pattern pattern,
+                                List<Draft> drafts) {
+        if (section.level() >= splitLevel) {
+            Map<String, String> groups = Map.of();
+            if (pattern != null) {
+                Matcher matcher = pattern.matcher(section.title());
+                if (!matcher.find()) {
+                    return;
+                }
+                groups = new LinkedHashMap<>();
+                for (String name : pattern.namedGroups().keySet()) {
+                    String value = matcher.group(name);
+                    if (value != null) {
+                        groups.put(name, value.strip());
+                    }
+                }
+            }
             StringBuilder text = new StringBuilder(section.text());
             for (Section child : section.children()) {
                 render(child, text);
             }
             if (!text.toString().isBlank()) {
-                units.add(new Unit(ancestors, section.level(), section.title(), slug(section.title()),
-                        text.toString().strip()));
+                drafts.add(new Draft(ancestors, section.level(), section.title(), groups,
+                        text.toString().strip(), false));
             }
             return;
         }
-        if (!section.text().isBlank()) {
-            units.add(new Unit(ancestors, section.level(), section.title(), slug(section.title()), section.text()));
+        if (pattern == null && !section.text().isBlank()) {
+            drafts.add(new Draft(ancestors, section.level(), section.title(), Map.of(), section.text(), false));
         }
         List<String> path = new ArrayList<>(ancestors);
         path.add(section.title());
         for (Section child : section.children()) {
-            collect(child, List.copyOf(path), splitBy, units);
+            collect(child, List.copyOf(path), splitLevel, pattern, drafts);
         }
     }
 
@@ -87,38 +119,25 @@ public final class Chunker {
         }
     }
 
-    private static List<Unit> merge(List<Unit> units, ChunkSettings settings) {
-        List<Unit> merged = new ArrayList<>();
-        for (Unit unit : units) {
-            Unit previous = merged.isEmpty() ? null : merged.getLast();
-            if (previous != null && unit.text.length() < settings.minChars()
-                    && previous.ancestors.equals(unit.ancestors)
-                    && previous.text.length() + unit.text.length() + unit.title.length() + 8 <= settings.maxChars()) {
-                previous.text.append("\n\n").append("#".repeat(unit.level)).append(' ')
-                        .append(unit.title).append("\n\n").append(unit.text);
+    private static List<Draft> merge(List<Draft> drafts, SplitSettings settings) {
+        List<Draft> merged = new ArrayList<>();
+        for (Draft draft : drafts) {
+            Draft previous = merged.isEmpty() ? null : merged.getLast();
+            if (previous != null && draft.text.length() < settings.minChars()
+                    && previous.ancestors.equals(draft.ancestors)
+                    && previous.text.length() + draft.text.length() + draft.heading.length() + 8
+                    <= settings.maxChars()) {
+                previous.text.append("\n\n").append("#".repeat(Math.max(1, draft.level))).append(' ')
+                        .append(draft.heading).append("\n\n").append(draft.text);
             } else {
-                merged.add(unit);
+                merged.add(draft);
             }
         }
         return merged;
     }
 
-    private static String breadcrumb(String documentTitle, Unit unit) {
-        List<String> parts = new ArrayList<>();
-        parts.add(documentTitle);
-        for (String ancestor : unit.ancestors) {
-            if (!ancestor.equals(parts.getLast())) {
-                parts.add(ancestor);
-            }
-        }
-        if (!unit.title.equals(parts.getLast())) {
-            parts.add(unit.title);
-        }
-        return String.join(ChunkRecord.BREADCRUMB_SEPARATOR, parts);
-    }
-
-    /** Package-private for tests. */
-    static List<String> split(String text, int maxChars) {
+    /** Parts of a text no longer than {@code maxChars}: cut at blank lines, then line ends, then inside a line. */
+    public static List<String> split(String text, int maxChars) {
         if (text.length() <= maxChars) {
             return List.of(text);
         }
@@ -169,40 +188,22 @@ public final class Chunker {
         return parts;
     }
 
-    /** Lower-case letters and digits of the title joined by {@code -}; works for any script. */
-    static String slug(String title) {
-        StringBuilder out = new StringBuilder();
-        boolean gap = false;
-        for (int i = 0; i < title.length(); ) {
-            int cp = title.codePointAt(i);
-            i += Character.charCount(cp);
-            if (Character.isLetterOrDigit(cp)) {
-                if (gap && !out.isEmpty()) {
-                    out.append('-');
-                }
-                out.appendCodePoint(Character.toLowerCase(cp));
-                gap = false;
-            } else {
-                gap = true;
-            }
-        }
-        String slug = out.toString().toLowerCase(Locale.ROOT);
-        return slug.length() > 80 ? slug.substring(0, 80) : slug;
-    }
-
-    private static final class Unit {
+    private static final class Draft {
         final List<String> ancestors;
         final int level;
-        final String title;
-        final String slug;
+        final String heading;
+        final Map<String, String> groups;
         final StringBuilder text;
+        final boolean intro;
 
-        Unit(List<String> ancestors, int level, String title, String slug, String text) {
+        Draft(List<String> ancestors, int level, String heading, Map<String, String> groups, String text,
+              boolean intro) {
             this.ancestors = ancestors;
             this.level = level;
-            this.title = title;
-            this.slug = slug;
+            this.heading = heading;
+            this.groups = groups;
             this.text = new StringBuilder(text);
+            this.intro = intro;
         }
     }
 }

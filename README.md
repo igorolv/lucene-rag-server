@@ -10,8 +10,9 @@ client.
 
 ## What it is for
 
-- Describe collections in one `collections.json`: which directories to read, what to take from
-  them, whether to compute vectors and with which model.
+- Describe collections in one `collections.json`: which directories to read, how to cut files
+  into records and how to lay a record out (`split` and `map`), whether to compute vectors and
+  with which model.
 - Build each collection into a self-contained index directory that can be copied to another
   machine and served there without the sources.
 - Serve the same index to a large-context model with every tool enabled, or to a small local

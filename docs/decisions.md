@@ -12,6 +12,8 @@ confirmed. Architecture and stages are in `docs/plan.md`.
 - Authentication or per-caller access rights inside the server (D8).
 - A second storage engine next to Lucene: a vector database, SQLite, a cache server (D6).
 - An embedded script interpreter for custom chunking (D10).
+- Expressions, functions or conditions in `map` templates beyond `{value}` and `{a|b}` (D14): what
+  templates cannot express is the job of a `command` source.
 - A reranking model enabled by default (D12).
 - A dependency `docs/plan.md` does not name.
 
@@ -32,6 +34,7 @@ confirmed. Architecture and stages are in `docs/plan.md`.
 | 2026-11-14 | **D11. Embeddings are computed in-process by default** (ONNX Runtime, a multilingual E5 model). A remote embedding endpoint is a second implementation of the same interface | Environments may have no embedding endpoint at all; indexed text then never leaves the machine; indexes for every environment are built with the same model |
 | 2026-11-14 | **D12. Hybrid search fuses BM25 and vector results with reciprocal rank fusion (RRF).** A reranking model is added only if measurements on a question set show it is needed | RRF needs no model and no score calibration; a reranker costs CPU on every query |
 | 2026-11-14 | **D13. A `rag-search` command searches from the command line without a model** | On a site with a slow model an engineer still needs fast lookups |
+| 2026-11-14 | **D14. Every source says how to cut and how to lay out**: a `split` block (where units end) and a `map` block (templates that turn the values of a unit into the id, title, breadcrumb, text and filter fields of the standard record). The same two blocks serve every format; without them a format's defaults apply | The first Markdown reader fixed one layout in code: the key only from `id`, fields only from front matter, cuts only by level. The mechanism must fit other projects' files without code changes |
 
 ## 3. Agent proposals awaiting a user decision
 
@@ -43,6 +46,8 @@ confirmed. Architecture and stages are in `docs/plan.md`.
 | 2026-11-14 | P4. Vectors are cached under the data directory by a hash of model and text | Rebuilds and overlapping collections do not recompute unchanged chunks |
 | 2026-11-14 | P5. Collections of one project do not overlap (`docs`, `catalogs`, `data`, `maps`); an audience is a list of collections. Overlapping collections stay possible | No duplicate passages when several collections are searched together |
 | 2026-11-14 | P7. Search words are optional (ranked by BM25) instead of all required as in `mail-mcp-server`. Implemented this way | A model passes whole questions; requiring every word of a question finds nothing |
-| 2026-11-14 | P8. Short sections are not joined by default (`chunk.minChars` 0) | A joined section loses its own breadcrumb, and the test collection showed the wrong record winning because of it |
+| 2026-11-14 | P8. Short sections are not joined by default (`split.minChars` 0) | A joined section loses its own breadcrumb, and the test collection showed the wrong record winning because of it |
 | 2026-11-14 | P9. User word-form rules of `mail-mcp-server` (`word-forms.txt`) are not ported until irregular forms are shown to matter here | Keeps the index schema and the manifest simple; vectors may cover the same misses |
+| 2026-11-14 | P10. The Markdown reader is our own, not `MarkdownDocumentReader` of Spring AI. Checked against the 2.1.0-RC1 source: it starts a new document at every heading of any level, keeps only the current heading as metadata (no parents, so no breadcrumb), joins text nodes into a string without Markdown (tables and lists are flattened), and registers no CommonMark extension, so front matter is read as text. `TokenTextSplitter` cuts by OpenAI token counts, not by structure. Replacing our line scanner with the CommonMark parser that reader uses stays possible if heading edge cases show up | D14 needs the section tree, heading levels, front matter and the original Markdown text |
+| 2026-11-14 | P11. `map.pathPattern` gives named groups of the file path as values. Implemented | Fields often live in directory names (`billing-payments/` holds the subsystem), and path segments alone cannot take a part of a name |
 | 2026-11-14 | P6. No `VectorStore` implementation of Spring AI; Spring AI supplies the MCP server and the `EmbeddingModel` interface | `VectorStore` has no hybrid search, and clients reach the server through MCP |

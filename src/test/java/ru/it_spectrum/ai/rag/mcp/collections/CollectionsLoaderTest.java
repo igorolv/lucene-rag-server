@@ -41,7 +41,16 @@ class CollectionsLoaderTest {
                       "sources": [
                         {"path": "knowledge/articles"},
                         {"path": "${KB}/playbooks", "include": "**/*.md", "exclude": "**/draft-*",
-                         "format": "markdown", "chunk": {"splitBy": "h3", "maxChars": 1000, "minChars": 50}}
+                         "format": "markdown",
+                         "split": {"level": "h3", "headingPattern": "^Requirement: (?<name>.+)$",
+                                   "maxChars": 1000, "minChars": 50},
+                         "map": {"pathPattern": "^(?<area>[a-z]+)-", "document": "{path[0]}",
+                                 "id": "{document.key}/{slug}",
+                                 "title": "{heading.name}", "breadcrumb": ["{path[0]}", "{title}"],
+                                 "text": "{breadcrumb}\\n\\n{body}",
+                                 "fields": {"kind": "spec", "weight": 3, "owner": "{frontmatter.owner}",
+                                            "area": "{path.area}"},
+                                 "inheritFields": ["tables"]}}
                       ],
                       "vectors": {"model": "ignored"}
                     }
@@ -56,11 +65,23 @@ class CollectionsLoaderTest {
         assertThat(docs.description()).isEqualTo("Billing articles");
         assertThat(docs.sources()).hasSize(2);
         assertThat(docs.sources().get(0).path()).isEqualTo(dir.resolve("knowledge").resolve("articles"));
-        assertThat(docs.sources().get(0).chunk()).isEqualTo(ChunkSettings.DEFAULT);
+        assertThat(docs.sources().get(0).split()).isEqualTo(SplitSettings.DEFAULT);
+        assertThat(docs.sources().get(0).map()).isEqualTo(MapSettings.DEFAULT);
         assertThat(docs.sources().get(0).include()).isNull();
         assertThat(docs.sources().get(1).path()).isEqualTo(dir.resolve("kb").resolve("playbooks"));
         assertThat(docs.sources().get(1).exclude()).isEqualTo("**/draft-*");
-        assertThat(docs.sources().get(1).chunk()).isEqualTo(new ChunkSettings(3, 1000, 50));
+        assertThat(docs.sources().get(1).split())
+                .isEqualTo(new SplitSettings(3, "^Requirement: (?<name>.+)$", 1000, 50));
+        MapSettings map = docs.sources().get(1).map();
+        assertThat(map.pathPattern()).isEqualTo("^(?<area>[a-z]+)-");
+        assertThat(map.document()).isEqualTo("{path[0]}");
+        assertThat(map.id()).isEqualTo("{document.key}/{slug}");
+        assertThat(map.title()).isEqualTo("{heading.name}");
+        assertThat(map.breadcrumb()).containsExactly("{path[0]}", "{title}");
+        assertThat(map.text()).isEqualTo("{breadcrumb}\n\n{body}");
+        assertThat(map.fields()).containsExactly(Map.entry("kind", "spec"), Map.entry("weight", "3"),
+                Map.entry("owner", "{frontmatter.owner}"), Map.entry("area", "{path.area}"));
+        assertThat(map.inheritFields()).containsExactly("tables");
     }
 
     @Test
@@ -72,7 +93,7 @@ class CollectionsLoaderTest {
                   "no-sources": {"description": "d"},
                   "docbook": {"sources": [{"path": "a", "format": "docbook"}]},
                   "no-var": {"sources": [{"path": "${MISSING}/a"}]},
-                  "bad-chunk": {"sources": [{"path": "a", "chunk": {"splitBy": "h9"}}]},
+                  "bad-chunk": {"sources": [{"path": "a", "split": {"level": "h9"}}]},
                   "good": {"sources": [{"path": "a"}]}
                 }}
                 """, Map.of());
@@ -88,7 +109,41 @@ class CollectionsLoaderTest {
         assertThat(collections.get(2).description()).isEqualTo("d");
         assertThat(collections.get(3).configError()).contains("docbook", "not supported");
         assertThat(collections.get(4).configError()).contains("MISSING", "sources[0].path");
-        assertThat(collections.get(5).configError()).contains("splitBy");
+        assertThat(collections.get(5).configError()).contains("split.level");
+    }
+
+    private String errorOf(String source) throws IOException {
+        List<CollectionDefinition> collections = load(
+                "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}", Map.of());
+        assertThat(collections.getFirst().usable()).isFalse();
+        return collections.getFirst().configError();
+    }
+
+    @Test
+    void splitAndMapMistakesAreConfigurationErrors() throws IOException {
+        assertThat(errorOf("{\"path\": \"a\", \"chunk\": {}}")).contains("renamed to \"split\"");
+        assertThat(errorOf("{\"path\": \"a\", \"split\": {\"headingPattern\": \"(\"}}"))
+                .contains("split.headingPattern", "regular expression");
+        assertThat(errorOf("{\"path\": \"a\", \"split\": {\"level\": \"document\", \"headingPattern\": \"x\"}}"))
+                .contains("needs a heading level");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"title\": \"{headng}\"}}"))
+                .contains("map.title", "{headng}", "not a value of a Markdown source");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"document\": \"{title}\"}}"))
+                .contains("map.document", "not available here");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"title\": \"{heading.name}\"}}"))
+                .contains("named group (?<name>");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"text\": \"{body\"}}")).contains("map.text", "unclosed");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"fields\": {\"k\": \"{path.area}\"}}}"))
+                .contains("named group (?<area>", "map.pathPattern");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"pathPattern\": \"(?<name>x)\"}}"))
+                .contains("map.pathPattern", "taken by {path.name}");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"pathPattern\": \"[\"}}"))
+                .contains("map.pathPattern", "regular expression");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"fields\": {\"bad name\": \"x\"}}}"))
+                .contains("map.fields", "bad name");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"fields\": {\"k\": [1]}}}")).contains("map.fields.k");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"breadcrumb\": \"{title}\"}}"))
+                .contains("map.breadcrumb", "array");
     }
 
     @Test

@@ -9,7 +9,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 
 /**
@@ -100,6 +103,9 @@ public final class CollectionsLoader {
         if (!node.isObject()) {
             throw new IllegalArgumentException("the source must be a JSON object");
         }
+        if (node.has("chunk")) {
+            throw new IllegalArgumentException("\"chunk\" was renamed to \"split\" (and splitBy to level)");
+        }
         String format = text(node.get("format"));
         if (format == null) {
             format = SourceDefinition.MARKDOWN;
@@ -116,28 +122,84 @@ public final class CollectionsLoader {
             rawPath = System.getProperty("user.home", ".") + rawPath.substring(1);
         }
         Path path = baseDir.resolve(rawPath).normalize();
-        return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format,
-                chunk(node.get("chunk")));
+        SplitSettings split = split(node.get("split"));
+        MapSettings map = map(node.get("map"));
+        MarkdownMapRules.check(map, split);
+        return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map);
     }
 
-    private static ChunkSettings chunk(JsonNode node) {
+    private static SplitSettings split(JsonNode node) {
         if (node == null || node.isNull()) {
-            return ChunkSettings.DEFAULT;
+            return SplitSettings.DEFAULT;
         }
         if (!node.isObject()) {
-            throw new IllegalArgumentException("\"chunk\" must be a JSON object");
+            throw new IllegalArgumentException("\"split\" must be a JSON object");
         }
-        int splitBy = ChunkSettings.DEFAULT.splitBy();
-        String split = text(node.get("splitBy"));
-        if (split != null) {
-            if (!split.matches("[hH][1-6]")) {
-                throw new IllegalArgumentException("chunk.splitBy must be h1…h6");
+        int level = SplitSettings.DEFAULT.level();
+        String configured = text(node.get("level"));
+        if (configured != null) {
+            if ("document".equalsIgnoreCase(configured)) {
+                level = SplitSettings.DOCUMENT;
+            } else if (configured.matches("[hH][1-6]")) {
+                level = configured.charAt(1) - '0';
+            } else {
+                throw new IllegalArgumentException("split.level must be h1…h6 or \"document\"");
             }
-            splitBy = split.charAt(1) - '0';
         }
-        return new ChunkSettings(splitBy,
-                number(node.get("maxChars"), "chunk.maxChars", ChunkSettings.DEFAULT.maxChars()),
-                number(node.get("minChars"), "chunk.minChars", ChunkSettings.DEFAULT.minChars()));
+        return new SplitSettings(level, text(node.get("headingPattern")),
+                number(node.get("maxChars"), "split.maxChars", SplitSettings.DEFAULT.maxChars()),
+                number(node.get("minChars"), "split.minChars", SplitSettings.DEFAULT.minChars()));
+    }
+
+    private static MapSettings map(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return MapSettings.DEFAULT;
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("\"map\" must be a JSON object");
+        }
+        Map<String, String> fields = null;
+        JsonNode fieldsNode = node.get("fields");
+        if (fieldsNode != null && !fieldsNode.isNull()) {
+            if (!fieldsNode.isObject()) {
+                throw new IllegalArgumentException("map.fields must be a JSON object of name to template");
+            }
+            fields = new LinkedHashMap<>();
+            for (var field : fieldsNode.properties()) {
+                String template = scalar(field.getValue());
+                if (template == null) {
+                    throw new IllegalArgumentException("map.fields." + field.getKey() + " must be a string");
+                }
+                fields.put(field.getKey(), template);
+            }
+        }
+        return new MapSettings(text(node.get("pathPattern")), text(node.get("document")), text(node.get("id")), text(node.get("title")),
+                strings(node.get("breadcrumb"), "map.breadcrumb"), text(node.get("text")),
+                fields == null ? null : Collections.unmodifiableMap(fields),
+                strings(node.get("inheritFields"), "map.inheritFields"));
+    }
+
+    private static List<String> strings(JsonNode node, String field) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException(field + " must be an array of strings");
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode item : node) {
+            String value = scalar(item);
+            if (value == null) {
+                throw new IllegalArgumentException(field + " must be an array of strings");
+            }
+            values.add(value);
+        }
+        return List.copyOf(values);
+    }
+
+    /** A string, number or boolean as text; {@code null} for anything else. Blank strings are kept. */
+    private static String scalar(JsonNode node) {
+        return node == null || node.isNull() || node.isContainer() ? null : node.asString();
     }
 
     private static int number(JsonNode node, String field, int fallback) {
