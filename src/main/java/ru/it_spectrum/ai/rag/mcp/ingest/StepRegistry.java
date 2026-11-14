@@ -4,6 +4,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.JsonlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownFormat;
+import ru.it_spectrum.ai.rag.mcp.ingest.format.SqlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.TsvFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.YamlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.map.TemplateMapper;
@@ -47,7 +48,8 @@ public final class StepRegistry {
     /** The steps that ship with the server. Keep in step with the step beans. */
     public static StepRegistry builtIn() {
         return new StepRegistry(List.of(new FilesOrigin()), List.of(),
-                List.of(new MarkdownFormat(), new TsvFormat(), new YamlFormat(), new JsonlFormat()),
+                List.of(new MarkdownFormat(), new TsvFormat(), new YamlFormat(), new JsonlFormat(),
+                        new SqlFormat()),
                 new HeadingSplitter(), new TemplateMapper());
     }
 

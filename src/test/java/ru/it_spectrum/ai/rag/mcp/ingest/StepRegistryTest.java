@@ -69,6 +69,6 @@ class StepRegistryTest {
 
         assertThat(registry.origins()).isEqualTo(Set.of("files"));
         assertThat(registry.converters()).isEmpty();
-        assertThat(registry.formats()).isEqualTo(Set.of("markdown", "tsv", "yaml", "jsonl"));
+        assertThat(registry.formats()).isEqualTo(Set.of("markdown", "tsv", "yaml", "jsonl", "sql"));
     }
 }

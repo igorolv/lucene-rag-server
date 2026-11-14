@@ -21,11 +21,11 @@ reads the results and where a weak local model does; the difference is configura
 Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
 built from Markdown sources into one Lucene index each and searched lexically; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
-by the five-step pipeline of section 3.1, with Markdown, TSV, YAML and JSONL as formats; a source
-may take its reading keys from a named reader.
+by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats; a
+source may take its reading keys from a named reader.
 
 - Implemented: the collections file loader with named readers; the step interfaces, the registry and
-  `SourcePipeline` in `ingest/`; the `files` origin, the formats `markdown`, `tsv`, `yaml` and `jsonl`, the heading splitter
+  `SourcePipeline` in `ingest/`; the `files` origin, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter
   and the template mapper as step beans; the index with its manifest; BM25 search with filters
   and snippets; server-side response limits; the commands `rag-index` (in a Spring context
   without the MCP server) and `rag-search`; the tool groups `collections` (`listCollections`) and
@@ -40,7 +40,7 @@ may take its reading keys from a named reader.
   601 records). That build has not been repeated on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about origins other than files, `convert`, the `sql` format, `where`, models, vectors, hybrid search and the tool groups after `search` is the
+In section 3, everything about origins other than files, `convert`, `where`, models, vectors, hybrid search and the tool groups after `search` is the
 target design, not implemented.
 
 ## 3. Architecture
@@ -228,7 +228,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`. Planned: `CommandOrigin` |
 | `ingest/convert/` | Planned: `CommandConverter` |
-| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`. Planned: `SqlFormat` |
+| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, and `SqlFormat` |
 | `ingest/split/` | `HeadingSplitter` |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | Planned: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
@@ -289,11 +289,12 @@ Stage 2 in more detail, as the next one:
    line; values `{record.<key>}`). They have no default `text`, so `map.text` is required.
    Checked on the first corpus: 11 TSV files gave 5,216 records, 37 YAML files 148 records,
    1 JSONL file 20 records.
-3. `sql` (D21): one file is one unit. The leading block of `--` comment lines is the header: a
-   line `-- key: value` gives the value `{header.<key>}`, the whole block without the dashes is
+3. Done 2026-11-15: `sql` (D21): one file is one unit. The leading block of `--` comment lines
+   is the header: a line `-- key: value` gives the value `{header.<key>}`, the whole block without the dashes is
    `{comment}`, the statement after it is `{sql}`, and `{body}` is the file as it is. Defaults:
    the document key is `{header.id|document.path}`, the title is `{header.purpose|path.name}`, the
-   text is `{body}`. No SQL parsing.
+   text is `{body}`, the id is `{document.key}`. No SQL parsing. Checked on the first corpus: 9
+   query files gave 12 records, 8 catalog generators with a free comment 9 records.
 4. Commands (D10): `ingest/exec/`, the `command` origin and the `command` converter; argument
    array, no shell, timeout, working directory of `collections.json`. `docs/collections.md` gets
    a Pandoc example.

@@ -9,6 +9,7 @@ another machine.
 - [From a file to records](#from-a-file-to-records)
 - [Reading Markdown](#reading-markdown)
 - [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
+- [Reading SQL](#reading-sql)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
 - [Examples](#examples)
@@ -55,9 +56,9 @@ Each entry of `sources`:
 | Key | Default | Meaning |
 |---|---|---|
 | `path` | required | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
-| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
+| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
-| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml` or `jsonl`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`); a directory without `include` is read as Markdown |
+| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl` or `sql`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`); a directory without `include` is read as Markdown |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
 | `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
@@ -115,14 +116,14 @@ whatever it was made from:
 Three steps make records out of a file, and two of them are yours to configure:
 
 1. The **reader** of the source's `format` turns the file into a section tree (Markdown) or
-   into rows (TSV, YAML, JSONL).
+   into rows (TSV, YAML, JSONL, SQL).
 2. **`split`** says where the tree is cut into units. A row already is a unit; of `split` only
    `maxChars` applies to it, and `list` to YAML.
 3. **`map`** says how the values of a unit become the parts of a record.
 
 Without `split` and `map` a Markdown source uses the defaults described below, which suit
-Markdown files with `##` sections and YAML front matter. A TSV, YAML or JSONL source has no
-default text: its `map` must give `text`.
+Markdown files with `##` sections and YAML front matter, and an SQL source is one record per
+file. A TSV, YAML or JSONL source has no default text: its `map` must give `text`.
 
 ## Reading Markdown
 
@@ -163,6 +164,40 @@ the values every source has (`{path…}`, `{document…}`, `{title}`, `{breadcru
 - Defaults: the document key is `{document.path}`, the title is `{document.title}` (the file name
   without extension) for TSV and YAML and `{record.title|record.id}` for JSONL, the id is
   `{document.key}#{row}`, for JSONL `{document.key}#{record.id|row}`.
+
+## Reading SQL
+
+One SQL file is one unit; the statement is not parsed.
+
+```sql
+-- id: payments.payment-status-history
+-- purpose: history of a payment's statuses with the operator's comments
+-- params: :payment_id — payment ID
+-- tables: PAYMENT, PAYMENT_STATUS_HIST, USERS
+SELECT h.psh_time, h.payment_status_enum, h.psh_note
+FROM payment_status_hist h
+WHERE h.payment_id = :payment_id
+```
+
+| Value | What it is | Available in |
+|---|---|---|
+| `{header.<key>}` | The value of a header line `-- key: value`; a key repeated on several lines has several values | everything |
+| `{comment}` | The header without the `--` | everything |
+| `{sql}` | The text after the header | everything |
+| `{body}` | The file as it is | `title` and below |
+
+- The header is the block of lines starting with `--` at the top of the file, after any blank
+  lines; it ends at the first other line. A comment further down belongs to `{sql}`.
+- A header line is a key line when what follows the dashes is a name of letters, digits, `.`,
+  `_`, `-`, a colon and a value. Other comment lines, such as a free description of a file that
+  generates a catalog, only go into `{comment}`. A key line with an empty value gives no value.
+- Header values are not split: `tables: A, B` is one value `A, B`.
+- An SQL source gives no document fields: name the fields in `map.fields`.
+- Defaults: the document key is `{header.id|document.path}`, the title
+  `{header.purpose|path.name}`, the id `{document.key}`, the text `{body}`.
+
+Files that generate catalogs usually sit next to the catalogs and have a free comment instead of
+a header. Read them as a separate source or leave them out with `exclude`.
 
 ## Splitting
 
@@ -216,9 +251,10 @@ values above its own row:
 | `{title}`, `{slug}` | The result of `title`; the same in lower case with dashes (`intro` for text before the first heading) | `breadcrumb` and below |
 | `{breadcrumb}`, `{body}` | The result of `breadcrumb`; the unit's text | `text`, `id`, `fields` |
 
-A TSV, YAML or JSONL source has the same values except `{frontmatter.…}`, `{heading…}` and
-`{parents}`. Its document values (`{yaml.<key>}`) are available everywhere; its unit values
-(`{column.…}`, `{record.…}`, `{item…}`, `{row}`, and `{body}` of YAML) from `title` on.
+A TSV, YAML, JSONL or SQL source has the same values except `{frontmatter.…}`, `{heading…}` and
+`{parents}`. Its document values (`{yaml.<key>}`, `{header.<key>}`, `{comment}`, `{sql}`) are
+available everywhere; its unit values (`{column.…}`, `{record.…}`, `{item…}`, `{row}`, and
+`{body}` of YAML and SQL) from `title` on.
 
 An unknown value name, a value used too early, a group that the pattern does not define and a
 broken template are configuration errors of the collection.

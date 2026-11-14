@@ -4,12 +4,11 @@ An MCP server that indexes prepared project knowledge (Markdown, TSV, YAML, JSON
 Apache Lucene and serves hybrid search over it: BM25 plus dense vectors kept in the same Lucene
 index. It retrieves; it does not generate answers. User-facing overview: `README.md`.
 
-**Current status:** stage 1 of `docs/plan.md` section 4 and steps 0 and 1 of stage 2 are
-implemented: Markdown, TSV, YAML and JSONL collections with configurable `split` and `map`,
+**Current status:** stage 1 of `docs/plan.md` section 4 and steps 0–3 of stage 2 are
+implemented: Markdown, TSV, YAML, JSONL and SQL collections with configurable `split` and `map`,
 built by the five-step source pipeline in `ingest/`, named readers, lexical search, the
 `rag-index` and `rag-search` commands and the tools `listCollections`, `search` and
-`getDocument`. The `sql` format, commands as steps, `where`, vectors and hybrid search are not
-implemented.
+`getDocument`. Commands as steps, `where`, vectors and hybrid search are not implemented.
 
 ## Repository contents
 
