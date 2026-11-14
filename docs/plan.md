@@ -23,7 +23,7 @@ built from Markdown sources into one Lucene index each and searched lexically; e
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
 by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats and
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
-named reader.
+named reader and select its records with `where`.
 
 - Implemented: the collections file loader with named readers; the step interfaces, the registry and
   `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command` converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter
@@ -41,8 +41,8 @@ named reader.
   601 records). That build has not been repeated on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about `where`, models, vectors, hybrid search and the tool groups after `search` is the
-target design, not implemented.
+In section 3, everything about models, vectors, hybrid search and the tool groups after `search`
+is the target design, not implemented.
 
 ## 3. Architecture
 
@@ -304,7 +304,10 @@ Stage 2 in more detail, as the next one:
    an argument is the path of the item's file; without it the text so far goes to standard
    input. The manifest keeps `command` and `convert`. `${VAR}` is resolved in `path` only.
    Checked with `java` as the command in the tests; Pandoc is a documented example only.
-5. `where`: selection of records by field values, applied after `map`.
+5. Done 2026-11-15: `where`: selection of records by field values, applied after `map` in
+   `SourcePipeline`; equality and `not`, compared as filters compare. The manifest keeps the
+   conditions. Checked on the first corpus: 222 Markdown files gave 133 documents without one
+   `kind`, 5 with another.
 6. The `lookup` tool group for exact lookups in catalog collections.
 
 Every format step adds synthetic files of the same shape as the first real corpus to `testdata/`

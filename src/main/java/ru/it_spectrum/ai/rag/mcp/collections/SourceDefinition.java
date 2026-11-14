@@ -18,18 +18,20 @@ import java.util.List;
  * @param map     how a unit is laid out as a record
  * @param command the program whose output is the only item of the source, or {@code null}
  * @param convert the converters every item passes through, in order; empty for none
+ * @param where   which records are kept
  */
 public record SourceDefinition(Path path, String include, String exclude, String format,
                                SplitSettings split, MapSettings map, CommandSettings command,
-                               List<ConvertStep> convert) {
+                               List<ConvertStep> convert, WhereSettings where) {
 
     public SourceDefinition {
         convert = convert == null ? List.of() : List.copyOf(convert);
+        where = where == null ? WhereSettings.ALL : where;
     }
 
     /** A source of files without converters. */
     public SourceDefinition(Path path, String include, String exclude, String format, SplitSettings split,
                             MapSettings map) {
-        this(path, include, exclude, format, split, map, null, List.of());
+        this(path, include, exclude, format, split, map, null, List.of(), WhereSettings.ALL);
     }
 }

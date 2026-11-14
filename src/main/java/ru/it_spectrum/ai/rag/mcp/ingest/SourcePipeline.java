@@ -71,6 +71,8 @@ public final class SourcePipeline {
             case SectionTree tree -> splitter.split(tree, source.split());
             case Rows rows -> rows.units();
         };
-        return mapper.map(document, units, source.map(), format.mapDefaults(), source.split().maxChars());
+        List<ChunkRecord> records = mapper.map(document, units, source.map(), format.mapDefaults(),
+                source.split().maxChars());
+        return records.stream().filter(record -> source.where().matches(record.fields())).toList();
     }
 }

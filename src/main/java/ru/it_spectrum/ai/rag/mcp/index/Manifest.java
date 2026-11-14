@@ -2,6 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.index;
 
 import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.collections.WhereSettings;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -31,7 +32,7 @@ public record Manifest(int schema, String name, String description, String built
                        int files, int documents, int records, List<String> fields, List<Source> sources) {
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 4;
+    public static final int SCHEMA = 5;
 
     public static final String FILE_NAME = "manifest.json";
     public static final String INDEX_DIR = "index";
@@ -43,10 +44,11 @@ public record Manifest(int schema, String name, String description, String built
      * @param command        the program whose output was read, or {@code null}
      * @param timeoutSeconds the timeout of {@code command}, or {@code null}
      * @param convert        the {@code convert} steps as written; empty for none
+     * @param where          the conditions records were selected by
      */
     public record Source(String path, String include, String exclude, String format,
                          SplitSettings split, MapSettings map, List<String> command, Integer timeoutSeconds,
-                         List<Map<String, Object>> convert) { }
+                         List<Map<String, Object>> convert, WhereSettings where) { }
 
     private static final JsonMapper JSON = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)

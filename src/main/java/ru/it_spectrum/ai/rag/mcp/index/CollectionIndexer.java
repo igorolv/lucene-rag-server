@@ -89,7 +89,7 @@ public final class CollectionIndexer {
                         source.include(), source.exclude(), pipeline.format(), source.split(), source.map(),
                         source.command() == null ? null : source.command().command(),
                         source.command() == null ? null : source.command().timeoutSeconds(),
-                        source.convert().stream().map(ConvertStep::settings).toList()));
+                        source.convert().stream().map(ConvertStep::settings).toList(), source.where()));
                 for (SourceItem item : pipeline.items()) {
                     files++;
                     List<ChunkRecord> chunks = pipeline.records(item);

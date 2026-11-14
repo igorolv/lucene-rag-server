@@ -179,7 +179,34 @@ public final class CollectionsLoader {
         SplitSettings split = split(node.get("split"));
         MapSettings map = map(node.get("map"));
         return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map,
-                command, convert(node.get("convert"), baseDir));
+                command, convert(node.get("convert"), baseDir), where(node.get("where")));
+    }
+
+    /** {@code "field": value} keeps records with the value, {@code "field": {"not": value}} those without. */
+    private static WhereSettings where(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return WhereSettings.ALL;
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("\"where\" must be a JSON object of field to condition");
+        }
+        List<WhereSettings.Condition> conditions = new ArrayList<>();
+        for (var entry : node.properties()) {
+            String field = entry.getKey();
+            JsonNode condition = entry.getValue();
+            String value = scalar(condition);
+            boolean not = false;
+            if (value == null && condition.isObject() && condition.size() == 1 && condition.has("not")) {
+                value = scalar(condition.get("not"));
+                not = true;
+            }
+            if (value == null) {
+                throw new IllegalArgumentException("where." + field
+                        + " must be a value or {\"not\": value}; no other conditions are supported");
+            }
+            conditions.add(new WhereSettings.Condition(field, value, not));
+        }
+        return new WhereSettings(conditions);
     }
 
     private static List<ConvertStep> convert(JsonNode node, Path baseDir) {

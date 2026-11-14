@@ -13,6 +13,7 @@ another machine.
 - [Commands](#commands)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
+- [Selecting records](#selecting-records)
 - [Examples](#examples)
 - [Building](#building)
 - [What a built collection is](#what-a-built-collection-is)
@@ -65,6 +66,7 @@ Each entry of `sources`:
 | `command` | none | Instead of `path`: a program whose output is the only file of the source, see [Commands](#commands) |
 | `timeoutSeconds` | `60` | How long `command` may run |
 | `convert` | none | Programs every file passes through before it is parsed, see [Commands](#commands) |
+| `where` | none | Which records are kept, see [Selecting records](#selecting-records) |
 | `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
 
 Files are read as UTF-8. Source directories are only read, never written.
@@ -329,6 +331,28 @@ broken template are configuration errors of the collection.
 
 Two records with the same id in one collection fail the build: make the document keys or the
 `id` template distinguish them.
+
+## Selecting records
+
+`where` keeps the records whose fields fit every condition, after `map`: it sees the fields a
+record has in the index, inherited and mapped.
+
+```json
+{ "path": "C:/projects/billing/knowledge/articles",
+  "where": { "status": { "not": "skeleton" }, "kind": "article" } }
+```
+
+| Condition | A record is kept when |
+|---|---|
+| `"field": value` | the field has the value among its values |
+| `{ "not": value }` | the field does not have the value; a record without the field is kept |
+
+- Values are compared as filters compare them: without surrounding blanks and ignoring case. A
+  number or `true` is compared as its text.
+- No other condition exists: no lists of values, patterns or comparisons. Several conditions
+  must all hold.
+- A file whose records are all dropped counts as a file but not as a document in the build
+  report.
 
 ## Examples
 
