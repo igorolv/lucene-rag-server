@@ -63,7 +63,8 @@ then keeps the summary and links to the owner.
 6. **External commands run only while building an index** and only as written in
    `collections.json`: an argument array, no shell, with a timeout. No tool argument may reach a
    command line (D10).
-7. **Do not push or rewrite history unless asked.** Commit only when the task asks for it.
+7. **Do not push or rewrite history unless asked.** Commit only when the task asks for it. Work
+   and commit on `main`; do not create a branch unless the user asks for one.
 
 ## Working with the documents
 
