@@ -1,13 +1,17 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
+import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.ingest.convert.CommandConverter;
+import ru.it_spectrum.ai.rag.mcp.ingest.exec.CommandRunner;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.JsonlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.SqlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.TsvFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.YamlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.map.TemplateMapper;
+import ru.it_spectrum.ai.rag.mcp.ingest.origin.CommandOrigin;
 import ru.it_spectrum.ai.rag.mcp.ingest.origin.FilesOrigin;
 import ru.it_spectrum.ai.rag.mcp.ingest.split.HeadingSplitter;
 
@@ -16,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -47,7 +52,9 @@ public final class StepRegistry {
 
     /** The steps that ship with the server. Keep in step with the step beans. */
     public static StepRegistry builtIn() {
-        return new StepRegistry(List.of(new FilesOrigin()), List.of(),
+        CommandRunner runner = new CommandRunner();
+        return new StepRegistry(List.of(new FilesOrigin(), new CommandOrigin(runner)),
+                List.of(new CommandConverter(runner)),
                 List.of(new MarkdownFormat(), new TsvFormat(), new YamlFormat(), new JsonlFormat(),
                         new SqlFormat()),
                 new HeadingSplitter(), new TemplateMapper());
@@ -75,7 +82,35 @@ public final class StepRegistry {
      *                                  setting that does not fit its steps
      */
     public SourcePipeline pipeline(SourceDefinition source) {
-        return SourcePipeline.of(source, origin(source), List.of(), format(source), splitter, mapper);
+        Origin origin = origin(source);
+        return SourcePipeline.of(source, origin, conversions(source, origin), format(source), splitter, mapper);
+    }
+
+    /** The {@code convert} steps of a source, each resolved by the key that names its converter. */
+    private List<Converter.Conversion> conversions(SourceDefinition source, Origin origin) {
+        List<Converter.Conversion> result = new ArrayList<>();
+        for (int i = 0; i < source.convert().size(); i++) {
+            ConvertStep step = source.convert().get(i);
+            String where = "convert[" + i + "]";
+            List<Converter> named = step.settings().keySet().stream().map(converters::get)
+                    .filter(Objects::nonNull).toList();
+            if (named.size() != 1) {
+                throw new IllegalArgumentException(where + " must name exactly one converter by a key; supported: "
+                        + String.join(", ", converters.keySet()));
+            }
+            final Converter.Conversion conversion;
+            try {
+                conversion = named.getFirst().prepare(step);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
+            }
+            if (conversion.readsFile() && !FilesOrigin.NAME.equals(origin.name())) {
+                throw new IllegalArgumentException(where + " reads the file of an item, and a source with a "
+                        + origin.name() + " has no files");
+            }
+            result.add(conversion);
+        }
+        return List.copyOf(result);
     }
 
     /**
@@ -103,7 +138,12 @@ public final class StepRegistry {
     }
 
     private Origin origin(SourceDefinition source) {
-        return origins.get(FilesOrigin.NAME);
+        String name = source.command() != null ? CommandOrigin.NAME : FilesOrigin.NAME;
+        Origin origin = origins.get(name);
+        if (origin == null) {
+            throw new IllegalArgumentException("the origin \"" + name + "\" is not supported");
+        }
+        return origin;
     }
 
     /** The format a source names; without a name the extension of its files decides, then Markdown. */
@@ -116,7 +156,8 @@ public final class StepRegistry {
             }
             return named;
         }
-        String extension = extension(source.include() != null ? source.include() : source.path().toString());
+        String extension = extension(source.include() != null ? source.include()
+                : source.path() != null ? source.path().toString() : "");
         for (Format format : formats.values()) {
             if (format.extensions().contains(extension)) {
                 return format;

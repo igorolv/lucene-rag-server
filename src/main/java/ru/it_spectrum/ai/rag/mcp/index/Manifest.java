@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Passport of a built collection, {@code <collection>/manifest.json}. Everything the server needs
@@ -30,14 +31,22 @@ public record Manifest(int schema, String name, String description, String built
                        int files, int documents, int records, List<String> fields, List<Source> sources) {
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 3;
+    public static final int SCHEMA = 4;
 
     public static final String FILE_NAME = "manifest.json";
     public static final String INDEX_DIR = "index";
 
-    /** One source as it was configured at build time. */
+    /**
+     * One source as it was configured at build time.
+     *
+     * @param path           the files read, or {@code null} for a source with a command
+     * @param command        the program whose output was read, or {@code null}
+     * @param timeoutSeconds the timeout of {@code command}, or {@code null}
+     * @param convert        the {@code convert} steps as written; empty for none
+     */
     public record Source(String path, String include, String exclude, String format,
-                         SplitSettings split, MapSettings map) { }
+                         SplitSettings split, MapSettings map, List<String> command, Integer timeoutSeconds,
+                         List<Map<String, Object>> convert) { }
 
     private static final JsonMapper JSON = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)

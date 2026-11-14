@@ -10,6 +10,7 @@ another machine.
 - [Reading Markdown](#reading-markdown)
 - [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
 - [Reading SQL](#reading-sql)
+- [Commands](#commands)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
 - [Examples](#examples)
@@ -55,12 +56,15 @@ Each entry of `sources`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `path` | required | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
+| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
 | `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
 | `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl` or `sql`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`); a directory without `include` is read as Markdown |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
+| `command` | none | Instead of `path`: a program whose output is the only file of the source, see [Commands](#commands) |
+| `timeoutSeconds` | `60` | How long `command` may run |
+| `convert` | none | Programs every file passes through before it is parsed, see [Commands](#commands) |
 | `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
 
 Files are read as UTF-8. Source directories are only read, never written.
@@ -90,8 +94,9 @@ object and name it in each source with `reader`:
 }
 ```
 
-- A reader holds the reading keys of a source: `format`, `split` and `map`. Other keys in a
-  reader are ignored; `path`, `include` and `exclude` always belong to the source.
+- A reader holds the reading keys of a source: `convert`, `format`, `split` and `map`. Other
+  keys in a reader are ignored; `path`, `command`, `include` and `exclude` always belong to the
+  source.
 - A key the source sets itself replaces the reader's key whole. The second source above sets
   `map`, so none of the reader's `map` is used: `split` and `map` are not merged key by key.
 - A reader is used only through the sources that name it: a mistake in a reader is reported as
@@ -198,6 +203,69 @@ WHERE h.payment_id = :payment_id
 
 Files that generate catalogs usually sit next to the catalogs and have a free comment instead of
 a header. Read them as a separate source or leave them out with `exclude`.
+
+## Commands
+
+A program the server does not know can still feed a collection: it prints text, and the source's
+`format` parses that text. A command runs only while `rag-index` builds, never while the server
+answers, and only as `collections.json` writes it.
+
+- A command is an array: the program and its arguments, run without a shell, so there are no
+  pipes, redirections or wildcards; write a script for those. The program is found on `PATH` or
+  by its path; the working directory is the directory of `collections.json`, so relative paths
+  in arguments resolve against it.
+- What the program prints on standard output is read as UTF-8. A program that exits with a code
+  other than 0, or does not finish within `timeoutSeconds` (default 60), fails the build with
+  exit code 4 and the end of its error output in the message.
+- A collections file with commands runs programs on the machine that builds: do not build from a
+  collections file of an untrusted origin.
+
+**A command as the origin.** A source with `command` instead of `path` runs the program once;
+its output is the source's only file. `include` and `exclude` do not apply, and the path the
+templates see as `{path}` is the command line as written, so give the source a `map.document`.
+
+```json
+{ "command": ["python", "-I", "tools/export_help.py"], "timeoutSeconds": 300,
+  "format": "jsonl",
+  "map": { "document": "help", "title": "{record.title}", "text": "{record.text}" } }
+```
+
+**Commands as `convert` steps.** `convert` is an array of steps that every file of a `path`
+source passes through before its `format` reads it, in the order written. A step is
+`{ "command": [...], "timeoutSeconds": n }`.
+
+- An argument containing `{file}` gets the absolute path of the file in its place, and the
+  program reads the file itself: such a step may come first for a binary file, and it reads
+  the original file even after other steps.
+- A step without `{file}` receives the text so far on standard input.
+- `format` is the format of the converted text. A source of `command` cannot use `{file}`: it
+  has no files.
+
+Word documents converted to Markdown with [Pandoc](https://pandoc.org), which the build machine
+must have; the server does not ship it:
+
+```json
+{ "path": "C:/projects/billing/manuals", "include": "**/*.docx",
+  "convert": [ { "command": ["pandoc", "-f", "docx", "-t", "gfm", "--wrap=none", "{file}"],
+                 "timeoutSeconds": 60 } ],
+  "format": "markdown" }
+```
+
+The same steps written once as a [named reader](#named-readers):
+
+```json
+{
+  "readers": {
+    "word": { "convert": [ { "command": ["pandoc", "-f", "docx", "-t", "gfm", "{file}"] } ],
+              "format": "markdown", "split": { "level": "h2" } }
+  },
+  "collections": {
+    "manuals@billing": {
+      "sources": [ { "path": "C:/projects/billing/manuals", "include": "**/*.docx", "reader": "word" } ]
+    }
+  }
+}
+```
 
 ## Splitting
 
@@ -379,7 +447,7 @@ The command prints the number of files, documents and records per collection and
 | 0 | built |
 | 1 | unexpected error |
 | 2 | wrong usage, unknown collection or wrong configuration |
-| 4 | a source could not be read or the index could not be written |
+| 4 | a source could not be read, a command failed or the index could not be written |
 
 A build always reads every source again and replaces the whole collection. The new index is
 written next to the old one and swapped in when complete, so a failed build keeps the previous
@@ -395,7 +463,7 @@ A running server sees a rebuilt collection on its next call; no restart is neede
   collections.json        needed to build only
   docs@billing/
     manifest.json         name, description, build time, counts, field names,
-                          sources with their split and map settings
+                          sources with their command, convert, split and map settings
     index/                Lucene index
 ```
 

@@ -67,8 +67,8 @@ class StepRegistryTest {
     void theNamesOfTheStepsAreListed() {
         StepRegistry registry = StepRegistry.builtIn();
 
-        assertThat(registry.origins()).isEqualTo(Set.of("files"));
-        assertThat(registry.converters()).isEmpty();
+        assertThat(registry.origins()).isEqualTo(Set.of("files", "command"));
+        assertThat(registry.converters()).isEqualTo(Set.of("command"));
         assertThat(registry.formats()).isEqualTo(Set.of("markdown", "tsv", "yaml", "jsonl", "sql"));
     }
 }

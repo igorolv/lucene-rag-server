@@ -157,18 +157,55 @@ public final class CollectionsLoader {
             throw new IllegalArgumentException("\"chunk\" was renamed to \"split\" (and splitBy to level)");
         }
         String format = text(node.get("format"));
+        boolean hasCommand = node.has("command") && !node.get("command").isNull();
         String rawPath = EnvironmentPlaceholders.resolve(text(node.get("path")), where + ".path", env);
-        if (rawPath == null || rawPath.isBlank()) {
-            throw new IllegalArgumentException("\"path\" is required");
+        Path path = null;
+        CommandSettings command = null;
+        if (hasCommand) {
+            if (rawPath != null) {
+                throw new IllegalArgumentException("a source has either \"path\" or \"command\", not both");
+            }
+            command = CommandSettings.of(value(node.get("command")), value(node.get("timeoutSeconds")), baseDir);
+        } else {
+            if (rawPath == null || rawPath.isBlank()) {
+                throw new IllegalArgumentException("\"path\" or \"command\" is required");
+            }
+            rawPath = rawPath.trim();
+            if (rawPath.startsWith("~")) {
+                rawPath = System.getProperty("user.home", ".") + rawPath.substring(1);
+            }
+            path = baseDir.resolve(rawPath).normalize();
         }
-        rawPath = rawPath.trim();
-        if (rawPath.startsWith("~")) {
-            rawPath = System.getProperty("user.home", ".") + rawPath.substring(1);
-        }
-        Path path = baseDir.resolve(rawPath).normalize();
         SplitSettings split = split(node.get("split"));
         MapSettings map = map(node.get("map"));
-        return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map);
+        return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map,
+                command, convert(node.get("convert"), baseDir));
+    }
+
+    private static List<ConvertStep> convert(JsonNode node, Path baseDir) {
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("\"convert\" must be an array of steps");
+        }
+        List<ConvertStep> steps = new ArrayList<>();
+        for (JsonNode step : node) {
+            if (!step.isObject()) {
+                throw new IllegalArgumentException("every step of \"convert\" must be a JSON object");
+            }
+            Map<String, Object> settings = new LinkedHashMap<>();
+            for (var entry : step.properties()) {
+                settings.put(entry.getKey(), value(entry.getValue()));
+            }
+            steps.add(new ConvertStep(settings, baseDir));
+        }
+        return List.copyOf(steps);
+    }
+
+    /** A JSON value as plain Java: strings, numbers, booleans, lists and maps; {@code null} for none. */
+    private static Object value(JsonNode node) {
+        return node == null || node.isNull() ? null : JSON.treeToValue(node, Object.class);
     }
 
     private static SplitSettings split(JsonNode node) {

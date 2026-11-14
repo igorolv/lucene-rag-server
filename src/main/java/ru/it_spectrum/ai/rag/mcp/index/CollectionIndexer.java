@@ -9,6 +9,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.FSDirectory;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
+import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
@@ -84,8 +85,11 @@ public final class CollectionIndexer {
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             for (SourceDefinition source : definition.sources()) {
                 SourcePipeline pipeline = registry.pipeline(source);
-                sources.add(new Manifest.Source(source.path().toString(), source.include(), source.exclude(),
-                        pipeline.format(), source.split(), source.map()));
+                sources.add(new Manifest.Source(source.path() == null ? null : source.path().toString(),
+                        source.include(), source.exclude(), pipeline.format(), source.split(), source.map(),
+                        source.command() == null ? null : source.command().command(),
+                        source.command() == null ? null : source.command().timeoutSeconds(),
+                        source.convert().stream().map(ConvertStep::settings).toList()));
                 for (SourceItem item : pipeline.items()) {
                     files++;
                     List<ChunkRecord> chunks = pipeline.records(item);

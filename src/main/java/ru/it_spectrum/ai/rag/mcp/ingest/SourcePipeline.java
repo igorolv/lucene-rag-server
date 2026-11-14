@@ -14,12 +14,13 @@ public final class SourcePipeline {
 
     private final SourceDefinition source;
     private final Origin origin;
-    private final List<Converter> converters;
+    private final List<Converter.Conversion> converters;
     private final Format format;
     private final Splitter splitter;
     private final Mapper mapper;
 
-    private SourcePipeline(SourceDefinition source, Origin origin, List<Converter> converters, Format format,
+    private SourcePipeline(SourceDefinition source, Origin origin, List<Converter.Conversion> converters,
+                           Format format,
                            Splitter splitter, Mapper mapper) {
         this.source = source;
         this.origin = origin;
@@ -30,7 +31,8 @@ public final class SourcePipeline {
     }
 
     /** @throws IllegalArgumentException when a setting of the source does not fit its steps */
-    static SourcePipeline of(SourceDefinition source, Origin origin, List<Converter> converters, Format format,
+    static SourcePipeline of(SourceDefinition source, Origin origin, List<Converter.Conversion> converters,
+                             Format format,
                              Splitter splitter, Mapper mapper) {
         format.check(source.split());
         mapper.check(source.map(), source.split(), format);
@@ -54,9 +56,15 @@ public final class SourcePipeline {
      * @throws IllegalArgumentException when the item does not fit the format or the mapping
      */
     public List<ChunkRecord> records(SourceItem item) throws IOException {
-        SourceText text = item.read();
-        for (Converter converter : converters) {
+        SourceText text = null;
+        for (Converter.Conversion converter : converters) {
+            if (text == null && !converter.readsFile()) {
+                text = item.read();
+            }
             text = converter.convert(item, text);
+        }
+        if (text == null) {
+            text = item.read();
         }
         ParsedDocument document = format.parse(text, source.split());
         List<Unit> units = switch (document) {

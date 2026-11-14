@@ -21,11 +21,12 @@ reads the results and where a weak local model does; the difference is configura
 Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
 built from Markdown sources into one Lucene index each and searched lexically; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
-by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats; a
-source may take its reading keys from a named reader.
+by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats and
+external commands as an origin and as `convert` steps; a source may take its reading keys from a
+named reader.
 
 - Implemented: the collections file loader with named readers; the step interfaces, the registry and
-  `SourcePipeline` in `ingest/`; the `files` origin, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter
+  `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command` converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter
   and the template mapper as step beans; the index with its manifest; BM25 search with filters
   and snippets; server-side response limits; the commands `rag-index` (in a Spring context
   without the MCP server) and `rag-search`; the tool groups `collections` (`listCollections`) and
@@ -40,7 +41,7 @@ source may take its reading keys from a named reader.
   601 records). That build has not been repeated on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about origins other than files, `convert`, `where`, models, vectors, hybrid search and the tool groups after `search` is the
+In section 3, everything about `where`, models, vectors, hybrid search and the tool groups after `search` is the
 target design, not implemented.
 
 ## 3. Architecture
@@ -93,7 +94,8 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
 described in `docs/collections.md`, which owns the format: `readers`, `description` and
-`sources` with `path`, `include`, `exclude`, `format: markdown`, `split`, `map` and `reader`. The sketch below is the
+`sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`, `convert`, `format`,
+`split`, `map` and `reader`. The sketch below is the
 target shape; the remaining field names are fixed by the stage that implements them:
 
 ```json
@@ -226,12 +228,12 @@ config/  — Spring wiring, properties, MCP customizer
 |---|---|
 | `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
-| `ingest/origin/` | `FilesOrigin`. Planned: `CommandOrigin` |
-| `ingest/convert/` | Planned: `CommandConverter` |
+| `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
+| `ingest/convert/` | `CommandConverter` |
 | `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, and `SqlFormat` |
 | `ingest/split/` | `HeadingSplitter` |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
-| `ingest/exec/` | Planned: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
+| `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
@@ -295,9 +297,13 @@ Stage 2 in more detail, as the next one:
    the document key is `{header.id|document.path}`, the title is `{header.purpose|path.name}`, the
    text is `{body}`, the id is `{document.key}`. No SQL parsing. Checked on the first corpus: 9
    query files gave 12 records, 8 catalog generators with a free comment 9 records.
-4. Commands (D10): `ingest/exec/`, the `command` origin and the `command` converter; argument
-   array, no shell, timeout, working directory of `collections.json`. `docs/collections.md` gets
-   a Pandoc example.
+4. Done 2026-11-15: commands (D10): `ingest/exec/`, the `command` origin and the `command`
+   converter; argument array, no shell, timeout (default 60 seconds), working directory of
+   `collections.json`, output read as UTF-8. A `convert` step names its converter by a key and is
+   resolved by the registry; a converter prepares a checked step from its settings. `{file}` in
+   an argument is the path of the item's file; without it the text so far goes to standard
+   input. The manifest keeps `command` and `convert`. `${VAR}` is resolved in `path` only.
+   Checked with `java` as the command in the tests; Pandoc is a documented example only.
 5. `where`: selection of records by field values, applied after `map`.
 6. The `lookup` tool group for exact lookups in catalog collections.
 
