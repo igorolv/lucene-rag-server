@@ -4,6 +4,7 @@ import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +26,11 @@ import java.util.function.UnaryOperator;
  * exists, the templates of {@code map} use values the format gives — is checked by
  * {@code ingest.StepRegistry#checked}, which callers apply to the result.
  *
+ * <p>A top-level {@code readers} object holds named sets of the reading keys of a source
+ * ({@link #READER_KEYS}); a source names one with {@code reader}, and every key the source sets
+ * itself replaces the reader's key whole (docs/decisions.md D18). The reader is resolved here,
+ * before the steps are checked, so the rest of the server sees only complete sources.
+ *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
  *
@@ -33,6 +39,9 @@ import java.util.function.UnaryOperator;
 public final class CollectionsLoader {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** The keys of a source a named reader may hold. */
+    static final List<String> READER_KEYS = List.of("convert", "format", "split", "map");
 
     private CollectionsLoader() {
     }
@@ -68,15 +77,21 @@ public final class CollectionsLoader {
         if (!collections.isObject()) {
             throw new IllegalStateException("\"collections\" in " + file + " must be a JSON object");
         }
+        JsonNode readers = root.get("readers");
+        if (readers == null || readers.isNull()) {
+            readers = JSON.createObjectNode();
+        } else if (!readers.isObject()) {
+            throw new IllegalStateException("\"readers\" in " + file + " must be a JSON object");
+        }
         Path baseDir = file.toAbsolutePath().getParent();
         List<CollectionDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
-            result.add(collection(entry.getKey(), entry.getValue(), baseDir, env));
+            result.add(collection(entry.getKey(), entry.getValue(), readers, baseDir, env));
         }
         return List.copyOf(result);
     }
 
-    private static CollectionDefinition collection(String name, JsonNode node, Path baseDir,
+    private static CollectionDefinition collection(String name, JsonNode node, JsonNode readers, Path baseDir,
                                                    UnaryOperator<String> env) {
         String description = node.isObject() ? text(node.get("description")) : null;
         String nameProblem = CollectionNames.problem(name);
@@ -95,12 +110,43 @@ public final class CollectionsLoader {
         for (JsonNode source : sources) {
             String where = "collections." + name + ".sources[" + index++ + "]";
             try {
-                definitions.add(source(source, where, baseDir, env));
+                definitions.add(source(withReader(source, readers), where, baseDir, env));
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return CollectionDefinition.broken(name, description, where + ": " + e.getMessage());
             }
         }
         return new CollectionDefinition(name, description, List.copyOf(definitions), null);
+    }
+
+    /**
+     * The source with the keys of the reader it names; a key of the source replaces the reader's
+     * key whole, without merging inside {@code split} or {@code map}.
+     */
+    private static JsonNode withReader(JsonNode node, JsonNode readers) {
+        if (!node.isObject() || !node.has("reader") || node.get("reader").isNull()) {
+            return node;
+        }
+        String name = text(node.get("reader"));
+        if (name == null) {
+            throw new IllegalArgumentException("\"reader\" must be the name of an entry of \"readers\"");
+        }
+        JsonNode reader = readers.get(name);
+        if (reader == null) {
+            throw new IllegalArgumentException("reader \"" + name + "\" is not defined in \"readers\"");
+        }
+        if (!reader.isObject()) {
+            throw new IllegalArgumentException("readers." + name + " must be a JSON object");
+        }
+        ObjectNode merged = JSON.createObjectNode();
+        for (String key : READER_KEYS) {
+            if (reader.has(key)) {
+                merged.set(key, reader.get(key));
+            }
+        }
+        for (var entry : node.properties()) {
+            merged.set(entry.getKey(), entry.getValue());
+        }
+        return merged;
     }
 
     private static SourceDefinition source(JsonNode node, String where, Path baseDir, UnaryOperator<String> env) {

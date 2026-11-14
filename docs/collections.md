@@ -5,6 +5,7 @@ another machine.
 
 - [The collections file](#the-collections-file)
 - [Sources](#sources)
+- [Named readers](#named-readers)
 - [From a file to records](#from-a-file-to-records)
 - [Reading Markdown](#reading-markdown)
 - [Splitting](#splitting)
@@ -58,8 +59,43 @@ Each entry of `sources`:
 | `format` | `markdown` | Reader. Only `markdown` is supported so far |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
+| `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
 
 Files are read as UTF-8. Source directories are only read, never written.
+
+## Named readers
+
+When several sources are read the same way, write the way once in the top-level `readers`
+object and name it in each source with `reader`:
+
+```json
+{
+  "readers": {
+    "requirements": {
+      "split": { "level": "h3", "headingPattern": "^Requirement: (?<name>.+)$" },
+      "map": { "document": "{path[0]}", "title": "{heading.name}", "fields": { "kind": "spec" } }
+    }
+  },
+  "collections": {
+    "specs@billing": {
+      "sources": [
+        { "path": "C:/projects/billing/openspec/specs", "reader": "requirements" },
+        { "path": "C:/projects/billing/openspec/changes", "reader": "requirements",
+          "map": { "document": "{path[0]}", "title": "{heading.name}", "fields": { "kind": "change" } } }
+      ]
+    }
+  }
+}
+```
+
+- A reader holds the reading keys of a source: `format`, `split` and `map`. Other keys in a
+  reader are ignored; `path`, `include` and `exclude` always belong to the source.
+- A key the source sets itself replaces the reader's key whole. The second source above sets
+  `map`, so none of the reader's `map` is used: `split` and `map` are not merged key by key.
+- A reader is used only through the sources that name it: a mistake in a reader is reported as
+  the configuration error of each collection whose source names it, and an unused reader is not
+  checked. A source naming a reader that is not in `readers` is a configuration error of its
+  collection.
 
 ## From a file to records
 

@@ -21,9 +21,10 @@ reads the results and where a weak local model does; the difference is configura
 Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
 built from Markdown sources into one Lucene index each and searched lexically; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
-by the five-step pipeline of section 3.1 with one implementation of each step.
+by the five-step pipeline of section 3.1 with one implementation of each step; a source may take
+its reading keys from a named reader.
 
-- Implemented: the collections file loader; the step interfaces, the registry and
+- Implemented: the collections file loader with named readers; the step interfaces, the registry and
   `SourcePipeline` in `ingest/`; the `files` origin, the `markdown` format, the heading splitter
   and the template mapper as step beans; the index with its manifest; BM25 search with filters
   and snippets; server-side response limits; the commands `rag-index` (in a Spring context
@@ -40,7 +41,7 @@ by the five-step pipeline of section 3.1 with one implementation of each step.
 - Not measured: search quality. That is stage 4.
 
 In section 3, everything about origins other than files, `convert`, formats other than Markdown,
-named readers, `where`, models, vectors, hybrid search and the tool groups after `search` is the
+`where`, models, vectors, hybrid search and the tool groups after `search` is the
 target design, not implemented.
 
 ## 3. Architecture
@@ -91,8 +92,8 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 ### 3.2 Collections file
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
-described in `docs/collections.md`, which owns the format: `description` and `sources` with
-`path`, `include`, `exclude`, `format: markdown`, `split` and `map`. The sketch below is the
+described in `docs/collections.md`, which owns the format: `readers`, `description` and
+`sources` with `path`, `include`, `exclude`, `format: markdown`, `split`, `map` and `reader`. The sketch below is the
 target shape; the remaining field names are fixed by the stage that implements them:
 
 ```json
@@ -280,7 +281,9 @@ Stage 2 in more detail, as the next one:
    Markdown reader, chunker and mapper moved behind the step interfaces and no change of
    behavior. `format` is chosen by name, or by file extension when absent; the format gives the
    default `include`, the default `map` templates and the value names a template may use.
-   Not done in this step: named readers (D18), see below.
+   Named readers (D18), done 2026-11-15: `CollectionsLoader` reads the top-level `readers`
+   object and resolves a source that names a `reader` before `StepRegistry.checked` sees it; a
+   key of the source replaces the reader's key whole.
 2. Row formats, one unit per item, no `split`: `tsv` (a row; values `{column.<name>}` from the
    header row), `yaml` (an item of a named list), `jsonl` (a line; values `{record.<key>}`). They
    have no default `text`, so `map.text` is required.
@@ -302,10 +305,6 @@ TSV, SQL and JSONL files, and these are the formats of this stage.
 `docbook` is not in this stage (D17). If it is written, it is a StAX reader of nested `section`
 elements into the section tree, with `xml:id` and the page name from `<?dbhtml filename?>` as
 values.
-
-Named readers (D18) are the next thing to do, before the formats: `CollectionsLoader` reads the
-top-level `readers` object and resolves a source that names a `reader` against it — the keys of
-the source replace the keys of the reader — before `StepRegistry.checked` sees the source.
 
 Left out of stage 1 and not assigned to a stage: the source revision in the manifest (it needs a
 decision on calling `git`, which invariant 6 of `AGENTS.md` does not allow today) and user

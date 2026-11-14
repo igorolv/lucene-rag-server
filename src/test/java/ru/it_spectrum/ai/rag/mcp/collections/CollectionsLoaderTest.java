@@ -148,6 +148,76 @@ class CollectionsLoaderTest {
     }
 
     @Test
+    void aSourceTakesTheKeysOfItsReaderAndReplacesTheOnesItSets() throws IOException {
+        List<CollectionDefinition> collections = load("""
+                {
+                  "readers": {
+                    "notes": {"format": "markdown",
+                              "split": {"level": "document", "maxChars": 1000},
+                              "map": {"title": "{document.title}", "fields": {"kind": "note"}},
+                              "path": "ignored", "include": "**/*.txt"}
+                  },
+                  "collections": {
+                    "a": {"sources": [
+                      {"path": "notes", "reader": "notes"},
+                      {"path": "more", "reader": "notes", "split": {"level": "h3"},
+                       "map": {"fields": {"kind": "other"}}}
+                    ]}
+                  }
+                }
+                """, Map.of());
+
+        CollectionDefinition a = collections.getFirst();
+        assertThat(a.usable()).isTrue();
+        SourceDefinition plain = a.sources().get(0);
+        assertThat(plain.path()).isEqualTo(dir.resolve("notes"));
+        assertThat(plain.include()).as("only reading keys come from a reader").isNull();
+        assertThat(plain.format()).isEqualTo("markdown");
+        assertThat(plain.split()).isEqualTo(new SplitSettings(SplitSettings.DOCUMENT, null, 1000, 0));
+        assertThat(plain.map().title()).isEqualTo("{document.title}");
+        assertThat(plain.map().fields()).containsExactly(Map.entry("kind", "note"));
+
+        SourceDefinition overridden = a.sources().get(1);
+        assertThat(overridden.format()).isEqualTo("markdown");
+        assertThat(overridden.split()).as("split replaced whole, maxChars back to its default")
+                .isEqualTo(new SplitSettings(3, null, SplitSettings.DEFAULT.maxChars(), 0));
+        assertThat(overridden.map().title()).as("map replaced whole").isNull();
+        assertThat(overridden.map().fields()).containsExactly(Map.entry("kind", "other"));
+    }
+
+    @Test
+    void aReaderThatIsMissingOrWrongBreaksOnlyTheCollectionsThatNameIt() throws IOException {
+        List<CollectionDefinition> collections = load("""
+                {
+                  "readers": {"broken": "markdown", "deep": {"split": {"level": "h9"}},
+                              "rows": {"format": "docbook"}},
+                  "collections": {
+                    "unknown": {"sources": [{"path": "a", "reader": "nothing"}]},
+                    "not-object": {"sources": [{"path": "a", "reader": "broken"}]},
+                    "bad-split": {"sources": [{"path": "a", "reader": "deep"}]},
+                    "bad-format": {"sources": [{"path": "a", "reader": "rows"}]},
+                    "not-a-name": {"sources": [{"path": "a", "reader": ["x"]}]},
+                    "good": {"sources": [{"path": "a"}]}
+                  }
+                }
+                """, Map.of());
+
+        assertThat(collections).extracting(CollectionDefinition::usable)
+                .containsExactly(false, false, false, false, false, true);
+        assertThat(collections.get(0).configError()).contains("sources[0]", "reader \"nothing\"", "not defined");
+        assertThat(collections.get(1).configError()).contains("readers.broken", "JSON object");
+        assertThat(collections.get(2).configError()).contains("split.level");
+        assertThat(collections.get(3).configError()).contains("docbook", "not supported");
+        assertThat(collections.get(4).configError()).contains("\"reader\" must be");
+    }
+
+    @Test
+    void readersThatAreNotAnObjectAreAnErrorOfTheFile() {
+        assertThatThrownBy(() -> load("{\"readers\": [], \"collections\": {}}", Map.of()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"readers\"");
+    }
+
+    @Test
     void aFileThatIsNotAJsonObjectIsAnError() {
         assertThatThrownBy(() -> load("{ not json", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not valid JSON");

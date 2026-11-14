@@ -6,9 +6,9 @@ index. It retrieves; it does not generate answers. User-facing overview: `README
 
 **Current status:** stage 1 of `docs/plan.md` section 4 and steps 0 and 1 of stage 2 are
 implemented: Markdown collections with configurable `split` and `map`, built by the five-step
-source pipeline in `ingest/`, lexical search, the `rag-index` and `rag-search` commands and the
-tools `listCollections`, `search` and `getDocument`. Named readers, other formats, commands as
-steps, vectors and hybrid search are not implemented.
+source pipeline in `ingest/`, named readers, lexical search, the `rag-index` and `rag-search`
+commands and the tools `listCollections`, `search` and `getDocument`. Other formats, commands as
+steps, `where`, vectors and hybrid search are not implemented.
 
 ## Repository contents
 
