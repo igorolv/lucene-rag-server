@@ -191,7 +191,8 @@ public final class CollectionsLoader {
         }
         return new SplitSettings(level, text(node.get("headingPattern")),
                 number(node.get("maxChars"), "split.maxChars", SplitSettings.DEFAULT.maxChars()),
-                number(node.get("minChars"), "split.minChars", SplitSettings.DEFAULT.minChars()));
+                number(node.get("minChars"), "split.minChars", SplitSettings.DEFAULT.minChars()),
+                text(node.get("list")));
     }
 
     private static MapSettings map(JsonNode node) {

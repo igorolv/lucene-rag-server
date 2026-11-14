@@ -1,6 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.format;
 
 import org.springframework.stereotype.Component;
+import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
 import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;
@@ -53,7 +54,7 @@ public final class MarkdownFormat implements Format {
     }
 
     @Override
-    public ParsedDocument parse(SourceText text) {
+    public ParsedDocument parse(SourceText text, SplitSettings split) {
         return MarkdownReader.read(text.path(), text.text());
     }
 }

@@ -30,7 +30,7 @@ public record Manifest(int schema, String name, String description, String built
                        int files, int documents, int records, List<String> fields, List<Source> sources) {
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 2;
+    public static final int SCHEMA = 3;
 
     public static final String FILE_NAME = "manifest.json";
     public static final String INDEX_DIR = "index";

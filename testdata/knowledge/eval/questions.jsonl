@@ -1,0 +1,4 @@
+{"id": "q-0001", "question": "Почему оплата клиента не закрыла счёт, хотя деньги пришли?", "subsystem": "billing", "expected": ["playbook.billing.payment-not-matched"], "answer": "Платёж не распознан: в назначении нет номера договора. Привязать вручную через очередь разбора.", "origin": "synthetic"}
+{"id": "q-0002", "question": "Можно ли вернуть деньги по отменённому платежу?", "subsystem": "billing", "expected": ["article.billing.refunds", "catalogs/messages/messages-billing.tsv"], "answer": "Нет, возврат создаётся только по проведённому платежу.", "origin": "synthetic"}
+
+{"id": "q-0003", "question": "Где посмотреть платежи, которые не привязались к счёту?", "subsystem": "billing", "expected": ["catalogs/menu/menu.tsv"], "answer": "Меню Биллинг → Очередь разбора.", "origin": "synthetic", "meta": {"nested": "skipped"}}

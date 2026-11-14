@@ -1,0 +1,6 @@
+kind	call	text	file	line	method
+error	ValidationException	Сумма платежа должна быть больше нуля	billing/src/payments/PaymentValidator.java	42	checkAmount
+error	ValidationException	Не указан номер договора в назначении платежа	billing/src/payments/PaymentValidator.java	57	checkPurpose
+warning	log.warn	Счёт {…} уже оплачен, повторная привязка пропущена	billing/src/invoices/InvoiceMatcher.java	88	match
+error	StateException	Возврат по платежу в статусе "Отменён" невозможен	billing/src/refunds/RefundService.java	121	createRefund
+info	log.info	Выписка банка загружена

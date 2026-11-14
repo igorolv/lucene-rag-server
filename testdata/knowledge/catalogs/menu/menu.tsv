@@ -1,0 +1,5 @@
+subsystem	lvl	id	pid	name	view	help
+B	1	2001		Биллинг
+B	2	2002	2001	Платежи	billing-payments	Журнал входящих платежей
+B	2	2003	2001	Очередь разбора	billing-match-queue	Платежи, не привязанные к счёту
+B	2	2004	2001	Возвраты	billing-refunds

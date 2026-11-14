@@ -32,6 +32,7 @@ public final class SourcePipeline {
     /** @throws IllegalArgumentException when a setting of the source does not fit its steps */
     static SourcePipeline of(SourceDefinition source, Origin origin, List<Converter> converters, Format format,
                              Splitter splitter, Mapper mapper) {
+        format.check(source.split());
         mapper.check(source.map(), source.split(), format);
         return new SourcePipeline(source, origin, List.copyOf(converters), format, splitter, mapper);
     }
@@ -57,7 +58,7 @@ public final class SourcePipeline {
         for (Converter converter : converters) {
             text = converter.convert(item, text);
         }
-        ParsedDocument document = format.parse(text);
+        ParsedDocument document = format.parse(text, source.split());
         List<Unit> units = switch (document) {
             case SectionTree tree -> splitter.split(tree, source.split());
             case Rows rows -> rows.units();

@@ -1,0 +1,37 @@
+table: PAYMENT
+business_name: "Входящий платёж"
+subsystem: billing
+kind: entity
+key: [PAYMENT_ID]
+scope:
+  column: CONTRACT_ID
+columns:
+  PAYMENT_ID:
+    meaning: "ID платежа"
+    type: NUMBER
+  CONTRACT_ID:
+    meaning: "ID договора, к которому привязан платёж"
+    type: NUMBER
+  PAYMENT_AMOUNT:
+    meaning: "Сумма платежа"
+    type: NUMBER(18,2)
+  PAYMENT_PURPOSE:
+    meaning: "Назначение платежа из выписки банка"
+    type: VARCHAR2(512)
+  PAYMENT_STATUS_ENUM:
+    meaning: "Статус платежа"
+    type: NUMBER
+    enum: PaymentStatusEnum
+relations:
+  - {to: INVOICE, via: INVOICE_ID, meaning: "счёт, который закрыл платёж"}
+  - {to: REFUND, via: PAYMENT_ID, meaning: "возвраты по платежу"}
+referenced_by: [REFUND]
+terms: [платёж, оплата, выписка]
+traps:
+  - "Платёж в статусе «не распознан» не закрывает счёт, пока его не привяжут вручную."
+evidence:
+  - billing/src/payments/Payment.java
+history: "Платёж не меняется после привязки; отмена создаёт новую запись в журнале статусов."
+pii: []
+screens: [billing-payments, billing-match-queue]
+specs: []

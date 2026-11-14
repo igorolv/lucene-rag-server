@@ -22,6 +22,12 @@ class StepRegistryTest {
         return new SourceDefinition(Path.of(path), include, null, format, SplitSettings.DEFAULT, MapSettings.DEFAULT);
     }
 
+    /** A source of a row format, which needs {@code map.text}. */
+    private static SourceDefinition rows(String path, String include) {
+        return new SourceDefinition(Path.of(path), include, null, null, SplitSettings.DEFAULT,
+                new MapSettings(null, null, null, null, null, "{row}", null, null));
+    }
+
     @Test
     void theFormatIsTheNamedOneOrFollowsTheExtensionOrIsMarkdown() {
         StepRegistry registry = StepRegistry.builtIn();
@@ -30,6 +36,15 @@ class StepRegistryTest {
         assertThat(registry.pipeline(source("kb", "**/*.markdown", null)).format()).isEqualTo("markdown");
         assertThat(registry.pipeline(source("kb/notes.md", null, null)).format()).isEqualTo("markdown");
         assertThat(registry.pipeline(source("kb.v2/notes", "**/*.txt", null)).format()).isEqualTo("markdown");
+        assertThat(registry.pipeline(rows("kb", "**/*.tsv")).format()).isEqualTo("tsv");
+        assertThat(registry.pipeline(rows("kb/eval/questions.jsonl", null)).format()).isEqualTo("jsonl");
+    }
+
+    @Test
+    void aRowFormatWithoutMapTextIsRefused() {
+        assertThatThrownBy(() -> StepRegistry.builtIn().pipeline(source("kb", "**/*.tsv", null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("map.text is required for a TSV source");
     }
 
     @Test
@@ -54,6 +69,6 @@ class StepRegistryTest {
 
         assertThat(registry.origins()).isEqualTo(Set.of("files"));
         assertThat(registry.converters()).isEmpty();
-        assertThat(registry.formats()).isEqualTo(Set.of("markdown"));
+        assertThat(registry.formats()).isEqualTo(Set.of("markdown", "tsv", "yaml", "jsonl"));
     }
 }

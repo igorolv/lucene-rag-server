@@ -1,0 +1,9 @@
+enum: PaymentStatusEnum
+meaning: "статус входящего платежа в журнале платежей (PAYMENT.PAYMENT_STATUS_ENUM)"
+sources:
+  - billing/src/payments/enums/PaymentStatusEnum.java
+values:
+  - {code: "0", constant: RECEIVED, label: "получен"}
+  - {code: "1", constant: UNRECOGNIZED, label: "не распознан"}
+  - {code: "2", constant: MATCHED, label: "привязан к счёту"}
+  - {code: "3", constant: CANCELLED, label: "отменён"}

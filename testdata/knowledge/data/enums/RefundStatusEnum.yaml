@@ -1,0 +1,7 @@
+enum: RefundStatusEnum
+meaning: "статус возврата платежа"
+sources:
+  - billing/src/refunds/enums/RefundStatusEnum.java
+values:
+  - {code: "1", constant: CREATED, label: "создан"}
+  - {code: "2", constant: SENT, label: "отправлен в банк"}

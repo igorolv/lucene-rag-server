@@ -19,8 +19,10 @@ public record Unit(List<String> ancestors, boolean intro, Map<String, List<Strin
     public static final String HEADING_GROUP = "heading.";
     /** The headings above the unit, joined with the breadcrumb separator. Tree formats. */
     public static final String PARENTS = "parents";
-    /** The text of the unit. */
+    /** The text of the unit: the sections of a tree format, the file or list item of YAML. */
     public static final String BODY = "body";
+    /** Position of the unit among the units of its item, from 1. Row formats. */
+    public static final String ROW = "row";
 
     /** First value of a name, or an empty string. */
     public String value(String name) {

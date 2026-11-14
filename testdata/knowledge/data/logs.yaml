@@ -1,0 +1,18 @@
+# Где искать следы операций и ошибок биллинга.
+# Для каждого источника: что пишется, ключ поиска, где ошибка.
+sources:
+  - name: "История статусов платежа"
+    tables: [PAYMENT_STATUS_HIST]
+    records: "каждая смена статуса платежа (PaymentStatusEnum) с комментарием оператора"
+    find_by: "PAYMENT_ID; текущий статус — последняя запись по времени"
+    error_columns: [PSH_NOTE]
+    who: "USER_ID → USERS"
+    screens: [billing-payments]
+
+  - name: "Загрузки банковских выписок"
+    tables: [STATEMENT_IMPORT, STATEMENT_IMPORT_ERROR]
+    records: "сеансы загрузки выписок и строки, которые не удалось разобрать"
+    find_by: "STATEMENT_IMPORT_ID и дата загрузки"
+    error_columns: [STATEMENT_IMPORT_ERROR]
+    screens: [billing-statements]
+    note: "статус «Загружено» не гарантирует, что все строки разобраны"

@@ -21,11 +21,11 @@ reads the results and where a weak local model does; the difference is configura
 Stage 1 and the start of stage 2, 2026-11-15: collections described in `collections.json` are
 built from Markdown sources into one Lucene index each and searched lexically; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
-by the five-step pipeline of section 3.1 with one implementation of each step; a source may take
-its reading keys from a named reader.
+by the five-step pipeline of section 3.1, with Markdown, TSV, YAML and JSONL as formats; a source
+may take its reading keys from a named reader.
 
 - Implemented: the collections file loader with named readers; the step interfaces, the registry and
-  `SourcePipeline` in `ingest/`; the `files` origin, the `markdown` format, the heading splitter
+  `SourcePipeline` in `ingest/`; the `files` origin, the formats `markdown`, `tsv`, `yaml` and `jsonl`, the heading splitter
   and the template mapper as step beans; the index with its manifest; BM25 search with filters
   and snippets; server-side response limits; the commands `rag-index` (in a Spring context
   without the MCP server) and `rag-search`; the tool groups `collections` (`listCollections`) and
@@ -40,8 +40,7 @@ its reading keys from a named reader.
   601 records). That build has not been repeated on the pipeline.
 - Not measured: search quality. That is stage 4.
 
-In section 3, everything about origins other than files, `convert`, formats other than Markdown,
-`where`, models, vectors, hybrid search and the tool groups after `search` is the
+In section 3, everything about origins other than files, `convert`, the `sql` format, `where`, models, vectors, hybrid search and the tool groups after `search` is the
 target design, not implemented.
 
 ## 3. Architecture
@@ -69,15 +68,16 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 |---|---|---|---|
 | origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
-| `format` | text → section tree or rows | `format` | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql` |
+| `format` | text → section tree or rows | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql` |
 | `split` | section tree → units | `split` | one: by heading level and pattern |
 | `map` | unit → records | `map` | one: templates (D14) |
 
 - Three shapes travel between the steps: **text** (with the item's relative path), a **section
   tree** (section, title, text, children, plus document fields such as Markdown front matter) and
   a **unit** of named values.
-- A row format skips `split`: one TSV row, YAML list item, JSONL line or SQL file is one unit
-  whose values are its columns, keys or header lines.
+- A row format skips the splitter: one TSV row, YAML file or item of a named YAML list (D22),
+  JSONL line or SQL file is one unit whose values are its columns, keys or header lines. A format
+  receives the `split` block of its source and checks it, so YAML can take `split.list`.
 - A format declares the names of the values it gives, its default `map` templates and its default
   `include`; the template check of a source uses that declaration instead of a class of rules per
   format.
@@ -228,7 +228,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`. Planned: `CommandOrigin` |
 | `ingest/convert/` | Planned: `CommandConverter` |
-| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`. Planned: `TsvFormat`, `YamlFormat`, `JsonlFormat`, `SqlFormat` |
+| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`. Planned: `SqlFormat` |
 | `ingest/split/` | `HeadingSplitter` |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | Planned: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
@@ -284,9 +284,11 @@ Stage 2 in more detail, as the next one:
    Named readers (D18), done 2026-11-15: `CollectionsLoader` reads the top-level `readers`
    object and resolves a source that names a `reader` before `StepRegistry.checked` sees it; a
    key of the source replaces the reader's key whole.
-2. Row formats, one unit per item, no `split`: `tsv` (a row; values `{column.<name>}` from the
-   header row), `yaml` (an item of a named list), `jsonl` (a line; values `{record.<key>}`). They
-   have no default `text`, so `map.text` is required.
+2. Done 2026-11-15: row formats, no splitter: `tsv` (a row; values `{column.<name>}` from the
+   header row), `yaml` (the file, or an item of the list named by `split.list`, D22), `jsonl` (a
+   line; values `{record.<key>}`). They have no default `text`, so `map.text` is required.
+   Checked on the first corpus: 11 TSV files gave 5,216 records, 37 YAML files 148 records,
+   1 JSONL file 20 records.
 3. `sql` (D21): one file is one unit. The leading block of `--` comment lines is the header: a
    line `-- key: value` gives the value `{header.<key>}`, the whole block without the dashes is
    `{comment}`, the statement after it is `{sql}`, and `{body}` is the file as it is. Defaults:

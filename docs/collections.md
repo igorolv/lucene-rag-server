@@ -8,6 +8,7 @@ another machine.
 - [Named readers](#named-readers)
 - [From a file to records](#from-a-file-to-records)
 - [Reading Markdown](#reading-markdown)
+- [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
 - [Examples](#examples)
@@ -54,9 +55,9 @@ Each entry of `sources`:
 | Key | Default | Meaning |
 |---|---|---|
 | `path` | required | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
-| `include` | `**/*.md` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
+| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
-| `format` | `markdown` | Reader. Only `markdown` is supported so far |
+| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml` or `jsonl`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`); a directory without `include` is read as Markdown |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
 | `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
@@ -113,13 +114,15 @@ whatever it was made from:
 
 Three steps make records out of a file, and two of them are yours to configure:
 
-1. The **reader** of the source's `format` turns the file into a section tree and document
-   fields.
-2. **`split`** says where the tree is cut into units.
+1. The **reader** of the source's `format` turns the file into a section tree (Markdown) or
+   into rows (TSV, YAML, JSONL).
+2. **`split`** says where the tree is cut into units. A row already is a unit; of `split` only
+   `maxChars` applies to it, and `list` to YAML.
 3. **`map`** says how the values of a unit become the parts of a record.
 
-Without `split` and `map` a source uses the defaults described below, which suit Markdown files
-with `##` sections and YAML front matter.
+Without `split` and `map` a Markdown source uses the defaults described below, which suit
+Markdown files with `##` sections and YAML front matter. A TSV, YAML or JSONL source has no
+default text: its `map` must give `text`.
 
 ## Reading Markdown
 
@@ -130,6 +133,37 @@ with `##` sections and YAML front matter.
   headings are not recognized.
 - The document title is the `title` field, else the first `#` heading, else the file name.
 
+## Reading TSV, YAML and JSONL
+
+These formats give one unit per row and no section tree. Their values are named by the format;
+the values every source has (`{path…}`, `{document…}`, `{title}`, `{breadcrumb}`) are listed in
+[Mapping](#mapping). `{row}` is the position of the unit in its file, from 1.
+
+| Format | Unit | Values |
+|---|---|---|
+| `tsv` | a line after the header line | `{column.<name>}` for every column named by the header |
+| `jsonl` | a line, a JSON object | `{record.<key>}` for every key |
+| `yaml` | the file, or an item of the list named by `split.list` | `{yaml.<key>}` for the top-level keys of the file; with `split.list` `{item.<key>}` for the keys of an item, or `{item}` for an item that is a scalar; `{body}` |
+
+- **TSV.** UTF-8, cells separated by tabs, no quoting: a `"` is an ordinary character. The first
+  non-blank line names the columns; blank lines are skipped. A row with fewer cells than columns
+  has empty trailing cells; a row with more cells, or a column named twice, is an error of the
+  file.
+- **JSONL.** Every non-blank line is one JSON object; a line that is not is an error of the file.
+- **YAML.** The top level of the file must be a mapping. Without `split.list` the whole file is
+  one unit, and `{body}` is the file as it is. With `split.list` naming a top-level key whose
+  value is a list, every item of that list is a unit and `{body}` is the item written back as
+  YAML; a file without that key is an error of the file. Lists elsewhere, and mappings such as a
+  map of columns, are not cut: they stay in `{body}`.
+- A scalar is one value and a list of scalars is several; nested objects are not values. Empty
+  cells and blank values give no value, so `{a|b}` falls back to `b`. Keys with characters other
+  than letters, digits, `.`, `_`, `-` are skipped.
+- These formats give no document fields, so `inheritFields` has nothing to copy: name the fields
+  in `map.fields`.
+- Defaults: the document key is `{document.path}`, the title is `{document.title}` (the file name
+  without extension) for TSV and YAML and `{record.title|record.id}` for JSONL, the id is
+  `{document.key}#{row}`, for JSONL `{document.key}#{record.id|row}`.
+
 ## Splitting
 
 | `split` key | Default | Meaning |
@@ -138,6 +172,7 @@ with `##` sections and YAML front matter.
 | `headingPattern` | none | Regular expression a heading at `level` must contain to become a unit. With a pattern, the rest of the file is left out. Its named groups `(?<name>…)` become the values `{heading.name}` |
 | `maxChars` | `2500` | A longer text is split at blank lines, then at line ends, then inside a line; every part is a record |
 | `minChars` | `0` | A shorter unit is joined to the previous one under the same parent heading. `0` joins nothing |
+| `list` | none | YAML only: the top-level key whose list items become units. Without it a YAML file is one unit. Any other format reports it as a configuration error |
 
 - Without a pattern, a section above `level` contributes its own text as a unit, and text before
   the first heading is a unit too. A heading without text of its own yields nothing.
@@ -180,6 +215,10 @@ values above its own row:
 | `{parents}` | The headings above the unit, joined with ` › ` | `title` and below |
 | `{title}`, `{slug}` | The result of `title`; the same in lower case with dashes (`intro` for text before the first heading) | `breadcrumb` and below |
 | `{breadcrumb}`, `{body}` | The result of `breadcrumb`; the unit's text | `text`, `id`, `fields` |
+
+A TSV, YAML or JSONL source has the same values except `{frontmatter.…}`, `{heading…}` and
+`{parents}`. Its document values (`{yaml.<key>}`) are available everywhere; its unit values
+(`{column.…}`, `{record.…}`, `{item…}`, `{row}`, and `{body}` of YAML) from `title` on.
 
 An unknown value name, a value used too early, a group that the pattern does not define and a
 broken template are configuration errors of the collection.
@@ -235,6 +274,55 @@ The breadcrumb repeated at the top of the passage, so the passage reads on its o
 ```json
 { "path": "C:/projects/billing/knowledge/articles",
   "map": { "text": "{breadcrumb}\n\n{body}" } }
+```
+
+A catalog of messages, one record per row, with the kind of a message as a filter field:
+
+```text
+kind	call	text	file	line	method
+error	ValidationException	Сумма платежа должна быть больше нуля	billing/src/payments/PaymentValidator.java	42	checkAmount
+```
+
+```json
+{ "path": "C:/projects/billing/knowledge/catalogs/messages", "format": "tsv",
+  "map": { "title": "{column.text}",
+           "text": "{column.text}\nClass: {column.file}, method {column.method}",
+           "fields": { "kind": "{column.kind}", "catalog": "messages" } } }
+```
+
+Descriptions of enumerations, one record per value, with the enumeration as the document:
+
+```yaml
+enum: PaymentStatusEnum
+meaning: "status of an incoming payment"
+values:
+  - {code: "1", constant: UNRECOGNIZED, label: "not recognized"}
+  - {code: "2", constant: MATCHED, label: "matched to an invoice"}
+```
+
+```json
+{ "path": "C:/projects/billing/knowledge/data/enums", "format": "yaml",
+  "split": { "list": "values" },
+  "map": { "document": "{yaml.enum}", "id": "{document.key}#{item.code}",
+           "title": "{yaml.enum} {item.code} {item.label}",
+           "text": "{yaml.enum} {item.code} {item.constant}: {item.label}. {yaml.meaning}",
+           "fields": { "enum": "{yaml.enum}" } } }
+```
+
+Descriptions of tables, one file per table, kept whole:
+
+```json
+{ "path": "C:/projects/billing/knowledge/data/tables", "format": "yaml",
+  "map": { "title": "{yaml.table} {yaml.business_name}", "text": "{body}",
+           "fields": { "table": "{yaml.table}" } } }
+```
+
+A question set, one record per line:
+
+```json
+{ "path": "C:/projects/billing/knowledge/eval/questions.jsonl",
+  "map": { "title": "{record.question}", "text": "{record.question}\n{record.answer}",
+           "fields": { "expected": "{record.expected}" } } }
 ```
 
 ## Building

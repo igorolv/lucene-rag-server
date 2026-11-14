@@ -1,5 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
+import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+
 import java.util.List;
 
 /**
@@ -26,6 +28,21 @@ public interface Format {
     /** Names of the values this format gives to templates. */
     ValueNames valueNames();
 
-    /** @throws IllegalArgumentException when the text is not of this format */
-    ParsedDocument parse(SourceText text);
+    /**
+     * Checks the {@code split} block of a source before anything is read. By default a format
+     * takes no {@code split.list}.
+     *
+     * @throws IllegalArgumentException naming the setting that does not fit the format
+     */
+    default void check(SplitSettings split) {
+        if (split.list() != null) {
+            throw new IllegalArgumentException("split.list is not a setting of " + valueNames().label());
+        }
+    }
+
+    /**
+     * @param split the {@code split} block of the source, for a format that cuts its own units
+     * @throws IllegalArgumentException when the text is not of this format
+     */
+    ParsedDocument parse(SourceText text, SplitSettings split);
 }

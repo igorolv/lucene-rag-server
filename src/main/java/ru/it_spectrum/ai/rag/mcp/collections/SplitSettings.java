@@ -5,7 +5,9 @@ import java.util.regex.PatternSyntaxException;
 
 /**
  * How one source is cut into units, before the units are laid out as records
- * ({@link MapSettings}).
+ * ({@link MapSettings}). {@code level}, {@code headingPattern} and {@code minChars} apply to tree
+ * formats, {@code list} to the {@code yaml} format, {@code maxChars} to every format; whether a
+ * setting fits the format of the source is checked by the format.
  *
  * @param level          heading level whose sections become units, 1–6; deeper sections stay
  *                       inside their parent unit. {@link #DOCUMENT} makes the whole file one unit
@@ -17,13 +19,20 @@ import java.util.regex.PatternSyntaxException;
  * @param minChars       a shorter unit is joined to the previous one under the same parent
  *                       heading; 0, the default, joins nothing: a joined section loses its own
  *                       title and breadcrumb, which is what a query usually matches
+ * @param list           key of the top-level list whose items become units, or {@code null} for
+ *                       one unit per file
  */
-public record SplitSettings(int level, String headingPattern, int maxChars, int minChars) {
+public record SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list) {
 
     /** {@link #level()} of a source whose files are not split by headings. */
     public static final int DOCUMENT = 0;
 
-    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0);
+    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0, null);
+
+    /** Settings without {@code list}. */
+    public SplitSettings(int level, String headingPattern, int maxChars, int minChars) {
+        this(level, headingPattern, maxChars, minChars, null);
+    }
 
     public SplitSettings {
         if (level < DOCUMENT || level > 6) {
@@ -34,6 +43,9 @@ public record SplitSettings(int level, String headingPattern, int maxChars, int 
         }
         if (minChars < 0 || minChars >= maxChars) {
             throw new IllegalArgumentException("split.minChars must be between 0 and split.maxChars");
+        }
+        if (list != null && list.isBlank()) {
+            throw new IllegalArgumentException("split.list must name a key");
         }
         if (headingPattern != null) {
             if (level == DOCUMENT) {
