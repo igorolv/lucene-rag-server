@@ -656,9 +656,13 @@ RESULT: OK (1 collection built)
 | 4 | a source could not be read, a command failed, the model could not be loaded or the index could not be written |
 
 A build always reads every source again and replaces the whole collection. The new index is
-written next to the old one and swapped in when complete, so a failed build keeps the previous
-collection. On Windows the swap fails while another process is in the middle of reading the old
-index; run the build again.
+written next to the old one and swapped in when complete: the old directory is renamed aside, the
+new one takes its name and the old one is removed. A failed build keeps the previous collection.
+On Windows the rename fails while another process is in the middle of reading the old index; the
+build then reports that the index is in use and keeps it, and running the build again helps. An
+old directory still in use when it is removed stays as `.old-<collection>-<number>` and is removed
+by the next build; directories whose name starts with a dot are never served. If a collection is
+lost all the same, building it again restores it.
 
 A running server sees a rebuilt collection on its next call; no restart is needed.
 

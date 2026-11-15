@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (178 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (181 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -349,7 +349,7 @@ done here. A stage is taken only when the user asks for it.
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
+| 5 | Delivery | Atomic rebuild (done 2026-11-15) and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
 Stage 4, in progress:

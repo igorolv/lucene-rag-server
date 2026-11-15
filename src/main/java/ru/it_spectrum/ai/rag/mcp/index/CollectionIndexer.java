@@ -10,6 +10,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.DocumentWriter;
 import org.springframework.ai.document.MetadataMode;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
@@ -55,12 +57,18 @@ import java.util.stream.Stream;
  * model; a vector already in the embedding cache is taken from there.
  *
  * <p>The index is written into a temporary sibling directory and replaces the previous one only
- * after it is complete, so a failed build leaves the old collection in place. The replacement is
- * a delete followed by a move: on Windows it fails while another process has the old index open.
+ * after it is complete, so a failed build leaves the old collection in place. The old directory is
+ * renamed aside before the new one is moved in, so a collection is never half deleted; on Windows
+ * the rename fails while another process has a file of the old index open, and the build fails
+ * with the old collection intact.
  */
 public final class CollectionIndexer {
 
     private static final String BUILD_PREFIX = ".building-";
+    /** A replaced collection directory waiting to be removed; a name with a dot is never served. */
+    private static final String OLD_PREFIX = ".old-";
+
+    private static final Logger log = LoggerFactory.getLogger(CollectionIndexer.class);
 
     /** Directory of derived data shared by collections, under the data directory. */
     public static final String CACHE_DIR = "cache";
@@ -118,11 +126,55 @@ public final class CollectionIndexer {
                     : EmbeddingCache.open(dataDir.resolve(CACHE_DIR).resolve(EMBEDDINGS_DIR))) {
                 built = write(definition, registry, model, cache, building, serverVersion);
             }
-            deleteTree(target);
-            Files.move(building, target);
+            swap(building, target, dataDir.resolve(OLD_PREFIX + definition.name() + "-" + System.nanoTime()));
             return built;
         } finally {
             deleteTree(building);
+        }
+    }
+
+    /**
+     * Puts a complete build in place of a collection. The old directory is renamed aside first, a
+     * single step that either happens or not, so a collection is never left half deleted; it is
+     * then removed, and what cannot be removed now (a file another process holds open) is left to
+     * the next build.
+     */
+    private static void swap(Path building, Path target, Path old) throws IOException {
+        boolean replaced = false;
+        if (Files.exists(target)) {
+            try {
+                Files.move(target, old);
+            } catch (IOException e) {
+                throw new IOException("The previous index of " + target.getFileName()
+                        + " is in use and was kept; build again: " + e.getMessage(), e);
+            }
+            replaced = true;
+        }
+        try {
+            Files.move(building, target);
+        } catch (IOException e) {
+            if (replaced) {
+                Files.move(old, target);
+            }
+            throw e;
+        }
+        removeLeftovers(target.getParent(), target.getFileName().toString());
+    }
+
+    /** Removes old directories of a collection, those of earlier builds included; skips what is in use. */
+    private static void removeLeftovers(Path dataDir, String name) {
+        String prefix = OLD_PREFIX + name + "-";
+        try (Stream<Path> children = Files.list(dataDir)) {
+            for (Path dir : (Iterable<Path>) children.filter(p -> p.getFileName().toString().startsWith(prefix)
+                    && Files.isDirectory(p))::iterator) {
+                try {
+                    deleteTree(dir);
+                } catch (IOException e) {
+                    log.info("Old index {} is still in use and stays until the next build", dir.getFileName());
+                }
+            }
+        } catch (IOException e) {
+            log.info("Old indexes of {} were not removed: {}", name, e.getMessage());
         }
     }
 
