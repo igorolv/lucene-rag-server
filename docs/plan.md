@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D48, proposals as P1…P26).
+reasons are in `docs/decisions.md` (cited here as D1…D49, proposals as P1…P26).
 
 ## 1. Idea
 
@@ -224,7 +224,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 |---|---|---|
 | Tool groups | `collections`, `search`, `lookup` | all |
 | Limits | few results, snippets, small size cap | defaults |
-| Instances | one per audience over one index directory (D8) | one |
+| Instances | one per audience, each with its own data directory (D8, D49) | one |
 | Index | delivered ready (D7) | built in place, `rebuildCollection` available |
 | Embedding model | in-process, same as at build time (D11) | in-process |
 
@@ -349,7 +349,7 @@ done here. A stage is taken only when the user asks for it.
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
+| 5 | Delivery | Atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
 Stage 4, in progress:
