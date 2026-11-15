@@ -86,12 +86,12 @@ class CommandsTest {
 
         Files.writeString(dataDir.resolve("collections.json"),
                 "{\"collections\": {\"gone\": {\"sources\": [{\"path\": \"missing-dir\"}]},"
-                        + " \"odd\": {\"sources\": [{\"path\": \"a\", \"format\": \"pdf\"}]}}}");
+                        + " \"odd\": {\"sources\": [{\"path\": \"a\", \"format\": \"docx\"}]}}}");
         assertThat(index("gone")).isEqualTo(4);
         assertThat(output()).contains("Source path does not exist");
         assertThat(dataDir.resolve("gone")).doesNotExist();
         assertThat(index("odd")).isEqualTo(2);
-        assertThat(output()).contains("format \"pdf\" is not supported");
+        assertThat(output()).contains("format \"docx\" is not supported");
     }
 
     @Test

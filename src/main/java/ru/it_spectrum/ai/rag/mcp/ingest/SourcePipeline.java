@@ -35,6 +35,14 @@ public final class SourcePipeline {
                              Format format,
                              Splitter splitter, Mapper mapper) {
         format.check(source.split());
+        if (format.readsFile() && !converters.isEmpty()) {
+            throw new IllegalArgumentException("format " + format.name()
+                    + " reads the file of an item itself and takes no convert steps");
+        }
+        if (format.readsFile() && source.command() != null) {
+            throw new IllegalArgumentException("format " + format.name()
+                    + " reads the file of an item, and a source with a command has no files");
+        }
         mapper.check(source.map(), source.split(), format);
         return new SourcePipeline(source, origin, List.copyOf(converters), format, splitter, mapper);
     }
@@ -56,17 +64,9 @@ public final class SourcePipeline {
      * @throws IllegalArgumentException when the item does not fit the format or the mapping
      */
     public List<ChunkRecord> records(SourceItem item) throws IOException {
-        SourceText text = null;
-        for (Converter.Conversion converter : converters) {
-            if (text == null && !converter.readsFile()) {
-                text = item.read();
-            }
-            text = converter.convert(item, text);
-        }
-        if (text == null) {
-            text = item.read();
-        }
-        ParsedDocument document = format.parse(text, source.split());
+        ParsedDocument document = format.readsFile()
+                ? format.parseFile(item.file(), item.path(), source.split())
+                : format.parse(text(item), source.split());
         List<Unit> units = switch (document) {
             case SectionTree tree -> splitter.split(tree, source.split());
             case Rows rows -> rows.units();
@@ -74,5 +74,17 @@ public final class SourcePipeline {
         List<ChunkRecord> records = mapper.map(document, units, source.map(), format.mapDefaults(),
                 source.split().maxChars());
         return records.stream().filter(record -> source.where().matches(record.fields())).toList();
+    }
+
+    /** The text of an item after the {@code convert} steps. */
+    private SourceText text(SourceItem item) throws IOException {
+        SourceText text = null;
+        for (Converter.Conversion converter : converters) {
+            if (text == null && !converter.readsFile()) {
+                text = item.read();
+            }
+            text = converter.convert(item, text);
+        }
+        return text == null ? item.read() : text;
     }
 }

@@ -10,6 +10,7 @@ another machine.
 - [Reading Markdown](#reading-markdown)
 - [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
 - [Reading SQL](#reading-sql)
+- [Reading PDF](#reading-pdf)
 - [Commands](#commands)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
@@ -59,9 +60,9 @@ Each entry of `sources`:
 | Key | Default | Meaning |
 |---|---|---|
 | `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
-| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
+| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
-| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl` or `sql`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`); a directory without `include` is read as Markdown |
+| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql` or `pdf`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`); a directory without `include` is read as Markdown |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
 | `command` | none | Instead of `path`: a program whose output is the only file of the source, see [Commands](#commands) |
@@ -124,14 +125,14 @@ whatever it was made from:
 Three steps make records out of a file, and two of them are yours to configure:
 
 1. The **reader** of the source's `format` turns the file into a section tree (Markdown) or
-   into rows (TSV, YAML, JSONL, SQL).
+   into rows (TSV, YAML, JSONL, SQL, PDF).
 2. **`split`** says where the tree is cut into units. A row already is a unit; of `split` only
    `maxChars` applies to it, and `list` to YAML.
 3. **`map`** says how the values of a unit become the parts of a record.
 
 Without `split` and `map` a Markdown source uses the defaults described below, which suit
-Markdown files with `##` sections and YAML front matter, and an SQL source is one record per
-file. A TSV, YAML or JSONL source has no default text: its `map` must give `text`.
+Markdown files with `##` sections and YAML front matter, an SQL source is one record per
+file, and a PDF source one record per page. A TSV, YAML or JSONL source has no default text: its `map` must give `text`.
 
 ## Reading Markdown
 
@@ -206,6 +207,36 @@ WHERE h.payment_id = :payment_id
 
 Files that generate catalogs usually sit next to the catalogs and have a free comment instead of
 a header. Read them as a separate source or leave them out with `exclude`.
+
+## Reading PDF
+
+Every page of a PDF file is one unit. The file is read by the PDF reader of Spring AI
+(`PagePdfDocumentReader`, built on Apache PDFBox).
+
+```json
+{ "path": "C:/projects/billing/manuals", "include": "**/*.pdf",
+  "map": { "fields": { "kind": "manual" } } }
+```
+
+| Value | What it is | Available in |
+|---|---|---|
+| `{pages}` | The number of pages of the file | everything |
+| `{pdf.title}` | The title in the document information of the file, when it has one | everything |
+| `{page}` | The number of the page, from 1 | `title` and below |
+| `{row}` | The position of the page among the pages that have text, from 1 | `title` and below |
+| `{body}` | The text of the page | `title` and below |
+
+- The document title is `{pdf.title}`, else the file name without extension.
+- The text keeps the lines of the page; runs of blanks become one blank and runs of empty lines one
+  empty line. A page without text, such as a scan without a text layer, gives no record: text is
+  not recognized from images.
+- Headings and bookmarks are not read, so a record is a page, not a section. To index a manual by
+  its sections, convert it to Markdown and read that ([Commands](#commands)).
+- The format reads the file itself: a PDF source takes no `convert` steps and has `path`, not
+  `command`. A file that is not a readable PDF is an error of the file.
+- A PDF source gives no document fields: name the fields in `map.fields`.
+- Defaults: the document key is `{document.path}`, the title `page {page}`, so the breadcrumb is
+  the document title and `page 3`; the id `{document.key}#page-{page}`, the text `{body}`.
 
 ## Commands
 
@@ -323,7 +354,7 @@ values above its own row:
 | `{title}`, `{slug}` | The result of `title`; the same in lower case with dashes (`intro` for text before the first heading) | `breadcrumb` and below |
 | `{breadcrumb}`, `{body}` | The result of `breadcrumb`; the unit's text | `text`, `id`, `fields` |
 
-A TSV, YAML, JSONL or SQL source has the same values except `{frontmatter.…}`, `{heading…}` and
+A TSV, YAML, JSONL, SQL or PDF source has the same values except `{frontmatter.…}`, `{heading…}` and
 `{parents}`. Its document values (`{yaml.<key>}`, `{header.<key>}`, `{comment}`, `{sql}`) are
 available everywhere; its unit values (`{column.…}`, `{record.…}`, `{item…}`, `{row}`, and
 `{body}` of YAML and SQL) from `title` on.

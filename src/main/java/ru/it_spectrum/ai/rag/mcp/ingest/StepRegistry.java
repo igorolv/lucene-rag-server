@@ -7,6 +7,7 @@ import ru.it_spectrum.ai.rag.mcp.ingest.convert.CommandConverter;
 import ru.it_spectrum.ai.rag.mcp.ingest.exec.CommandRunner;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.JsonlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownFormat;
+import ru.it_spectrum.ai.rag.mcp.ingest.format.PdfFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.SqlFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.TsvFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.YamlFormat;
@@ -56,7 +57,7 @@ public final class StepRegistry {
         return new StepRegistry(List.of(new FilesOrigin(), new CommandOrigin(runner)),
                 List.of(new CommandConverter(runner)),
                 List.of(new MarkdownFormat(), new TsvFormat(), new YamlFormat(), new JsonlFormat(),
-                        new SqlFormat()),
+                        new SqlFormat(), new PdfFormat()),
                 new HeadingSplitter(), new TemplateMapper());
     }
 

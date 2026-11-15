@@ -1,5 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 
 import java.util.List;
@@ -45,4 +48,24 @@ public interface Format {
      * @throws IllegalArgumentException when the text is not of this format
      */
     ParsedDocument parse(SourceText text, SplitSettings split);
+
+    /**
+     * The format reads the file of an item itself instead of its text, as a binary format must.
+     * Such a format takes no {@code convert} steps and needs an origin that lists files.
+     */
+    default boolean readsFile() {
+        return false;
+    }
+
+    /**
+     * Parses the file of an item; called instead of {@link #parse(SourceText, SplitSettings)}
+     * when {@link #readsFile()}.
+     *
+     * @param path  path of the item relative to the source root, {@code /}-separated
+     * @throws IOException              when the file cannot be read
+     * @throws IllegalArgumentException when the file is not of this format
+     */
+    default ParsedDocument parseFile(Path file, String path, SplitSettings split) throws IOException {
+        throw new UnsupportedOperationException(name() + " does not read files");
+    }
 }

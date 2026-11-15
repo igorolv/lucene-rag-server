@@ -23,6 +23,8 @@ spring-ai-mcp-server = { module = "org.springframework.ai:spring-ai-starter-mcp-
 spring-ai-model = { module = "org.springframework.ai:spring-ai-model", version.ref = "spring-ai" }
 # Filter expressions and their text parser (docs/decisions.md D30).
 spring-ai-vector-store = { module = "org.springframework.ai:spring-ai-vector-store", version.ref = "spring-ai" }
+# The pdf format wraps Spring AI's PDF reader (docs/decisions.md D32); brings PDFBox.
+spring-ai-pdf-document-reader = { module = "org.springframework.ai:spring-ai-pdf-document-reader", version.ref = "spring-ai" }
 lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
 lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }

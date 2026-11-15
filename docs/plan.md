@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D32, proposals as P1…P17).
+reasons are in `docs/decisions.md` (cited here as D1…D32, proposals as P1…P19).
 
 ## 1. Idea
 
@@ -21,17 +21,17 @@ reads the results and where a weak local model does; the difference is configura
 Stages 1 to 3, 2026-11-15: collections described in `collections.json` are
 built into one Lucene index each and searched lexically, by vectors or by both fused; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
-by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats and
+by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL, SQL and PDF as formats and
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
 named reader and select its records with `where`; catalog records are found by an exact value of
 their key fields; a collection with `vectors` gets an embedding of every record from an in-process
 ONNX model, used through Spring AI's `EmbeddingModel` (D29); search filters take Spring AI filter
 expressions next to the map of field to value (D30); the records of a source reach the index as
-Spring AI documents (D31).
+Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
 
 - Implemented: the collections file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
-  converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter and
+  converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql` and `pdf`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index` (in a Spring context without the MCP server) and `rag-search`; the tool groups
@@ -39,7 +39,7 @@ Spring AI documents (D31).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (142 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (148 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -76,7 +76,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 |---|---|---|---|
 | origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
-| `format` | text → section tree or rows | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql` |
+| `format` | text → section tree or rows; a binary format reads the file instead (P18) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf` (Spring AI reader, D32) |
 | `split` | section tree → units | `split` | one: by heading level and pattern |
 | `map` | unit → records | `map` | one: templates (D14) |
 
@@ -244,7 +244,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |
-| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, and `SqlFormat` |
+| `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, `SqlFormat`, and `PdfFormat` (Spring AI's `PagePdfDocumentReader`, reads the file) |
 | `ingest/split/` | `HeadingSplitter` |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
@@ -286,14 +286,14 @@ D28 with its reason.
 | Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29) | used; no remote type yet |
 | Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
-| PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | not implemented |
+| PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
-Dependencies these decisions allow: `spring-ai-model` and `spring-ai-vector-store` (declared;
-the latter brings nothing the build did not have), and, each with the work that needs it,
-`spring-ai-tika-document-reader`,
-`spring-ai-pdf-document-reader` and `spring-ai-jsoup-document-reader`.
+Dependencies these decisions allow: `spring-ai-model`, `spring-ai-vector-store` (brings nothing
+the build did not have) and `spring-ai-pdf-document-reader` (PDFBox 3, four modules), declared;
+`spring-ai-jsoup-document-reader` (two modules) and `spring-ai-tika-document-reader` (107 modules)
+each with the format that needs it.
 
 - A model type is one entry of the loaders `EmbeddingModels` is built with: it returns an
   `EmbeddingModel` and the `ModelInfo` that identifies its vectors. Nothing else changes when a
@@ -304,6 +304,9 @@ the latter brings nothing the build did not have), and, each with the work that 
   names, each a list of strings, and its other parts are metadata under `rag.document`,
   `rag.title`, `rag.breadcrumb`, `rag.source` and `rag.ordinal`. A document from elsewhere becomes
   a record the same way: its scalar metadata become fields.
+- A Spring AI reader is used inside a format class of `ingest/format/` and gives units, like any
+  other library a format uses; the step interfaces and the shapes of `ingest/` name no Spring AI
+  type. A reader of binary files makes its format `readsFile` (P18).
 - `CollectionIndexer` reads each item with `SourceDocumentReader` and writes it through its
   `DocumentWriter`, which checks unique ids and collects the field and key names; a reader or a
   writer throws `UncheckedIOException` where the interfaces allow no `IOException`.
@@ -323,7 +326,7 @@ done here. A stage is taken only when the user asks for it.
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
-| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 ⬜ |
+| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
@@ -409,8 +412,8 @@ speed up kNN); not measured.
 - Which model and API the target site provides; whether it has an embedding endpoint (a Spring AI
   `EmbeddingModel` registered as a second model type, D11, D29).
 - When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
-- Which of the Spring AI readers of D32 is added first, and whether its unstructured text is
-  enough where a `convert` command with Pandoc gives Markdown with headings (D17).
+- Whether pages are enough for real PDF files or sections by outline are needed (P19), and when
+  Tika or Jsoup is added (D32).
 - When the DocBook reader is written (D17).
 - The license (P1) and the other proposals in `docs/decisions.md` section 3.
 - Legacy HTTP API (D2), if a client needs it.

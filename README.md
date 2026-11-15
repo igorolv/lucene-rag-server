@@ -5,7 +5,7 @@ Text and embedding vectors live in one Apache Lucene index per collection; a sea
 and vector similarity. The server returns passages and their sources and leaves answering to the
 client.
 
-> **Status: early.** Markdown, TSV, YAML, JSONL and SQL sources, lexical, vector and hybrid search
+> **Status: early.** Markdown, TSV, YAML, JSONL, SQL and PDF sources, lexical, vector and hybrid search
 > work; search quality is not measured yet. See [docs/plan.md](docs/plan.md).
 
 ## What it is for

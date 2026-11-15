@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.spring.ai.mcp.server)
     implementation(libs.spring.ai.model)
     implementation(libs.spring.ai.vector.store)
+    implementation(libs.spring.ai.pdf.document.reader)
     implementation(libs.lucene.core)
     implementation(libs.lucene.analysis.common)
     implementation(libs.lucene.queryparser)
