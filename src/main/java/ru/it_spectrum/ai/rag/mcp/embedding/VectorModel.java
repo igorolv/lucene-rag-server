@@ -1,10 +1,14 @@
 package ru.it_spectrum.ai.rag.mcp.embedding;
 
+import org.springframework.ai.document.Document;
+import org.springframework.ai.document.MetadataMode;
+import org.springframework.ai.embedding.BatchingStrategy;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.ai.embedding.EmbeddingRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,13 +24,36 @@ import java.util.List;
  */
 public record VectorModel(String name, ModelParameters parameters, EmbeddingModel model, ModelInfo info) {
 
-    /** The text a record's passage is embedded as: the passage prefix and the passage. */
-    public String passageInput(String passage) {
-        return parameters.passagePrefix() + passage;
+    /** Documents per call of the model when documents are embedded (docs/decisions.md D44). */
+    public static final BatchingStrategy BATCHES = new CountBatchingStrategy(64);
+
+    /**
+     * Vectors of documents, each embedded as its content formatted for {@link MetadataMode#EMBED},
+     * in batches of {@link #BATCHES}. Not {@code EmbeddingModel.embed(documents, …)}: that keeps
+     * neither the formatted content nor which inputs the model cut.
+     *
+     * @throws IOException when the model fails to run
+     */
+    public Embeddings embed(List<Document> documents) throws IOException {
+        List<float[]> vectors = new ArrayList<>(documents.size());
+        List<Boolean> cut = new ArrayList<>(documents.size());
+        for (List<Document> batch : BATCHES.batch(documents)) {
+            Embeddings embeddings = embedInputs(batch.stream().map(d -> d.getFormattedContent(MetadataMode.EMBED))
+                    .toList());
+            for (int i = 0; i < batch.size(); i++) {
+                vectors.add(embeddings.vectors()[i]);
+                cut.add(embeddings.cut()[i]);
+            }
+        }
+        boolean[] cuts = new boolean[cut.size()];
+        for (int i = 0; i < cuts.length; i++) {
+            cuts[i] = cut.get(i);
+        }
+        return new Embeddings(vectors.toArray(float[][]::new), cuts);
     }
 
     /**
-     * Vectors of passages already prefixed by {@link #passageInput}.
+     * Vectors of texts as they are, prefixes included.
      *
      * @throws IOException when the model fails to run
      */

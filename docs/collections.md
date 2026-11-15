@@ -486,7 +486,8 @@ server switches off that library's usage reporting and its downloads before load
 
 ### What is embedded
 
-Each record is embedded as its breadcrumb, a blank line and its text, after `passagePrefix`. Keep
+Each record is embedded as its breadcrumb, a blank line and its text, after `passagePrefix`, in
+batches of 64 records. Keep
 records within the model's limit: about 512 tokens is 1,500–2,500 characters of Russian or English
 prose, so a `split.maxChars` above that leaves the end of long records without a vector of their
 own. `rag-index` reports how many records were cut.

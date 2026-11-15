@@ -11,10 +11,12 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
 import org.springframework.ai.document.DocumentWriter;
+import org.springframework.ai.document.MetadataMode;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
 import ru.it_spectrum.ai.rag.mcp.collections.ModelDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.document.RecordContentFormatter;
 import ru.it_spectrum.ai.rag.mcp.document.RecordDocuments;
 import ru.it_spectrum.ai.rag.mcp.document.SourceDocumentReader;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingCache;
@@ -226,7 +228,7 @@ public final class CollectionIndexer {
                     }
                 }
                 try {
-                    batch.add(record, keys, sections ? record.document() : record.id());
+                    batch.add(record, document, keys, sections ? record.document() : record.id());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -236,15 +238,10 @@ public final class CollectionIndexer {
     }
 
     /**
-     * The text a record is embedded as: its breadcrumb, which says what the passage is about, a
-     * blank line and the passage.
+     * Records waiting to be written, so that the model embeds them in batches. What a record is
+     * embedded as is its document formatted for {@code MetadataMode.EMBED} by a
+     * {@link RecordContentFormatter} (docs/decisions.md D44).
      */
-    public static String embeddedText(String breadcrumb, String text) {
-        String head = breadcrumb == null ? "" : breadcrumb.strip();
-        return head.isEmpty() ? text : head + "\n\n" + text;
-    }
-
-    /** Records waiting to be written, so that the model embeds them in batches. */
     private static final class Batch {
 
         private static final int SIZE = 64;
@@ -254,7 +251,9 @@ public final class CollectionIndexer {
         private final VectorModel model;
         private final EmbeddingCache cache;
         private final String fingerprint;
+        private final RecordContentFormatter formatter;
         private final List<ChunkRecord> records = new ArrayList<>();
+        private final List<org.springframework.ai.document.Document> documents = new ArrayList<>();
         private final List<List<String>> keys = new ArrayList<>();
         private final List<String> groups = new ArrayList<>();
         int embedded;
@@ -267,10 +266,13 @@ public final class CollectionIndexer {
             this.model = model;
             this.cache = cache;
             this.fingerprint = model == null ? null : model.fingerprint();
+            this.formatter = model == null ? null : new RecordContentFormatter(model.parameters().passagePrefix());
         }
 
-        void add(ChunkRecord record, List<String> recordKeys, String group) throws IOException {
+        void add(ChunkRecord record, org.springframework.ai.document.Document document, List<String> recordKeys,
+                 String group) throws IOException {
             records.add(record);
+            documents.add(document);
             keys.add(recordKeys);
             groups.add(group);
             if (model == null || records.size() >= SIZE) {
@@ -292,6 +294,7 @@ public final class CollectionIndexer {
                 writer.addDocument(doc);
             }
             records.clear();
+            documents.clear();
             keys.clear();
             groups.clear();
         }
@@ -300,15 +303,15 @@ public final class CollectionIndexer {
             float[][] vectors = new float[records.size()][];
             String[] cacheKeys = new String[records.size()];
             List<Integer> missing = new ArrayList<>();
-            List<String> inputs = new ArrayList<>();
+            List<org.springframework.ai.document.Document> toEmbed = new ArrayList<>();
             for (int i = 0; i < records.size(); i++) {
-                ChunkRecord record = records.get(i);
-                String input = model.passageInput(embeddedText(record.breadcrumb(), record.text()));
+                var document = formatter.apply(documents.get(i));
+                String input = document.getFormattedContent(MetadataMode.EMBED);
                 cacheKeys[i] = EmbeddingCache.key(fingerprint, input);
                 EmbeddingCache.Entry entry = cache.get(cacheKeys[i]);
                 if (entry == null) {
                     missing.add(i);
-                    inputs.add(input);
+                    toEmbed.add(document);
                 } else {
                     vectors[i] = entry.vector();
                     cached++;
@@ -318,7 +321,7 @@ public final class CollectionIndexer {
                 }
             }
             if (!missing.isEmpty()) {
-                Embeddings embeddings = model.embedInputs(inputs);
+                Embeddings embeddings = model.embed(toEmbed);
                 truncated += embeddings.truncated();
                 for (int j = 0; j < missing.size(); j++) {
                     int i = missing.get(j);

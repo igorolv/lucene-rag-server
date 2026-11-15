@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (162 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (165 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -253,10 +253,10 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/split/` | `HeadingSplitter`, `TableRows` (the rows of Markdown tables, D37) |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
-| `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`) |
+| `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`), `RecordContentFormatter` (what a model sees of a record, D44) |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
-| `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, each type a loader of an `EmbeddingModel` with its `ModelInfo`; loaded once, checked against a manifest), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `EmbeddingCache`, `ModelUnavailableException` |
+| `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, each type a loader of an `EmbeddingModel` with its `ModelInfo`; loaded once, checked against a manifest), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
@@ -294,7 +294,7 @@ D28 with its reason.
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
 | Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans (D43); needs every command in a Spring context (D42) | not implemented |
-| Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter`, `EmbeddingModel.embed(documents, options, BatchingStrategy)` (D44) | not implemented: the indexer assembles the text and batches itself |
+| Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | not implemented |
 | MCP over HTTP (stage 5) | the streamable HTTP transport of the Spring AI MCP server starter (D45) | stage 5 |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
@@ -322,6 +322,11 @@ each with the format that needs it.
   writer throws `UncheckedIOException` where the interfaces allow no `IOException`.
 - The `filters` map of `search` is turned into a Spring AI expression (equality joined by "and")
   and joined to `filterExpression` by "and", so one conversion serves both.
+- The indexer embeds the `Document`s it writes: `RecordContentFormatter` gives the passage prefix,
+  the breadcrumb, a blank line and the text for `MetadataMode.EMBED`, and that string is also the
+  key of the embedding cache. `VectorModel.embed` batches the documents and calls the model per
+  batch with an `EmbeddingRequest`, so the response metadata that says which inputs were cut is
+  kept; `EmbeddingModel.embed(documents, …)` would embed `getText()` and drop it.
 - `EmbeddingModel.call` throws no checked exception; `VectorModel` turns a failure into the
   `IOException` the indexer and search expect.
 
@@ -337,7 +342,7 @@ done here. A stage is taken only when the user asks for it.
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
-| 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | ⬜ D44 first |
+| 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | D44 done 2026-11-15; D42, D43, D46 ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
