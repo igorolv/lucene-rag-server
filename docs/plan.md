@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D51, proposals as P1…P27).
+reasons are in `docs/decisions.md` (cited here as D1…D66; agent proposals, when there are any, as P27 onwards).
 
 ## 1. Idea
 
@@ -177,8 +177,8 @@ vectors the model name, parameters, vector size, file hashes and the number of r
 input limit) and `<collection>/index/`. The analyzer description and the source revision are not
 in the manifest.
 
-- The server serves every collection directory it finds, filtered by the allowed list (P3, not
-  implemented). It reads the manifest, not `collections.json` (D7).
+- The server serves every collection directory it finds (D49). It reads the manifest, not
+  `collections.json` (D7).
 - Nothing is cached between calls: the data directory is listed and an index is opened per call,
   so a rebuilt collection is seen at once.
 - A build writes a temporary sibling directory and replaces the collection only when complete.
@@ -194,7 +194,7 @@ in the manifest.
   English stemming (modeled on `mail-mcp-server`), one exact lower-cased term per value of a
   document field for filters, the stored record, a vector field when the collection has vectors.
   Field names are in `index/IndexFields`; the behavior a user sees is in `docs/search.md`.
-- Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (P7).
+- Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (D56).
 - A page holds the best section of each document unless `perDocument` asks for more (D38): the
   group of a record is stored in the index (`IndexFields.STORED_GROUP`), the document key for a
   section and the record id for a row; candidates are ranked deeper until the page is full.
@@ -206,9 +206,9 @@ in the manifest.
   process by `EmbeddingModels`.
 - A call may search several collections; results carry their collection and the mode used.
 - Responses are bounded: a default and a maximum number of results and a total size cap set by the
-  server; a search returns snippets, `getDocument` returns the full record (P3).
+  server; a search returns snippets, `getDocument` returns the full record (D54).
 
-Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
+Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 
 | Group | Tools | Stage |
 |---|---|---|
@@ -301,7 +301,7 @@ D28 with its reason.
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
 | MCP over HTTP | the streamable HTTP transport of the Spring AI MCP server starter (D45), `RAG_MCP_TRANSPORT=http` | used |
-| MCP resources and completion | `@McpResource` and `@McpComplete`: a record as `rag://{collection}/{id}`, its values completed (D48) | used; progress (P15) not |
+| MCP resources and completion | `@McpResource` and `@McpComplete`: a record as `rag://{collection}/{id}`, its values completed (D48) | used; progress notifications not (D66) |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
@@ -355,7 +355,7 @@ done here. A stage is taken only when the user asks for it.
 
 Stage 4, in progress:
 
-1. Done 2026-11-15: `rag-eval` (P20, P21), the measuring command; user description in
+1. Done 2026-11-15: `rag-eval` (D64, D65), the measuring command; user description in
    `docs/search.md`, "Measuring search". On the question set of the first corpus (20 questions:
    10 expect a Markdown document, the others tables by `data:`, requirements by `spec:` and
    symptoms by `symptom:`) it reproduces the check of stage 3 on the Markdown collection: MRR 0.80,
@@ -454,7 +454,7 @@ values.
 
 Left out of stage 1 and not assigned to a stage: the source revision in the manifest (it needs a
 decision on calling `git`, which invariant 6 of `AGENTS.md` does not allow today) and user
-word-form rules (`docs/decisions.md` P9).
+word-form rules (`docs/decisions.md` D58).
 
 Observed while verifying stage 1, for stage 4: a lexical query phrased differently from the text
 ranks an unrelated record first; Spring AI repeats the message of a tool error twice in the
@@ -472,5 +472,4 @@ speed up kNN); not measured.
 - Whether pages are enough for real PDF files or sections by outline are needed (D35), and when
   Tika or Jsoup is added (D32).
 - When the DocBook reader is written (D17).
-- The license (P1) and the other proposals in `docs/decisions.md` section 3.
 - Legacy HTTP API (D2), if a client needs it.

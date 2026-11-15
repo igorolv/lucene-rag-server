@@ -5,7 +5,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.document.MetadataMode;
 
 /**
- * What of a record's {@link Document} a model sees (docs/decisions.md D44, P12). For
+ * What of a record's {@link Document} a model sees (docs/decisions.md D44, D61). For
  * {@link MetadataMode#EMBED} it is the passage prefix of the model, the breadcrumb, a blank line
  * and the text: the breadcrumb says what a passage is about. {@link MetadataMode#INFERENCE} and
  * {@link MetadataMode#ALL} give the same without the prefix, {@link MetadataMode#NONE} the text
