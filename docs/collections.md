@@ -19,6 +19,7 @@ another machine.
 - [Examples](#examples)
 - [Building](#building)
 - [What a built collection is](#what-a-built-collection-is)
+- [Delivering collections](#delivering-collections)
 
 ## The collections file
 
@@ -689,8 +690,83 @@ build may outlast the time a client waits for a tool; `rag-index` has no such li
 ```
 
 A collection directory is self-contained. To serve it elsewhere, copy the directory under that
-machine's data directory, keeping its name; neither the sources nor `collections.json` are needed
+machine's data directory, keeping its name ([Delivering collections](#delivering-collections)); neither the sources nor `collections.json` are needed
 there. A collection with vectors needs its model for vector and hybrid search: copy
 `models/<model>/` too. Search compares the files with the hashes in the manifest, so a collection
 built with other model files is searched lexically only until it is rebuilt. A directory is served when its `manifest.json` names the directory and has the index
 schema of the running server; after an upgrade that changes the schema, rebuild.
+
+## Delivering collections
+
+Collections are built where the sources are and served where the assistant runs. The serving
+machine needs the server jar, the collection directories and the files of their models; it needs
+neither the sources nor `collections.json`, unless collections are rebuilt there.
+
+**1. Build and check** on the machine with the sources:
+
+```bash
+java -jar lucene-rag-server.jar rag-index --all
+```
+
+```bash
+java -jar lucene-rag-server.jar rag-eval docs@billing C:/projects/billing/knowledge/eval/questions.jsonl
+```
+
+`rag-index` must end with `RESULT: OK`; `rag-eval` or a few `rag-search` queries show that the
+collections answer as expected.
+
+**2. Pack** the collection directories, and `models/<model>/` of every model a collection with
+vectors names (`vectors.model` in its `manifest.json`):
+
+```bash
+tar -czf billing.tar.gz -C C:/Users/me/.lucene-rag-server docs@billing api@billing models/e5-small
+```
+
+Leave out `cache/` and `logs/`, which each machine makes for itself, directories whose name starts
+with a dot, which are unfinished or replaced builds, and `collections.json`. The `tar` that comes
+with Windows 10 and later reads and writes these archives too.
+
+**3. Check the server version.** A collection is served only by a server of the same index schema
+(`schema` in `manifest.json`); another server skips it and logs that it must be rebuilt. Deliver
+the jar the collections were built with, or one known to have the same schema.
+
+**4. Put the collections in place.** With the server stopped, unpack into its data directory:
+
+```bash
+tar -xzf billing.tar.gz -C /opt/rag/data
+```
+
+A running server sees a collection on its next call, so a collection must appear whole. Unpack
+into a directory of the data directory whose name starts with a dot, which is never served, then
+move each collection in by renaming, as `rag-index` does:
+
+```bash
+mkdir /opt/rag/data/.incoming
+```
+
+```bash
+tar -xzf billing.tar.gz -C /opt/rag/data/.incoming
+```
+
+1. Rename the old `docs@billing` to `.old-docs@billing-1`, if there is one.
+2. Rename `.incoming/docs@billing` to `docs@billing`.
+3. Delete `.old-docs@billing-1` and, when all collections are moved, `.incoming`.
+
+On Windows the first rename fails while a search is reading the old index; repeat it. An
+`.old-<collection>-<number>` directory that is still in use is removed by the next `rag-index` or
+`rebuildCollection` of that collection.
+
+**5. Models.** A model that was missing is loaded by the first search that needs it. A model whose
+files are replaced needs a restart: the server loads each model once and keeps it. Until a
+collection's model is in place, the collection is searched by words only and `vector` and `hybrid`
+report the missing model.
+
+**6. Check on the serving machine:**
+
+```bash
+java -jar lucene-rag-server.jar rag-search docs@billing "payment was not matched" --mode hybrid
+```
+
+Exit code 5 means the model is missing or is not the one the collection was built with. Through
+MCP, `listCollections` shows every collection with `built: true`, its record count and its build
+time.

@@ -15,7 +15,9 @@ Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` sectio
 Measurement (stage 4) is in progress: `rag-eval`, a first tuning pass and one section per
 document in search results are done; results and open proposals are in `docs/plan.md` section 4.
 A second pass of the Spring AI alignment (stage 3b: D42–D46) is implemented, the HTTP transport
-of MCP among it.
+of MCP among it. Stage 5 (delivery) is done: a rebuild swaps a collection in whole,
+`rebuildCollection` rebuilds through MCP, a record is also an MCP resource, and the delivery of
+collections and models is described in `docs/collections.md`; no Docker image (D51).
 
 ## Repository contents
 
