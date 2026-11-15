@@ -42,5 +42,5 @@ rag-mcp:
   # @Service. Groups are added here together with their tools (docs/plan.md section 3.4).
   tools:
     collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
-    search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument
+    search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument, resource rag://{collection}/{id}
     lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup

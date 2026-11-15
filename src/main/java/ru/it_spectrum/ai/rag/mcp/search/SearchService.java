@@ -6,7 +6,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -23,6 +26,7 @@ import org.apache.lucene.search.uhighlight.DefaultPassageFormatter;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.springframework.ai.vectorstore.filter.Filter;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
@@ -423,6 +427,45 @@ public final class SearchService {
             int cap = properties.responseMaxChars();
             return Optional.of(hit(doc, 0f, null, body.length() > cap ? body.substring(0, cap) + "…" : body));
         }
+    }
+
+    /**
+     * Record ids of one collection that start with a prefix, in id order: at most {@code max} of
+     * them, and whether more exist. For completing an id (docs/decisions.md D48).
+     */
+    public IdPage ids(String collection, String prefix, int max) throws IOException {
+        List<Manifest> manifests = resolve(List.of(collection));
+        BytesRef start = new BytesRef(prefix == null ? "" : prefix);
+        List<String> ids = new ArrayList<>();
+        boolean more = false;
+        try (Opened opened = open(manifests)) {
+            Terms terms = MultiTerms.getTerms(opened.reader, IndexFields.ID);
+            if (terms == null) {
+                return new IdPage(List.of(), false);
+            }
+            TermsEnum each = terms.iterator();
+            if (each.seekCeil(start) == TermsEnum.SeekStatus.END) {
+                return new IdPage(List.of(), false);
+            }
+            for (BytesRef term = each.term(); term != null && startsWith(term, start);
+                 term = each.next()) {
+                if (ids.size() == max) {
+                    more = true;
+                    break;
+                }
+                ids.add(term.utf8ToString());
+            }
+        }
+        return new IdPage(List.copyOf(ids), more);
+    }
+
+    private static boolean startsWith(BytesRef term, BytesRef prefix) {
+        return term.length >= prefix.length && java.util.Arrays.equals(term.bytes, term.offset,
+                term.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
+    }
+
+    /** Ids found by {@link #ids}, and whether the limit left some out. */
+    public record IdPage(List<String> ids, boolean more) {
     }
 
     /**

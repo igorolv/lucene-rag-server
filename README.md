@@ -87,6 +87,9 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 
+A record is also the MCP resource `rag://{collection}/{id}`, and clients that support completion
+suggest its collection and id ([docs/search.md](docs/search.md#results)).
+
 ## Settings
 
 | Variable | Default | Meaning |

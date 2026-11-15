@@ -146,6 +146,16 @@ page may end, without `nextOffset`, before `total` is reached.
 `getDocument` takes a hit's `collection` and `id` and returns the full passage with the document's
 fields, its key and the record's position in the document.
 
+**A record as a resource.** The same record is the MCP resource `rag://{collection}/{id}`, as
+Markdown: the breadcrumb as the heading, a list of the collection, the record id, the source and
+the fields (a nested list), then the passage, cut to the response size cap as `getDocument` is. A client can show it
+or attach it to a conversation without a tool call. The values in the URI are percent-encoded
+(an id holds `#` and often `/`), for example
+`rag://docs%40billing/article.billing.refunds%23statuses`. A client that supports completion
+suggests both values: `collection` from the built collections whose name starts with what is
+typed, ignoring case, and `id` from the ids of the chosen collection that start with it, in id
+order, at most 100. The resource and its completion belong to the `search` group.
+
 Several collections in one call are searched as one index, so their BM25 scores are comparable.
 
 ## Limits

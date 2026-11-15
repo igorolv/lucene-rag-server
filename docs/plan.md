@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D46, proposals as P1…P26).
+reasons are in `docs/decisions.md` (cited here as D1…D48, proposals as P1…P26).
 
 ## 1. Idea
 
@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (172 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (178 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -212,7 +212,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 | Group | Tools | Stage |
 |---|---|---|
 | `collections` | `listCollections` | done |
-| `search` | `search`, `getDocument` | done |
+| `search` | `search`, `getDocument`; the resource `rag://{collection}/{id}` and its completion (D48) | done |
 | `lookup` | `lookup`: exact lookups by the key fields of catalog collections (D23) | done |
 | `admin` | `rebuildCollection` | 5 |
 | `browse` | list by filters, facets, related records | 6 |
@@ -259,7 +259,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts; `Cli.context` starts the application context without the MCP server (D42) |
-| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
+| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`; `RecordResources` (the record resource and its completion, D48) |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig`, `TransportSettings` (stdio or HTTP, D45) |
 
@@ -300,6 +300,7 @@ D28 with its reason.
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
 | MCP over HTTP | the streamable HTTP transport of the Spring AI MCP server starter (D45), `RAG_MCP_TRANSPORT=http` | used |
+| MCP resources and completion | `@McpResource` and `@McpComplete`: a record as `rag://{collection}/{id}`, its values completed (D48) | used; progress (P15) not |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
