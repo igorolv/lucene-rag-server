@@ -19,6 +19,7 @@ repositories {
 dependencies {
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.ai.mcp.server)
+    implementation(libs.spring.ai.mcp.server.webmvc)
     implementation(libs.spring.ai.model)
     implementation(libs.spring.ai.vector.store)
     implementation(libs.spring.ai.pdf.document.reader)

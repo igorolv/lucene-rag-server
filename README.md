@@ -33,6 +33,16 @@ java -jar build/libs/lucene-rag-server.jar
 The server speaks MCP over stdio. Register it in an MCP client as
 `java -jar <absolute path>/lucene-rag-server.jar`.
 
+With `RAG_MCP_TRANSPORT=http` it serves the streamable HTTP transport of MCP at
+`http://127.0.0.1:8080/mcp` instead, for clients that connect to a running server:
+
+```bash
+RAG_MCP_TRANSPORT=http java -jar build/libs/lucene-rag-server.jar
+```
+
+The server has no authentication; by default it accepts local connections only. To serve other
+machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that controls access.
+
 ## Quickstart
 
 1. Describe a collection in `~/.lucene-rag-server/collections.json`
@@ -89,6 +99,9 @@ The server speaks MCP over stdio. Register it in an MCP client as
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |
 | `RAG_MCP_SEARCH_MAX_LIMIT` | `50` | The most hits per page a call can get |
 | `RAG_MCP_RESPONSE_MAX_CHARS` | `20000` | Characters of passage text in one response |
+| `RAG_MCP_TRANSPORT` | `stdio` | MCP transport: `stdio`, or `http` for the streamable HTTP transport at `/mcp` |
+| `RAG_MCP_HTTP_ADDRESS` | `127.0.0.1` | Address the `http` transport listens on |
+| `RAG_MCP_HTTP_PORT` | `8080` | Port of the `http` transport |
 
 ## License
 

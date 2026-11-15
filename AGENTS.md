@@ -14,8 +14,8 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
 Measurement (stage 4) is in progress: `rag-eval`, a first tuning pass and one section per
 document in search results are done; results and open proposals are in `docs/plan.md` section 4.
-A second pass of the Spring AI alignment (stage 3b: D42–D46) is decided; D42, D43 and D44 are
-implemented.
+A second pass of the Spring AI alignment (stage 3b: D42–D46) is implemented, the HTTP transport
+of MCP among it.
 
 ## Repository contents
 
@@ -92,7 +92,8 @@ then keeps the summary and links to the owner.
 - Build on Spring AI (D28): before you write an interface or a mechanism, look for one in Spring
   AI and use it. When it does not fit, say why in D28. What is used and what stays own is in
   `docs/plan.md` section 3.7.
-- Stdio transport: nothing but JSON-RPC may be written to `System.out`. Use SLF4J.
+- Stdio transport, the default: nothing but JSON-RPC may be written to `System.out`. Use SLF4J.
+  The HTTP transport (`RAG_MCP_TRANSPORT=http`, D45) is switched in `config/TransportSettings`.
 - Tool classes are thin `@Service` beans, one per tool group, each with a
   `@ConditionalOnProperty(prefix = "rag-mcp.tools", ...)` switch and a matching line in
   `application.yml` (D5).

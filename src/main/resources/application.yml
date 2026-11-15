@@ -1,5 +1,6 @@
 spring:
   main:
+    # Set by rag-mcp.transport (config/TransportSettings): none for stdio, servlet for http.
     web-application-type: none
     banner-mode: off
   ai:
@@ -8,11 +9,22 @@ spring:
         name: lucene-rag-server
         version: "@version@"
         stdio: true
+        streamable-http:
+          mcp-endpoint: /mcp
+
+# Used by the http transport only. No authentication exists in the server (docs/decisions.md D8):
+# the default address accepts local clients only.
+server:
+  address: ${RAG_MCP_HTTP_ADDRESS:127.0.0.1}
+  port: ${RAG_MCP_HTTP_PORT:8080}
 
 # Top-level server data directory — all local storage is rooted here. Each collection gets its own
 # directory <data-dir>/<collection>/ holding its Lucene index and manifest; the shared log is
 # written under <data-dir>/logs/.
 rag-mcp:
+  # MCP transport: stdio (default) for a client that starts the server, http for the streamable
+  # HTTP transport at http://<address>:<port>/mcp (docs/decisions.md D45).
+  transport: ${RAG_MCP_TRANSPORT:stdio}
   data-dir: ${RAG_MCP_DATA_DIR:${user.home}/.lucene-rag-server}
   # JSON file describing the named collections this server can build. Defaults to
   # <data-dir>/collections.json. Serving an already built index does not need it.

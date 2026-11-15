@@ -1,0 +1,2 @@
+# The MCP transport chosen by RAG_MCP_TRANSPORT (docs/decisions.md D45)
+org.springframework.boot.EnvironmentPostProcessor=\nru.it_spectrum.ai.rag.mcp.config.TransportSettings

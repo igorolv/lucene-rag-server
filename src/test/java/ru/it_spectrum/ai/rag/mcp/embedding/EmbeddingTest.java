@@ -1,11 +1,15 @@
 package ru.it_spectrum.ai.rag.mcp.embedding;
 
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -92,6 +96,35 @@ class EmbeddingTest {
             Embeddings longText = named.embedInputs(List.of("passage: short", "passage: " + "слово ".repeat(2000)));
             assertThat(longText.cut()).containsExactly(false, true);
         }
+    }
+
+    /** The real model reports each call as a Spring AI embedding operation (docs/decisions.md D46). */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "RAG_MCP_TEST_MODEL_DIR", matches = ".+")
+    void theOnnxModelIsObservedAsASpringAiEmbeddingModel() throws IOException {
+        Path modelDir = Path.of(System.getenv("RAG_MCP_TEST_MODEL_DIR"));
+        Path nativeCache = Path.of(System.getProperty("java.io.tmpdir"), "lucene-rag-server-test", "djl");
+        List<Observation.Context> seen = new ArrayList<>();
+        ObservationRegistry registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new ObservationHandler<>() {
+            @Override
+            public boolean supportsContext(Observation.Context context) {
+                return true;
+            }
+
+            @Override
+            public void onStop(Observation.Context context) {
+                seen.add(context);
+            }
+        });
+        try (OnnxEmbeddingModel model = OnnxEmbeddingModel.open(modelDir, 512, nativeCache, "e5-small", registry)) {
+            model.embed(List.of("passage: one", "passage: two"));
+        }
+
+        assertThat(seen).hasSize(1);
+        assertThat(seen.getFirst().getName()).isEqualTo("gen_ai.client.operation");
+        assertThat(seen.getFirst().getLowCardinalityKeyValues().stream().map(kv -> kv.getKey() + "=" + kv.getValue()))
+                .contains("gen_ai.system=onnx", "gen_ai.request.model=e5-small");
     }
 
     @Test

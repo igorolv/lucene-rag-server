@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D46, proposals as P1…P21).
+reasons are in `docs/decisions.md` (cited here as D1…D46, proposals as P1…P26).
 
 ## 1. Idea
 
@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (167 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (172 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -49,7 +49,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
 - Measured: one question set of the first corpus with `rag-eval` (stage 4, section 4); tuning is
   not done.
 
-In section 3, the tool groups after `lookup`, the remote embedding endpoint, the allowed
+In section 3, the tool groups after `lookup`, a provider starter for a remote embedding endpoint, the allowed
 collections and the rows of section 3.7 marked "not implemented" are the target design.
 
 ## 3. Architecture
@@ -261,7 +261,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts; `Cli.context` starts the application context without the MCP server (D42) |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
 | `api/` | Response records with `@Schema` |
-| `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig` |
+| `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig`, `TransportSettings` (stdio or HTTP, D45) |
 
 How the pipeline is wired:
 
@@ -298,13 +298,14 @@ D28 with its reason.
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
 | Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans: the model type `bean` (D43); every command in a Spring context (D42) | used; no provider starter in the build |
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
-| Embedding observations | the observation conventions of Spring AI embedding models (D46) | not implemented |
-| MCP over HTTP (stage 5) | the streamable HTTP transport of the Spring AI MCP server starter (D45) | stage 5 |
+| Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
+| MCP over HTTP | the streamable HTTP transport of the Spring AI MCP server starter (D45), `RAG_MCP_TRANSPORT=http` | used |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
 Dependencies these decisions allow: `spring-ai-model`, `spring-ai-vector-store` (brings nothing
-the build did not have) and `spring-ai-pdf-document-reader` (PDFBox 3, four modules), declared;
+the build did not have), `spring-ai-pdf-document-reader` (PDFBox 3, four modules) and
+`spring-ai-starter-mcp-server-webmvc` (Tomcat and Spring MVC, 18 modules, D45), declared;
 `spring-ai-jsoup-document-reader` (two modules) and `spring-ai-tika-document-reader` (107 modules)
 each with the format that needs it.
 
@@ -345,9 +346,9 @@ done here. A stage is taken only when the user asks for it.
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
-| 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | D44, D42, D43 done 2026-11-15; D46 ⬜ |
+| 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45); Docker image; delivery procedure for indexes and models | ⬜ |
+| 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
 Stage 4, in progress:

@@ -10,11 +10,17 @@ import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtLoggingLevel;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.TensorInfo;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingOptions;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.embedding.observation.DefaultEmbeddingModelObservationConvention;
+import org.springframework.ai.embedding.observation.EmbeddingModelObservationContext;
+import org.springframework.ai.embedding.observation.EmbeddingModelObservationDocumentation;
+import org.springframework.ai.observation.conventions.AiProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,9 +70,17 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
     private final Set<String> inputs;
     private final String output;
     private final ModelInfo info;
+    private final String name;
+    private final ObservationRegistry observations;
+
+    private static final DefaultEmbeddingModelObservationConvention CONVENTION =
+            new DefaultEmbeddingModelObservationConvention();
 
     private OnnxEmbeddingModel(OrtEnvironment environment, OrtSession session, HuggingFaceTokenizer tokenizer,
-                         String output, Map<String, String> files) throws IOException {
+                         String output, Map<String, String> files, String name, ObservationRegistry observations)
+            throws IOException {
+        this.name = name;
+        this.observations = observations;
         this.environment = environment;
         this.session = session;
         this.tokenizer = tokenizer;
@@ -85,6 +99,17 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
      * @throws IOException when a file is missing or the model cannot be loaded
      */
     public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache) throws IOException {
+        return open(dir, maxTokens, nativeCache, String.valueOf(dir.getFileName()), ObservationRegistry.NOOP);
+    }
+
+    /**
+     * @param name         the model's name under {@code models}, reported as the model of each call
+     * @param observations where each call is reported as a Spring AI embedding model operation
+     *                     (docs/decisions.md D46); {@link ObservationRegistry#NOOP} for none
+     * @throws IOException when a file is missing or the model cannot be loaded
+     */
+    public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache, String name,
+                                          ObservationRegistry observations) throws IOException {
         Path model = dir.resolve(MODEL_FILE);
         Path tokenizerFile = dir.resolve(TOKENIZER_FILE);
         for (Path file : List.of(model, tokenizerFile)) {
@@ -119,7 +144,7 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
                 throw new IOException("The model " + model + " has inputs " + inputs
                         + "; input_ids and attention_mask are required");
             }
-            return new OnnxEmbeddingModel(environment, session, tokenizer, output, files);
+            return new OnnxEmbeddingModel(environment, session, tokenizer, output, files, name, observations);
         } catch (OrtException | IOException | RuntimeException e) {
             tokenizer.close();
             if (session != null) {
@@ -145,10 +170,28 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
     }
 
     /**
+     * Each call is a Spring AI embedding model operation of the provider {@code onnx}, observed as
+     * any Spring AI model's: its time, the model name and the vector size.
+     *
      * @throws UncheckedIOException when the model fails to run
      */
     @Override
     public EmbeddingResponse call(EmbeddingRequest request) {
+        var context = EmbeddingModelObservationContext.builder()
+                .embeddingRequest(new EmbeddingRequest(request.getInstructions(),
+                        EmbeddingOptions.builder().model(name).dimensions(info.dimension()).build()))
+                .provider(AiProvider.ONNX.value())
+                .build();
+        return EmbeddingModelObservationDocumentation.EMBEDDING_MODEL_OPERATION
+                .observation(null, CONVENTION, () -> context, observations)
+                .observe(() -> {
+                    EmbeddingResponse response = run(request);
+                    context.setResponse(response);
+                    return response;
+                });
+    }
+
+    private EmbeddingResponse run(EmbeddingRequest request) {
         final Embeddings embeddings;
         try {
             embeddings = embedTexts(request.getInstructions());
@@ -159,7 +202,7 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
         for (int i = 0; i < embeddings.vectors().length; i++) {
             results.add(new Embedding(embeddings.vectors()[i], i));
         }
-        return new EmbeddingResponse(results, embeddings.metadata(MODEL_FILE));
+        return new EmbeddingResponse(results, embeddings.metadata(name));
     }
 
     @Override

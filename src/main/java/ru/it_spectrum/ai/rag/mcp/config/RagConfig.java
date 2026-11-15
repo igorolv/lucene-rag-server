@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.config;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.beans.factory.ListableBeanFactory;
 import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
@@ -39,8 +40,9 @@ public class RagConfig {
 
     /** Models run in-process from their files under {@code <data-dir>/models/} (D11). */
     @Bean
-    ModelType onnxModelType(RagMcpProperties properties) {
-        return new OnnxModelType(EmbeddingModels.nativeCache(properties.resolvedDataDir()));
+    ModelType onnxModelType(RagMcpProperties properties, ObjectProvider<ObservationRegistry> observations) {
+        return new OnnxModelType(EmbeddingModels.nativeCache(properties.resolvedDataDir()),
+                observations.getIfUnique(() -> ObservationRegistry.NOOP));
     }
 
     /** Models that are Spring AI {@code EmbeddingModel} beans, configured by Spring AI properties (D43). */
