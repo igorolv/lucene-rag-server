@@ -27,6 +27,12 @@ public final class IndexFields {
     public static final String STORED_BREADCRUMB = "s.breadcrumb";
     public static final String STORED_SOURCE = "s.source";
     public static final String STORED_ORDINAL = "s.ordinal";
+    /**
+     * What a page of search results holds a limited number of records of (docs/decisions.md
+     * D38): the document key for the sections of a document, the record id for a row of a
+     * catalog, a table or a file of a row format, which stands alone. Stored.
+     */
+    public static final String STORED_GROUP = "s.group";
 
     /** Prefix of a document field indexed as one lower-cased exact term per value. */
     public static final String FILTER_PREFIX = "f.";

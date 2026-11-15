@@ -131,8 +131,17 @@ value, as an error text from a screen or a parameter code, and not the words to 
 `search` returns a page of hits, best first: `collection`, `id`, `breadcrumb`, `source` (the file,
 relative to its source), `score` and a `snippet` — part of the passage around the matches of the
 query's words, with the matches in `**bold**`; a passage found by its vector alone may have no
-bold words. `mode` says how the page was ranked. `total` counts all matches (fused candidates in
-`vector` and `hybrid`); pass `nextOffset` as `offset` with the same arguments for the next page.
+bold words. `mode` says how the page was ranked. `total` counts all matching records (fused
+candidates in `vector` and `hybrid`); pass `nextOffset` as `offset` with the same arguments for the
+next page.
+
+**One section per document.** By default the results hold only the best ranked section of each
+document; its other sections drop out, so a page shows more different documents instead of
+several sections of one. `perDocument` (`--per-document` of `rag-search`) raises the number, for
+example to read more of a document already found. It applies to the sections of a document (a
+Markdown source cut by headings). A row of a catalog, a table (`split.tableRows`) or a file of
+another format stands alone and is never dropped. `total` still counts every matching record, so a
+page may end, without `nextOffset`, before `total` is reached.
 
 `getDocument` takes a hit's `collection` and `id` and returns the full passage with the document's
 fields, its key and the record's position in the document.
@@ -152,6 +161,16 @@ small context.
 
 A snippet is at most about 600 characters. When the size cap ends a page early, the result has
 `truncated: true` and `nextOffset` continues from the first hit that did not fit.
+
+**For a model with a small context** (measured on the first real corpus, `docs/plan.md` stage 4):
+a page of 10 hits carried about 4,300 characters of snippets, a page of 5 about 2,000, and 5 hits
+still held the expected record for 14 of 17 questions against 15 for 10. A starting point:
+
+| Variable | Strong model (defaults) | Small context |
+|---|---|---|
+| `RAG_MCP_SEARCH_DEFAULT_LIMIT` | 10 | 5 |
+| `RAG_MCP_SEARCH_MAX_LIMIT` | 50 | 10 |
+| `RAG_MCP_RESPONSE_MAX_CHARS` | 20000 | 4000 |
 
 ## The rag-search command
 
@@ -180,12 +199,14 @@ java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STA
 
 The first argument is one or more collection names separated by commas; the remaining words are the
 query. `--filter name=value` may be repeated; `--filter-expression` takes one
-[filter expression](#filter-expressions). `--mode lexical|vector|hybrid` chooses the
+[filter expression](#filter-expressions). `--per-document N` shows up to N sections of a document
+([Results](#results)). `--mode lexical|vector|hybrid` chooses the
 [mode](#modes); without it the default applies, and the last line names the mode used.
 `--lookup value` makes an [exact lookup](#exact-lookup) instead and takes no query, no filters, no
-expression and no mode. Exit codes: 0 searched (also with no matches), 1 unexpected error, 2 wrong
-usage, an unknown collection, filter field or mode, or an expression that does not parse, 4 an index could not be read, 5 the embedding model of a
-collection is missing or is not the one it was built with.
+expression, no mode and no `--per-document`. Exit codes: 0 searched (also with no matches), 1
+unexpected error, 2 wrong usage, an unknown collection, filter field or mode, or an expression that
+does not parse, 4 an index could not be read, 5 the embedding model of a collection is missing or
+is not the one it was built with.
 
 ## Measuring search
 
@@ -202,9 +223,9 @@ Questions: 20 read, 17 measured, 3 left out (0 without references, the others wi
 References that name no record: 9 (spec: 9)
 
 mode          @1      @5     @10    MRR recall@10  ms/query
-lexical     9/17   14/17   15/17   0.67      0.69        25
-vector      6/17   13/17   15/17   0.53      0.69       121
-hybrid      9/17   14/17   15/17   0.66      0.72        27
+lexical     9/17   15/17   16/17   0.69      0.75        24
+vector      6/17   14/17   17/17   0.55      0.76       120
+hybrid      9/17   15/17   17/17   0.69      0.76        23
 ```
 
 **The question set** is a JSONL file, one question per line: `question` is the text searched,
@@ -223,7 +244,8 @@ details. Other keys are ignored.
 - A reference that names no record of the collections cannot be found by any search. It is counted
   by prefix and left out; a question with no reference that names a record is left out too. Add the
   collection, the mapping or the field that makes it reachable, or accept it as a gap.
-- Ranks count records as a client sees them: two records of one document take two places.
+- Ranks count records as a client sees them, after the [one section per document](#results)
+  limit; `--per-document N` measures with another limit.
 - `@1`, `@5` and `@N`: the questions whose first expected record is at rank 1, within 5, and within
   the depth N. `MRR`: the mean of 1 / rank, 0 when not found within the depth. `recall@N`: the mean
   share of a question's references found within the depth. `ms/query`: the mean time of one
@@ -231,7 +253,8 @@ details. Other keys are ignored.
 
 **Options:** `--limit N` sets the depth (default 10, at most 100). `--modes lexical,hybrid`
 chooses the modes; without it every mode the collections have is measured (`vector` only when
-every collection has vectors). `--ref prefix=field` may be repeated. `--details` adds a line per
+every collection has vectors). `--ref prefix=field` may be repeated. `--per-document N` measures
+search with that limit instead of the default 1. `--details` adds a line per
 question with its rank in each mode (`-` when not found) and the references that name no record.
 
 Exit codes: 0 measured, 1 unexpected error, 2 wrong usage, an unknown collection or mode, or a

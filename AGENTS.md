@@ -12,7 +12,8 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
 `EmbeddingModel`, search filters take Spring AI filter expressions, records reach the index as
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
-Measurement (stage 4) is in progress: the `rag-eval` command is done, tuning is next.
+Measurement (stage 4) is in progress: `rag-eval`, a first tuning pass and one section per
+document in search results are done; results and open proposals are in `docs/plan.md` section 4.
 
 ## Repository contents
 

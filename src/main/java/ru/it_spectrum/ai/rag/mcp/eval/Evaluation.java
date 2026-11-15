@@ -20,8 +20,8 @@ import java.util.Map;
  *   <li>A reference that names no record of the searched collections is <em>unreachable</em>:
  *       no search can find it, so it is reported apart and left out of the measures. A question
  *       with no reachable reference is left out too.</li>
- *   <li>Ranks count records, as a client sees them: two records of one document take two
- *       places.</li>
+ *   <li>Ranks count records as a client sees them, after the limit of records per document
+ *       that search applies.</li>
  *   <li>For each mode: the questions whose first match is at rank 1, within 5 and within the
  *       depth; the mean reciprocal rank (0 for a question not found within the depth); recall,
  *       the mean share of the reachable references of a question matched within the depth; the
@@ -94,6 +94,15 @@ public final class Evaluation {
      */
     public Report run(List<String> collections, List<QuestionSet.Question> questions, List<SearchMode> modes,
                       int depth) throws IOException {
+        return run(collections, questions, modes, depth, null);
+    }
+
+    /**
+     * @param perDocument records of one document in the results, as the {@code search} tool takes
+     *                    it; {@code null} for its default
+     */
+    public Report run(List<String> collections, List<QuestionSet.Question> questions, List<SearchMode> modes,
+                      int depth, Integer perDocument) throws IOException {
         List<SearchHit> all = search.all(collections);
         Map<SearchMode, Long> nanos = new LinkedHashMap<>();
         Map<SearchMode, Integer> searches = new LinkedHashMap<>();
@@ -110,7 +119,7 @@ public final class Evaluation {
                 for (SearchMode mode : modes) {
                     long start = System.nanoTime();
                     SearchPage page = search.search(collections, question.question(), null, null, depth, 0,
-                            mode.id());
+                            mode.id(), perDocument);
                     nanos.merge(mode, System.nanoTime() - start, Long::sum);
                     searches.merge(mode, 1, Integer::sum);
                     List<SearchHit> hits = page.hits();

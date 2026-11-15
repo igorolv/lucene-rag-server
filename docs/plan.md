@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D37, proposals as P1…P21).
+reasons are in `docs/decisions.md` (cited here as D1…D38, proposals as P1…P25).
 
 ## 1. Idea
 
@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (158 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (162 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -194,6 +194,9 @@ in the manifest.
   document field for filters, the stored record, a vector field when the collection has vectors.
   Field names are in `index/IndexFields`; the behavior a user sees is in `docs/search.md`.
 - Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (P7).
+- A page holds the best section of each document unless `perDocument` asks for more (D38): the
+  group of a record is stored in the index (`IndexFields.STORED_GROUP`), the document key for a
+  section and the record id for a row; candidates are ranked deeper until the page is full.
 - Modes: `lexical` (BM25), `vector` (kNN on the `vector` field, cosine), `hybrid` — both, fused
   by RRF (D12, D26) with `TopDocs.rrf(topN, k, TopDocs[])` of Lucene, present in the 10.5.2 we
   use (the release that introduced it is to verify). Collections of one model form one kNN list,
@@ -348,10 +351,25 @@ Stage 4, in progress:
    rows (D37). With the 35 symptoms as a third collection and `--ref symptom=number`, 17 of 20
    questions are measured: MRR 0.67, 0.53 and 0.66, recall@10 0.69, 0.69 and 0.72 for lexical,
    vector and hybrid; 15 of 17 are found within 10 in every mode.
-3. Next: tune
-   `split.maxChars` (12% of the Markdown records and most table records exceed the 512 tokens of
-   E5) and the text of table records; limits for a small-context model; the reranker decision
-   (D12).
+3. Done 2026-11-15, first tuning pass on the same 17 questions (documents, table descriptions,
+   symptoms; hybrid MRR 0.66, 15 of 17 within 10):
+   - `split.maxChars` 1000, 1500 and 2500 for the documents, and 1000, 1500 and 2500 for the table
+     descriptions, move hybrid MRR within 0.65–0.67 and recall@10 within 0.66–0.75. Fewer records
+     cut at 512 tokens (123 → 40 → 0 for the documents) changes no rank that matters. The default
+     2500 stays (P22).
+   - At depth 100 every measured question is found in every mode; the misses at 10 are ranks 11–38.
+     They are pushed down by other records of the same documents: several sections of one process
+     map fill the top. Keeping only the best record of each document (simulated on the same
+     searches) puts all 17 within 10 in hybrid and vector and raises hybrid MRR to 0.69 (now D38).
+   - A response of 10 hits carries about 4,300 characters of snippets (median; at most 5,100), 5
+     hits about 2,000; a snippet is 380 characters in the median and at most about 600. Settings
+     for a small-context model follow from that (P23, `docs/search.md`).
+   - Hybrid ranks like lexical here, and vector is weaker (MRR 0.53). 17 questions cannot show a
+     difference of a few hundredths, so a reranker is not decided on them (P25).
+4. Done 2026-11-15: one section per document (D38). Measured with the server: hybrid 17 of 17
+   within 10, MRR 0.69, recall@10 0.76; lexical 16 of 17, 0.69, 0.75; vector 17 of 17, 0.55,
+   0.76. A limit of 2 is no better than none (hybrid 15 of 17).
+5. Next: the user's decision on P25; more questions in the set of the first corpus.
 
 Stage 3, done 2026-11-15 (D24–D27):
 

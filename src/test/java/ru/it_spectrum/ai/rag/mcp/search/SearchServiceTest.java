@@ -110,7 +110,7 @@ class SearchServiceTest {
         assertThat(playbooks.hits()).isNotEmpty()
                 .allSatisfy(hit -> assertThat(hit.id()).startsWith("playbook.billing.payment-not-matched#"));
 
-        SearchPage byTable = search.search(List.of(DOCS), null, Map.of("tables", "refund"), null, null);
+        SearchPage byTable = search.search(List.of(DOCS), null, Map.of("tables", "refund"), null, 50, null, null, 50);
         assertThat(byTable.hits()).isNotEmpty()
                 .allSatisfy(hit -> assertThat(hit.document()).isEqualTo("article.billing.refunds"));
         assertThat(byTable.total()).isEqualTo(byTable.hits().size());
@@ -185,6 +185,37 @@ class SearchServiceTest {
     }
 
     @Test
+    void aPageHoldsTheBestSectionOfEachDocumentUnlessAskedForMore() throws IOException {
+        SearchPage one = search.search(List.of(DOCS), "платёж", null, null, 50, null, null, null);
+        SearchPage two = search.search(List.of(DOCS), "платёж", null, null, 50, null, null, 2);
+        SearchPage all = search.search(List.of(DOCS), "платёж", null, null, 50, null, null, 50);
+
+        assertThat(one.hits()).extracting(SearchHit::document).doesNotHaveDuplicates().hasSize(3);
+        assertThat(one.total()).as("total counts matching records").isEqualTo(all.total());
+        assertThat(one.nextOffset()).isNull();
+        assertThat(ids(one).getFirst()).isEqualTo(ids(all).getFirst());
+        assertThat(two.hits()).hasSizeBetween(4, 6);
+        assertThat(two.hits().stream().collect(Collectors.groupingBy(SearchHit::document, Collectors.counting()))
+                .values()).allMatch(count -> count <= 2);
+        assertThat(all.hits()).hasSize(all.total());
+        assertThatThrownBy(() -> search.search(List.of(DOCS), "платёж", null, null, 50, null, null, 0))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("perDocument");
+    }
+
+    @Test
+    void pagesOfACollapsedListFollowNextOffset() throws IOException {
+        SearchPage first = search.search(List.of(DOCS), "платёж", null, null, 2, null, null, null);
+        SearchPage second = search.search(List.of(DOCS), "платёж", null, null, 2, first.nextOffset(), null, null);
+
+        assertThat(first.hits()).hasSize(2);
+        assertThat(first.nextOffset()).isEqualTo(2);
+        assertThat(second.hits()).hasSize(1);
+        assertThat(second.nextOffset()).isNull();
+        assertThat(second.hits().getFirst().document()).isNotIn(
+                first.hits().stream().map(SearchHit::document).toList());
+    }
+
+    @Test
     void severalCollectionsAreSearchedTogether() throws IOException {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null);
 
@@ -205,12 +236,12 @@ class SearchServiceTest {
         var capped = new SearchService(store, new RagMcpProperties(dataDir.toString(), null,
                 new RagMcpProperties.Search(2, 3), null));
 
-        SearchPage first = capped.search(List.of(DOCS), "платёж", null, null, null);
+        SearchPage first = capped.search(List.of(DOCS), "платёж", null, null, null, null, null, 50);
         assertThat(first.hits()).hasSize(2);
         assertThat(first.total()).isGreaterThan(3);
         assertThat(first.nextOffset()).isEqualTo(2);
 
-        SearchPage asked = capped.search(List.of(DOCS), "платёж", null, 100, first.nextOffset());
+        SearchPage asked = capped.search(List.of(DOCS), "платёж", null, null, 100, first.nextOffset(), null, 50);
         assertThat(asked.hits()).hasSize(3);
         assertThat(ids(asked)).doesNotContainAnyElementsOf(ids(first));
     }
@@ -220,7 +251,7 @@ class SearchServiceTest {
         var tight = new SearchService(store, new RagMcpProperties(dataDir.toString(), null, null,
                 new RagMcpProperties.Response(500)));
 
-        SearchPage page = tight.search(List.of(DOCS), "платёж", null, 50, null);
+        SearchPage page = tight.search(List.of(DOCS), "платёж", null, null, 50, null, null, 50);
 
         assertThat(page.truncated()).isTrue();
         assertThat(page.hits()).isNotEmpty();

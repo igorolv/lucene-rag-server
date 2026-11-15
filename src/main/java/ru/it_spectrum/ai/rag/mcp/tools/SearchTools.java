@@ -39,7 +39,8 @@ public class SearchTools {
                     "in any language of the texts. Lexical mode matches words: word forms match, \"quoted words\" " +
                     "are a phrase, and records matching more of the words rank higher. Vector mode finds passages " +
                     "close in meaning even without shared words; hybrid, the default for collections with " +
-                    "vectors, fuses both. Returns snippets; call " +
+                    "vectors, fuses both. By default only the best section of each document is returned; " +
+                    "pass perDocument for more. Returns snippets; call " +
                     "getDocument with a hit's collection and id for the full passage. Before concluding " +
                     "that nothing exists, retry with synonyms or fewer words.",
             generateOutputSchema = true,
@@ -64,18 +65,22 @@ public class SearchTools {
             Integer offset,
             @McpToolParam(description = "lexical, vector or hybrid. Omit for hybrid on collections with vectors " +
                     "and lexical on the others; listCollections shows the modes of each collection", required = false)
-            String mode) {
+            String mode,
+            @McpToolParam(description = "Most sections of one document in the results, default 1. Raise it to " +
+                    "read several sections of a document found; rows of catalogs and tables are not limited",
+                    required = false)
+            Integer perDocument) {
         log.info("Tool call: search collections={} queryChars={} filters={} filterExpressionChars={} limit={} offset={}"
-                        + " mode={}", collections, query == null ? 0 : query.length(),
+                        + " mode={} perDocument={}", collections, query == null ? 0 : query.length(),
                 filters == null ? List.of() : filters.keySet(), filterExpression == null ? 0 : filterExpression.length(),
-                limit, offset, mode);
+                limit, offset, mode, perDocument);
         if ((query == null || query.isBlank()) && (filters == null || filters.isEmpty())
                 && (filterExpression == null || filterExpression.isBlank())) {
             throw new IllegalArgumentException("Give a query, filters, a filterExpression or several of them");
         }
         final SearchPage page;
         try {
-            page = search.search(collections, query, filters, filterExpression, limit, offset, mode);
+            page = search.search(collections, query, filters, filterExpression, limit, offset, mode, perDocument);
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }

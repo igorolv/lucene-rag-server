@@ -66,6 +66,7 @@ public final class RagEvalCommand {
         int depth = DEFAULT_DEPTH;
         String modes = null;
         boolean details = false;
+        Integer perDocument = null;
         Map<String, String> refs = new LinkedHashMap<>();
         List<String> positional = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
@@ -76,7 +77,7 @@ public final class RagEvalCommand {
             }
             if ("--details".equals(arg)) {
                 details = true;
-            } else if (List.of("--limit", "--modes", "--ref").contains(arg)) {
+            } else if (List.of("--limit", "--modes", "--ref", "--per-document").contains(arg)) {
                 if (i + 1 >= args.length) {
                     usage(out);
                     return 2;
@@ -84,6 +85,13 @@ public final class RagEvalCommand {
                 String value = args[++i];
                 if ("--modes".equals(arg)) {
                     modes = value;
+                } else if ("--per-document".equals(arg)) {
+                    try {
+                        perDocument = Integer.valueOf(value);
+                    } catch (NumberFormatException e) {
+                        usage(out);
+                        return 2;
+                    }
                 } else if ("--ref".equals(arg)) {
                     int eq = value.indexOf('=');
                     if (eq < 1 || eq == value.length() - 1) {
@@ -125,7 +133,7 @@ public final class RagEvalCommand {
             }
             List<QuestionSet.Question> questions = QuestionSet.read(file);
             List<SearchMode> chosen = modes(modes, search, collections);
-            report = new Evaluation(search, new References(refs)).run(collections, questions, chosen, depth);
+            report = new Evaluation(search, new References(refs)).run(collections, questions, chosen, depth, perDocument);
         } catch (ModelUnavailableException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 5;
@@ -225,7 +233,8 @@ public final class RagEvalCommand {
 
     private static void usage(PrintStream out) {
         out.println("Usage: java -jar lucene-rag-server.jar rag-eval <collection>[,<collection>...] <questions.jsonl>"
-                + " [--limit N] [--modes lexical,vector,hybrid] [--ref prefix=field]... [--details]");
+                + " [--limit N] [--modes lexical,vector,hybrid] [--ref prefix=field]... [--per-document N]"
+                + " [--details]");
         out.println("Searches every question of a JSONL question set (\"question\", \"expected\", \"id\") and reports");
         out.println("how high the expected records rank in each mode. A reference is a document key, a record id,");
         out.println("a source path, or prefix:value matching a field; --ref maps a prefix to a field name.");

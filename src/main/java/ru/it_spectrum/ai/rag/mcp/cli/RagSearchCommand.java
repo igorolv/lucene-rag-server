@@ -55,6 +55,7 @@ public final class RagSearchCommand {
         String lookup = null;
         String mode = null;
         String expression = null;
+        Integer perDocument = null;
         Map<String, String> filters = new LinkedHashMap<>();
         List<String> positional = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
@@ -63,7 +64,7 @@ public final class RagSearchCommand {
                 usage(out);
                 return 0;
             }
-            if (List.of("--limit", "--filter", "--filter-expression", "--lookup", "--mode").contains(arg)) {
+            if (List.of("--limit", "--filter", "--filter-expression", "--lookup", "--mode", "--per-document").contains(arg)) {
                 if (i + 1 >= args.length) {
                     usage(out);
                     return 2;
@@ -75,6 +76,13 @@ public final class RagSearchCommand {
                     mode = value;
                 } else if ("--filter-expression".equals(arg)) {
                     expression = value;
+                } else if ("--per-document".equals(arg)) {
+                    try {
+                        perDocument = Integer.valueOf(value);
+                    } catch (NumberFormatException e) {
+                        usage(out);
+                        return 2;
+                    }
                 } else if ("--limit".equals(arg)) {
                     try {
                         limit = Integer.valueOf(value);
@@ -96,7 +104,8 @@ public final class RagSearchCommand {
         }
         boolean byLookup = lookup != null;
         boolean filtered = !filters.isEmpty() || expression != null;
-        if (positional.isEmpty() || (byLookup && (positional.size() > 1 || filtered || mode != null))
+        if (positional.isEmpty() || (byLookup && (positional.size() > 1 || filtered || mode != null
+                || perDocument != null))
                 || (!byLookup && positional.size() == 1 && !filtered)) {
             usage(out);
             return 2;
@@ -109,7 +118,7 @@ public final class RagSearchCommand {
             SearchService service = new SearchService(new CollectionStore(properties.resolvedDataDir()), properties,
                     models);
             page = byLookup ? service.lookup(collections, lookup, limit, null)
-                    : service.search(collections, query, filters, expression, limit, null, mode);
+                    : service.search(collections, query, filters, expression, limit, null, mode, perDocument);
         } catch (ModelUnavailableException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 5;
@@ -141,9 +150,10 @@ public final class RagSearchCommand {
     private static void usage(PrintStream out) {
         out.println("Usage: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] <query>"
                 + " [--limit N] [--filter name=value]... [--filter-expression \"<expression>\"]"
-                + " [--mode lexical|vector|hybrid]");
+                + " [--mode lexical|vector|hybrid] [--per-document N]");
         out.println("Without --mode: hybrid for collections with vectors, lexical for the others.");
         out.println("Searches built collections. Words are optional, \"quoted words\" are a phrase.");
+        out.println("Shows the best section of each document; --per-document N shows up to N.");
         out.println("--filter-expression takes Spring AI filter syntax: kind == 'article' && tags in ['refunds'].");
         out.println("With --filter or --filter-expression the query may be omitted to list matching records.");
         out.println("   or: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] --lookup <value>"

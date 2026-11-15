@@ -157,7 +157,7 @@ public final class CollectionIndexer {
                     if (!read.isEmpty()) {
                         documents++;
                     }
-                    records.from(item.location(), keys);
+                    records.from(item.location(), keys, pipeline.sections());
                     records.write(read);
                 }
             }
@@ -196,15 +196,17 @@ public final class CollectionIndexer {
         int count;
         private String location = "";
         private List<String> keys = List.of();
+        private boolean sections;
 
         Records(Batch batch) {
             this.batch = batch;
         }
 
         /** Where the next documents come from, for messages, and the key fields of their source. */
-        void from(String location, List<String> keys) {
+        void from(String location, List<String> keys, boolean sections) {
             this.location = location;
             this.keys = keys;
+            this.sections = sections;
         }
 
         @Override
@@ -224,7 +226,7 @@ public final class CollectionIndexer {
                     }
                 }
                 try {
-                    batch.add(record, keys);
+                    batch.add(record, keys, sections ? record.document() : record.id());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -254,6 +256,7 @@ public final class CollectionIndexer {
         private final String fingerprint;
         private final List<ChunkRecord> records = new ArrayList<>();
         private final List<List<String>> keys = new ArrayList<>();
+        private final List<String> groups = new ArrayList<>();
         int embedded;
         int cached;
         int truncated;
@@ -266,9 +269,10 @@ public final class CollectionIndexer {
             this.fingerprint = model == null ? null : model.fingerprint();
         }
 
-        void add(ChunkRecord record, List<String> recordKeys) throws IOException {
+        void add(ChunkRecord record, List<String> recordKeys, String group) throws IOException {
             records.add(record);
             keys.add(recordKeys);
+            groups.add(group);
             if (model == null || records.size() >= SIZE) {
                 flush();
             }
@@ -281,6 +285,7 @@ public final class CollectionIndexer {
             float[][] vectors = model == null ? null : vectors();
             for (int i = 0; i < records.size(); i++) {
                 Document doc = document(collection, records.get(i), keys.get(i));
+                doc.add(new StoredField(IndexFields.STORED_GROUP, groups.get(i)));
                 if (vectors != null) {
                     doc.add(new KnnFloatVectorField(IndexFields.VECTOR, vectors[i], VectorSimilarityFunction.COSINE));
                 }
@@ -288,6 +293,7 @@ public final class CollectionIndexer {
             }
             records.clear();
             keys.clear();
+            groups.clear();
         }
 
         private float[][] vectors() throws IOException {

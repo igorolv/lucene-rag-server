@@ -39,6 +39,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -58,6 +59,9 @@ import java.util.stream.Collectors;
  *       filter expression of Spring AI adds "or", "not", lists and text ranges
  *       ({@link FilterQueries}); it must hold together with the filters.</li>
  *   <li>Several collections are searched as one index, with shared term statistics.</li>
+ *   <li>A page holds at most {@code perDocument} records of one document, 1 by default: the best
+ *       ranked; the other sections of the document drop out of the results (docs/decisions.md
+ *       D38). A row of a catalog, a table or a row format stands alone and is never dropped.</li>
  *   <li>The number of results and the total size of the returned text are capped by the server
  *       settings whatever a call asks for.</li>
  * </ul>
@@ -81,6 +85,9 @@ public final class SearchService {
 
     /** The constant of reciprocal rank fusion: a record at rank r of a list scores 1 / (k + r). */
     static final int RRF_K = 60;
+
+    /** Records of one document a page holds when a call does not say. */
+    public static final int DEFAULT_PER_DOCUMENT = 1;
 
     private final CollectionStore store;
     private final RagMcpProperties properties;
@@ -114,6 +121,12 @@ public final class SearchService {
         return search(collections, query, filters, null, limit, offset, mode);
     }
 
+    /** A search with the default number of records per document. */
+    public SearchPage search(List<String> collections, String query, Map<String, String> filters,
+                             String filterExpression, Integer limit, Integer offset, String mode) throws IOException {
+        return search(collections, query, filters, filterExpression, limit, offset, mode, null);
+    }
+
     /**
      * @param collections names of built collections; at least one
      * @param query       words to look for; blank lists the records matching the filters
@@ -124,11 +137,18 @@ public final class SearchService {
      * @param offset      results to skip; {@code null} for none
      * @param mode        {@code lexical}, {@code vector} or {@code hybrid}; blank for hybrid when a
      *                    searched collection has vectors and lexical otherwise
+     * @param perDocument the most records of one document in the results; {@code null} for
+     *                    {@value #DEFAULT_PER_DOCUMENT}
      * @throws IllegalArgumentException  for an unknown collection, an unknown filter field or a bad argument
      * @throws ModelUnavailableException when the model of a collection is needed and cannot be used
      */
     public SearchPage search(List<String> collections, String query, Map<String, String> filters,
-                             String filterExpression, Integer limit, Integer offset, String mode) throws IOException {
+                             String filterExpression, Integer limit, Integer offset, String mode, Integer perDocument)
+            throws IOException {
+        if (perDocument != null && perDocument < 1) {
+            throw new IllegalArgumentException("perDocument must be at least 1");
+        }
+        int perGroup = perDocument == null ? DEFAULT_PER_DOCUMENT : perDocument;
         SearchMode requested = SearchMode.parse(mode);
         List<Manifest> manifests = resolve(collections);
         String text = query == null ? "" : query.strip();
@@ -144,9 +164,9 @@ public final class SearchService {
             builder.add(filter, BooleanClause.Occur.FILTER);
         }
         if (effective == SearchMode.LEXICAL) {
-            return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL);
+            return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL, perGroup);
         }
-        return fused(manifests, effective, text, builder.build(), filter, textQuery, limit, offset);
+        return fused(manifests, effective, text, builder.build(), filter, textQuery, limit, offset, perGroup);
     }
 
     /**
@@ -195,7 +215,7 @@ public final class SearchService {
      * fusion (docs/decisions.md D12). Collections without vectors take part in the BM25 list only.
      */
     private SearchPage fused(List<Manifest> manifests, SearchMode mode, String text, Query lexical, Query filter,
-                             Query textQuery, Integer limit, Integer offset) throws IOException {
+                             Query textQuery, Integer limit, Integer offset, int perGroup) throws IOException {
         int pageSize = pageSize(limit);
         int skip = offset == null ? 0 : Math.max(0, offset);
         int window = Math.max(CANDIDATES, skip + pageSize);
@@ -221,7 +241,8 @@ public final class SearchService {
             }
             TopDocs top = lists.size() == 1 ? lists.getFirst()
                     : TopDocs.rrf(window, RRF_K, lists.toArray(TopDocs[]::new));
-            return collect(searcher, top, top.scoreDocs.length, textQuery, skip, pageSize, mode);
+            List<ScoreDoc> ranked = limited(searcher, top.scoreDocs, perGroup, Integer.MAX_VALUE);
+            return collect(searcher, ranked, top.scoreDocs.length, ranked.size(), textQuery, skip, pageSize, mode);
         }
     }
 
@@ -287,7 +308,7 @@ public final class SearchService {
                     + " has no key fields to look up (map.keys). Collections with keys: " + withKeys());
         }
         Query query = new TermQuery(new Term(IndexFields.LOOKUP, CollectionIndexer.filterTerm(value)));
-        return page(manifests, query, null, limit, offset, null);
+        return page(manifests, query, null, limit, offset, null, Integer.MAX_VALUE);
     }
 
     private String withKeys() {
@@ -295,17 +316,60 @@ public final class SearchService {
         return names.isEmpty() ? "none" : String.join(", ", names);
     }
 
-    /** One page of the records a query matches, with snippets of the words of {@code textQuery}. */
+    /**
+     * One page of the records a query matches, with snippets of the words of {@code textQuery}.
+     * When records of one document are limited, more are ranked until the page and one record
+     * after it are found or the matches run out.
+     */
     private SearchPage page(List<Manifest> manifests, Query full, Query textQuery, Integer limit, Integer offset,
-                            SearchMode mode) throws IOException {
+                            SearchMode mode, int perGroup) throws IOException {
         int pageSize = pageSize(limit);
         int skip = offset == null ? 0 : Math.max(0, offset);
         try (Opened opened = open(manifests)) {
             IndexSearcher searcher = new IndexSearcher(opened.reader);
             int total = searcher.count(full);
-            TopDocs top = searcher.search(full, Math.max(1, skip + pageSize));
-            return collect(searcher, top, total, textQuery, skip, pageSize, mode);
+            int needed = skip + pageSize + 1;
+            if (perGroup == Integer.MAX_VALUE) {
+                TopDocs top = searcher.search(full, Math.max(1, skip + pageSize));
+                return collect(searcher, List.of(top.scoreDocs), total, total, textQuery, skip, pageSize, mode);
+            }
+            int depth = needed;
+            while (true) {
+                TopDocs top = searcher.search(full, Math.max(1, depth));
+                List<ScoreDoc> ranked = limited(searcher, top.scoreDocs, perGroup, needed);
+                if (ranked.size() >= needed || top.scoreDocs.length < depth || depth >= total) {
+                    return collect(searcher, ranked, total, ranked.size(), textQuery, skip, pageSize, mode);
+                }
+                depth = (int) Math.min(total, (long) depth * 4);
+            }
         }
+    }
+
+    /**
+     * The ranked records with at most {@code perGroup} of one group ({@link IndexFields#STORED_GROUP}
+     * in its collection), stopping at {@code wanted} records.
+     */
+    private static List<ScoreDoc> limited(IndexSearcher searcher, ScoreDoc[] ranked, int perGroup, int wanted)
+            throws IOException {
+        List<ScoreDoc> kept = new ArrayList<>();
+        Map<String, Integer> seen = new HashMap<>();
+        var stored = searcher.storedFields();
+        Set<String> fields = Set.of(IndexFields.STORED_GROUP, IndexFields.COLLECTION);
+        for (ScoreDoc scoreDoc : ranked) {
+            if (kept.size() >= wanted) {
+                break;
+            }
+            if (perGroup != Integer.MAX_VALUE) {
+                Document doc = stored.document(scoreDoc.doc, fields);
+                String group = doc.get(IndexFields.STORED_GROUP);
+                String key = doc.get(IndexFields.COLLECTION) + "\u0000" + (group == null ? "#" + scoreDoc.doc : group);
+                if (seen.merge(key, 1, Integer::sum) > perGroup) {
+                    continue;
+                }
+            }
+            kept.add(scoreDoc);
+        }
+        return kept;
     }
 
     private int pageSize(Integer limit) {
@@ -313,16 +377,21 @@ public final class SearchService {
                 : Math.min(properties.searchMaxLimit(), Math.max(1, limit));
     }
 
-    /** The page of ranked records from {@code skip} on, with snippets, within the response size cap. */
-    private SearchPage collect(IndexSearcher searcher, TopDocs top, int total, Query textQuery, int skip,
-                               int pageSize, SearchMode mode) throws IOException {
+    /**
+     * The page of ranked records from {@code skip} on, with snippets, within the response size cap.
+     *
+     * @param total     what the result reports as the number of matches
+     * @param available how many results there are to page through; a next page exists below it
+     */
+    private SearchPage collect(IndexSearcher searcher, List<ScoreDoc> ranked, int total, int available,
+                               Query textQuery, int skip, int pageSize, SearchMode mode) throws IOException {
         UnifiedHighlighter highlighter = textQuery == null ? null : highlighter();
         List<SearchHit> hits = new ArrayList<>();
         int budget = properties.responseMaxChars();
         boolean truncated = false;
-        int end = Math.min(top.scoreDocs.length, skip + pageSize);
+        int end = Math.min(ranked.size(), skip + pageSize);
         for (int i = skip; i < end; i++) {
-            ScoreDoc scoreDoc = top.scoreDocs[i];
+            ScoreDoc scoreDoc = ranked.get(i);
             Document doc = searcher.storedFields().document(scoreDoc.doc);
             String body = doc.get(IndexFields.STORED_TEXT);
             String snippet = snippet(highlighter, textQuery, body);
@@ -334,7 +403,7 @@ public final class SearchService {
             hits.add(hit(doc, textQuery == null ? 0f : scoreDoc.score, snippet, null));
         }
         int next = skip + hits.size();
-        return new SearchPage(total, List.copyOf(hits), next < total ? next : null, truncated, mode);
+        return new SearchPage(total, List.copyOf(hits), next < available ? next : null, truncated, mode);
     }
 
     /** One record by its id, with the full passage cut to the response size cap. */

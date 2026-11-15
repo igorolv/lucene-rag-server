@@ -48,6 +48,15 @@ class LookupTest {
     }
 
     @Test
+    void rowsOfOneCatalogAreNotLimitedPerDocument() throws IOException {
+        SearchPage page = search.search(List.of(CATALOGS), "платежа", null, null, 50, null, null, null);
+
+        assertThat(page.hits()).as("several rows of the same file").hasSizeGreaterThan(1);
+        assertThat(page.hits().stream().filter(hit -> hit.document().equals(page.hits().getFirst().document())))
+                .hasSizeGreaterThan(1);
+    }
+
+    @Test
     void theManifestNamesTheKeysThatRecordsHave() {
         Manifest catalogs = store.manifest(CATALOGS).orElseThrow();
         assertThat(catalogs.keys()).as("a key no record has is left out")

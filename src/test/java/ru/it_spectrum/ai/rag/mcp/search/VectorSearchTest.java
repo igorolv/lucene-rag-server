@@ -149,9 +149,18 @@ class VectorSearchTest {
     }
 
     @Test
+    void aFusedListKeepsTheBestSectionOfEachDocument() throws IOException {
+        SearchPage page = search.search(List.of(DOCS), "платёж возврат", null, null, 50, null, "hybrid", null);
+
+        assertThat(page.hits()).extracting(SearchHit::document).doesNotHaveDuplicates().hasSize(3);
+        assertThat(page.nextOffset()).isNull();
+    }
+
+    @Test
     void pagesOfAFusedListDoNotOverlap() throws IOException {
-        SearchPage first = search.search(List.of(DOCS), "платёж возврат", null, 3, null, "hybrid");
-        SearchPage second = search.search(List.of(DOCS), "платёж возврат", null, 3, first.nextOffset(), "hybrid");
+        SearchPage first = search.search(List.of(DOCS), "платёж возврат", null, null, 3, null, "hybrid", 10);
+        SearchPage second = search.search(List.of(DOCS), "платёж возврат", null, null, 3, first.nextOffset(),
+                "hybrid", 10);
 
         assertThat(first.nextOffset()).isEqualTo(3);
         assertThat(ids(second)).isNotEmpty().doesNotContainAnyElementsOf(ids(first));

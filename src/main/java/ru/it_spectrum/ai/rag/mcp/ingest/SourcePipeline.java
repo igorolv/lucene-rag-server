@@ -51,6 +51,14 @@ public final class SourcePipeline {
         return new SourcePipeline(source, origin, List.copyOf(converters), format, splitter, mapper);
     }
 
+    /**
+     * Whether the records of an item are sections of one document, which search shows a limited
+     * number of per page; otherwise every record (a row) stands alone.
+     */
+    public boolean sections() {
+        return format.valueNames().tree() && !source.split().tableRows();
+    }
+
     /** Name of the format the source is read with. */
     public String format() {
         return format.name();

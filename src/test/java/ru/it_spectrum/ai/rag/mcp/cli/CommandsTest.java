@@ -105,6 +105,9 @@ class CommandsTest {
                 .contains("id: article.billing.payments#привязка-к-счёту   source: payments.md")
                 .contains("### **Ручная** **привязка**")
                 .containsPattern("RESULT: OK \\(\\d+ found, 2 shown, lexical\\)");
+
+        assertThat(search(DOCS, "ручная", "привязка", "--per-document", "3", "--limit", "3")).isZero();
+        assertThat(output()).containsPattern("RESULT: OK \\(\\d+ found, 3 shown, lexical\\)");
     }
 
     @Test
@@ -125,6 +128,8 @@ class CommandsTest {
         assertThat(search()).isEqualTo(2);
         assertThat(search(DOCS)).isEqualTo(2);
         assertThat(search(DOCS, "x", "--limit", "many")).isEqualTo(2);
+        assertThat(search(DOCS, "x", "--per-document", "many")).isEqualTo(2);
+        assertThat(search(DOCS, "--lookup", "x", "--per-document", "2")).isEqualTo(2);
         assertThat(output()).contains("Usage:");
 
         TestKnowledge.build(dataDir);
