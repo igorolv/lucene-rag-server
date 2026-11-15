@@ -19,6 +19,8 @@ spring-dependency-management = { id = "io.spring.dependency-management", version
 spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-ai-mcp-server = { module = "org.springframework.ai:spring-ai-starter-mcp-server", version.ref = "spring-ai" }
+# EmbeddingModel and Document (docs/decisions.md D28, D29); the starter brings it transitively too.
+spring-ai-model = { module = "org.springframework.ai:spring-ai-model", version.ref = "spring-ai" }
 lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
 lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }

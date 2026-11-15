@@ -10,9 +10,15 @@ import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtLoggingLevel;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.TensorInfo;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -39,8 +45,12 @@ import java.util.stream.IntStream;
  * <p>DJL's tokenizer library would otherwise probe a cloud metadata address for telemetry and keep
  * its native library under the home directory; both are switched off or redirected before it is
  * first used, unless the operator set those properties.
+ *
+ * <p>It is a Spring AI {@link EmbeddingModel} (docs/decisions.md D29) and not Spring AI's
+ * {@code TransformersEmbeddingModel}, for the reasons of D28. The response says which inputs were
+ * cut to the input limit under {@link Embeddings#TRUNCATED}. Safe for use by several threads.
  */
-public final class OnnxEmbedder implements Embedder {
+public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
 
     public static final String MODEL_FILE = "model.onnx";
     public static final String TOKENIZER_FILE = "tokenizer.json";
@@ -55,7 +65,7 @@ public final class OnnxEmbedder implements Embedder {
     private final String output;
     private final ModelInfo info;
 
-    private OnnxEmbedder(OrtEnvironment environment, OrtSession session, HuggingFaceTokenizer tokenizer,
+    private OnnxEmbeddingModel(OrtEnvironment environment, OrtSession session, HuggingFaceTokenizer tokenizer,
                          String output, Map<String, String> files) throws IOException {
         this.environment = environment;
         this.session = session;
@@ -74,7 +84,7 @@ public final class OnnxEmbedder implements Embedder {
      * @param nativeCache where DJL unpacks its native tokenizer library, unless set otherwise
      * @throws IOException when a file is missing or the model cannot be loaded
      */
-    public static OnnxEmbedder open(Path dir, int maxTokens, Path nativeCache) throws IOException {
+    public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache) throws IOException {
         Path model = dir.resolve(MODEL_FILE);
         Path tokenizerFile = dir.resolve(TOKENIZER_FILE);
         for (Path file : List.of(model, tokenizerFile)) {
@@ -109,7 +119,7 @@ public final class OnnxEmbedder implements Embedder {
                 throw new IOException("The model " + model + " has inputs " + inputs
                         + "; input_ids and attention_mask are required");
             }
-            return new OnnxEmbedder(environment, session, tokenizer, output, files);
+            return new OnnxEmbeddingModel(environment, session, tokenizer, output, files);
         } catch (OrtException | IOException | RuntimeException e) {
             tokenizer.close();
             if (session != null) {
@@ -124,13 +134,40 @@ public final class OnnxEmbedder implements Embedder {
         }
     }
 
-    @Override
+    /** What was loaded: the type, the vector size and the fingerprints of the model files. */
     public ModelInfo info() {
         return info;
     }
 
     @Override
-    public Embeddings embed(List<String> texts) throws IOException {
+    public int dimensions() {
+        return info.dimension();
+    }
+
+    /**
+     * @throws UncheckedIOException when the model fails to run
+     */
+    @Override
+    public EmbeddingResponse call(EmbeddingRequest request) {
+        final Embeddings embeddings;
+        try {
+            embeddings = embedTexts(request.getInstructions());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        List<Embedding> results = new ArrayList<>(embeddings.vectors().length);
+        for (int i = 0; i < embeddings.vectors().length; i++) {
+            results.add(new Embedding(embeddings.vectors()[i], i));
+        }
+        return new EmbeddingResponse(results, embeddings.metadata(MODEL_FILE));
+    }
+
+    @Override
+    public float[] embed(Document document) {
+        return embed(getEmbeddingContent(document));
+    }
+
+    private Embeddings embedTexts(List<String> texts) throws IOException {
         float[][] vectors = new float[texts.size()][];
         boolean[] cut = new boolean[texts.size()];
         // Texts of similar length in one batch pad less.

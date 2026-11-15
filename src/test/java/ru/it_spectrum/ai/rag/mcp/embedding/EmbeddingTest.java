@@ -22,7 +22,7 @@ class EmbeddingTest {
         float[][][] states = {{{1, 0}, {3, 0}, {100, 100}}};
         long[][] mask = {{1, 1, 0}};
 
-        float[][] pooled = OnnxEmbedder.pooled(states, mask);
+        float[][] pooled = OnnxEmbeddingModel.pooled(states, mask);
 
         assertThat(pooled[0][0]).isCloseTo(1f, within(1e-6f));
         assertThat(pooled[0][1]).isCloseTo(0f, within(1e-6f));
@@ -57,11 +57,11 @@ class EmbeddingTest {
 
     @Test
     void anUnknownTypeOrMissingFilesAreReported() throws IOException {
-        EmbeddingModels models = FakeEmbedder.models(dir, "fake");
+        EmbeddingModels models = FakeEmbeddingModel.models(dir, "fake");
 
         assertThatThrownBy(() -> models.load("fake", new ModelParameters("remote", "", "", 512)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("supported: fake");
-        assertThatThrownBy(() -> models.load("absent", new ModelParameters(FakeEmbedder.TYPE, "", "", 512)))
+        assertThatThrownBy(() -> models.load("absent", new ModelParameters(FakeEmbeddingModel.TYPE, "", "", 512)))
                 .isInstanceOf(IOException.class).hasMessageContaining("are not in");
         assertThatThrownBy(() -> EmbeddingModels.inProcess(dir).load("fake", new ModelParameters("onnx", "", "", 512)))
                 .isInstanceOf(IOException.class).hasMessageContaining("tokenizer.json");
@@ -77,18 +77,35 @@ class EmbeddingTest {
         Path modelDir = Path.of(System.getenv("RAG_MCP_TEST_MODEL_DIR"));
         // Not under @TempDir: Windows cannot delete the tokenizer library while it is loaded.
         Path nativeCache = Path.of(System.getProperty("java.io.tmpdir"), "lucene-rag-server-test", "djl");
-        try (OnnxEmbedder model = OnnxEmbedder.open(modelDir, 512, nativeCache)) {
-            float[][] passages = model.embed(List.of(
+        try (OnnxEmbeddingModel model = OnnxEmbeddingModel.open(modelDir, 512, nativeCache)) {
+            List<float[]> embedded = model.embed(List.of(
                     "passage: Отменить можно только платёж, который ещё не привязан к счёту.",
-                    "passage: Webhook deliveries are retried with exponential backoff.")).vectors();
-            float[] query = model.embed(List.of("query: как отменить оплату")).vectors()[0];
+                    "passage: Webhook deliveries are retried with exponential backoff."));
+            float[][] passages = {embedded.get(0), embedded.get(1)};
+            float[] query = model.embed("query: как отменить оплату");
 
             assertThat(model.info().dimension()).isEqualTo(passages[0].length);
+            assertThat(model.dimensions()).isEqualTo(passages[0].length);
             assertThat(dot(query, passages[0])).isGreaterThan(dot(query, passages[1]));
             assertThat(dot(passages[0], passages[0])).isCloseTo(1f, within(1e-4f));
-            Embeddings longText = model.embed(List.of("passage: " + "слово ".repeat(2000)));
-            assertThat(longText.truncated()).isEqualTo(1);
+            VectorModel named = new VectorModel("e5", new ModelParameters("onnx", "", "", 512), model, model.info());
+            Embeddings longText = named.embedInputs(List.of("passage: short", "passage: " + "слово ".repeat(2000)));
+            assertThat(longText.cut()).containsExactly(false, true);
         }
+    }
+
+    @Test
+    void aModelIsUsedThroughSpringAiAndReportsWhatItCut() throws IOException {
+        VectorModel model = FakeEmbeddingModel.models(dir, "fake")
+                .load("fake", new ModelParameters(FakeEmbeddingModel.TYPE, "query: ", "passage: ", 4));
+
+        Embeddings embeddings = model.embedInputs(List.of("one two three", "one two three four five six"));
+
+        assertThat(model.model().dimensions()).isEqualTo(model.info().dimension());
+        assertThat(embeddings.vectors().length).isEqualTo(2);
+        assertThat(embeddings.cut()).containsExactly(false, true);
+        assertThat(model.query("one")).hasSize(FakeEmbeddingModel.DIMENSION);
+        assertThat(model.embedInputs(List.of()).vectors().length).isZero();
     }
 
     private static float dot(float[] a, float[] b) {

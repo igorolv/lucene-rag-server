@@ -2,6 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.embedding;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.embedding.EmbeddingModel;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,18 +28,26 @@ public final class EmbeddingModels implements AutoCloseable {
     /** Directory of the models under the data directory. */
     public static final String MODELS_DIR = "models";
 
+    /**
+     * A loaded model: Spring AI's interface to embed with (docs/decisions.md D29) and what
+     * identifies the vectors it gives. A model that is {@link AutoCloseable} is closed with the
+     * registry.
+     */
+    public record Loaded(EmbeddingModel model, ModelInfo info) {
+    }
+
     /** Loads the model files of one directory. */
     @FunctionalInterface
     public interface Loader {
         /**
          * @throws IOException when a file is missing or the model cannot be loaded
          */
-        Embedder load(Path dir, ModelParameters parameters) throws IOException;
+        Loaded load(Path dir, ModelParameters parameters) throws IOException;
     }
 
     private final Path modelsDir;
     private final Map<String, Loader> loaders;
-    private final Map<String, Embedder> loaded = new HashMap<>();
+    private final Map<String, Loaded> loaded = new HashMap<>();
 
     /**
      * @param modelsDir directory holding one directory per model
@@ -53,7 +62,10 @@ public final class EmbeddingModels implements AutoCloseable {
     public static EmbeddingModels inProcess(Path dataDir) {
         Path nativeCache = dataDir.resolve("cache").resolve("djl");
         return new EmbeddingModels(dataDir.resolve(MODELS_DIR), Map.of(ModelParameters.ONNX,
-                (dir, parameters) -> OnnxEmbedder.open(dir, parameters.maxTokens(), nativeCache)));
+                (dir, parameters) -> {
+                    OnnxEmbeddingModel model = OnnxEmbeddingModel.open(dir, parameters.maxTokens(), nativeCache);
+                    return new Loaded(model, model.info());
+                }));
     }
 
     /** Where the files of a model are. */
@@ -80,17 +92,17 @@ public final class EmbeddingModels implements AutoCloseable {
         }
         Path dir = directory(name);
         String key = parameters.type() + "|" + parameters.maxTokens() + "|" + dir;
-        Embedder embedder = loaded.get(key);
-        if (embedder == null) {
+        Loaded model = loaded.get(key);
+        if (model == null) {
             if (!Files.isDirectory(dir)) {
                 throw new IOException("The files of model '" + name + "' are not in " + dir);
             }
             long start = System.nanoTime();
-            embedder = loader.load(dir, parameters);
+            model = loader.load(dir, parameters);
             log.info("Model '{}' loaded from {} in {} ms", name, dir, (System.nanoTime() - start) / 1_000_000);
-            loaded.put(key, embedder);
+            loaded.put(key, model);
         }
-        return new VectorModel(name, parameters, embedder);
+        return new VectorModel(name, parameters, model.model(), model.info());
     }
 
     /**
@@ -130,7 +142,15 @@ public final class EmbeddingModels implements AutoCloseable {
 
     @Override
     public synchronized void close() {
-        loaded.values().forEach(Embedder::close);
+        for (Loaded model : loaded.values()) {
+            if (model.model() instanceof AutoCloseable closeable) {
+                try {
+                    closeable.close();
+                } catch (Exception e) {
+                    log.warn("Cannot close a model: {}", e.getMessage());
+                }
+            }
+        }
         loaded.clear();
     }
 }

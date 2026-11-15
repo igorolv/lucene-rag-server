@@ -6,7 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
-import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbedder;
+import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.ByteArrayOutputStream;
@@ -32,7 +32,7 @@ class VectorCommandsTest {
     static void build() throws IOException {
         TestKnowledge.writeCollectionsFile(dataDir, true);
         properties = new RagMcpProperties(dataDir.toString(), null);
-        models = FakeEmbedder.models(dataDir, "fake");
+        models = FakeEmbeddingModel.models(dataDir, "fake");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int code = RagIndexCommand.run(new String[]{"--all"}, properties, StepRegistry.builtIn(), models,
                 new PrintStream(out, true, StandardCharsets.UTF_8), name -> null, "test");

@@ -1,9 +1,16 @@
 package ru.it_spectrum.ai.rag.mcp.embedding;
 
+import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -14,27 +21,25 @@ import java.util.Map;
  * "model file" is {@value #FILE}, whose hash is the fingerprint; changing the file makes another
  * model.
  */
-public final class FakeEmbedder implements Embedder {
+public final class FakeEmbeddingModel implements EmbeddingModel {
 
     public static final String TYPE = "fake";
     public static final String FILE = "model.onnx";
     public static final int DIMENSION = 64;
 
-    private final ModelInfo info;
     private final int maxTokens;
 
-    private FakeEmbedder(ModelInfo info, int maxTokens) {
-        this.info = info;
+    private FakeEmbeddingModel(int maxTokens) {
         this.maxTokens = maxTokens;
     }
 
-    public static Embedder load(Path dir, ModelParameters parameters) throws IOException {
+    public static EmbeddingModels.Loaded load(Path dir, ModelParameters parameters) throws IOException {
         Path file = dir.resolve(FILE);
         if (!Files.isRegularFile(file)) {
             throw new IOException("Model file " + file + " is missing");
         }
-        return new FakeEmbedder(new ModelInfo(TYPE, DIMENSION, Map.of(FILE, OnnxEmbedder.sha256(file))),
-                parameters.maxTokens());
+        return new EmbeddingModels.Loaded(new FakeEmbeddingModel(parameters.maxTokens()),
+                new ModelInfo(TYPE, DIMENSION, Map.of(FILE, OnnxEmbeddingModel.sha256(file))));
     }
 
     /** Models of {@code dataDir}, with a model named {@code name} of type {@value #TYPE}. */
@@ -44,16 +49,22 @@ public final class FakeEmbedder implements Embedder {
         if (!Files.exists(dir.resolve(FILE))) {
             Files.writeString(dir.resolve(FILE), "fake model 1", StandardCharsets.UTF_8);
         }
-        return new EmbeddingModels(dataDir.resolve(EmbeddingModels.MODELS_DIR), Map.of(TYPE, FakeEmbedder::load));
+        return new EmbeddingModels(dataDir.resolve(EmbeddingModels.MODELS_DIR), Map.of(TYPE, FakeEmbeddingModel::load));
     }
 
     @Override
-    public ModelInfo info() {
-        return info;
+    public int dimensions() {
+        return DIMENSION;
     }
 
     @Override
-    public Embeddings embed(List<String> texts) {
+    public float[] embed(Document document) {
+        return embed(getEmbeddingContent(document));
+    }
+
+    @Override
+    public EmbeddingResponse call(EmbeddingRequest request) {
+        List<String> texts = request.getInstructions();
         float[][] vectors = new float[texts.size()][];
         boolean[] cut = new boolean[texts.size()];
         for (int i = 0; i < texts.size(); i++) {
@@ -72,13 +83,13 @@ public final class FakeEmbedder implements Embedder {
                 vector[Math.floorMod(stem.hashCode(), DIMENSION)] += 1;
             }
             vector[0] += 0.01f;
-            OnnxEmbedder.normalize(vector);
+            OnnxEmbeddingModel.normalize(vector);
             vectors[i] = vector;
         }
-        return new Embeddings(vectors, cut);
-    }
-
-    @Override
-    public void close() {
+        List<Embedding> results = new ArrayList<>();
+        for (int i = 0; i < vectors.length; i++) {
+            results.add(new Embedding(vectors[i], i));
+        }
+        return new EmbeddingResponse(results, new Embeddings(vectors, cut).metadata(TYPE));
     }
 }

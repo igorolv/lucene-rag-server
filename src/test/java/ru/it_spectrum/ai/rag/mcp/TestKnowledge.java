@@ -32,7 +32,7 @@ public final class TestKnowledge {
 
     /**
      * @param vectors {@link #DOCS} gets vectors of the model {@code fake} of type
-     *                {@code FakeEmbedder.TYPE}, with E5 prefixes; {@link #API} stays lexical
+     *                {@code FakeEmbeddingModel.TYPE}, with E5 prefixes; {@link #API} stays lexical
      */
     public static Path writeCollectionsFile(Path dataDir, boolean vectors) throws IOException {
         String root = root().toString().replace('\\', '/');

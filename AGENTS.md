@@ -9,7 +9,9 @@ YAML, JSONL and SQL collections with configurable `split` and `map`, built by th
 pipeline in `ingest/`, external commands as an origin and as `convert` steps, named readers,
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
 `hybrid` search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
-`search`, `getDocument` and `lookup`. Measurement (stage 4) is next.
+`search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
+`EmbeddingModel`; the rest of the Spring AI alignment (`docs/plan.md` section 3.7) and measurement
+(stage 4) are next.
 
 ## Repository contents
 
@@ -83,6 +85,9 @@ then keeps the summary and links to the owner.
 ## Java code
 
 - The package root is `ru.it_spectrum.ai.rag.mcp` (D4).
+- Build on Spring AI (D28): before you write an interface or a mechanism, look for one in Spring
+  AI and use it. When it does not fit, say why in D28. What is used and what stays own is in
+  `docs/plan.md` section 3.7.
 - Stdio transport: nothing but JSON-RPC may be written to `System.out`. Use SLF4J.
 - Tool classes are thin `@Service` beans, one per tool group, each with a
   `@ConditionalOnProperty(prefix = "rag-mcp.tools", ...)` switch and a matching line in
@@ -111,11 +116,12 @@ then keeps the summary and links to the owner.
   in `ingest/` name no Spring type other than that annotation.
 - `rag-index` runs inside a Spring context without the MCP server; it must print nothing but its
   report to stdout and nothing to stderr on success.
-- Unit tests never load a real embedding model: they use `FakeEmbedder` (test sources) through
+- Unit tests never load a real embedding model: they use `FakeEmbeddingModel` (test sources) through
   `EmbeddingModels`. A test of the real model runs only when `RAG_MCP_TEST_MODEL_DIR` names its
   files, which stay outside the repository.
-- A model is reached only through `embedding/`: the indexer and search name `VectorModel` and
-  `EmbeddingModels`, never ONNX Runtime or DJL.
+- A model is a Spring AI `EmbeddingModel` (D29) and is reached only through `embedding/`: the
+  indexer and search name `VectorModel` and `EmbeddingModels`, never ONNX Runtime or DJL. A new
+  model type is a loader given to `EmbeddingModels`.
 - Change dependency versions in `gradle/libs.versions.toml`, not in the build script.
 
 Sibling projects used as references (same author):

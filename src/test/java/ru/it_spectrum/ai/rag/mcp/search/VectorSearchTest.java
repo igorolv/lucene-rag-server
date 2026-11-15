@@ -8,7 +8,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
-import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbedder;
+import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
@@ -46,7 +46,7 @@ class VectorSearchTest {
 
     @BeforeAll
     static void build() throws IOException {
-        models = FakeEmbedder.models(dataDir, "fake");
+        models = FakeEmbeddingModel.models(dataDir, "fake");
         for (CollectionDefinition definition : definitions()) {
             firstBuild.put(definition.name(),
                     CollectionIndexer.build(definition, StepRegistry.builtIn(), models, dataDir, "test"));
@@ -65,11 +65,11 @@ class VectorSearchTest {
         Manifest docs = store.manifest(DOCS).orElseThrow();
         assertThat(docs.vectors()).isNotNull();
         assertThat(docs.vectors().model()).isEqualTo("fake");
-        assertThat(docs.vectors().type()).isEqualTo(FakeEmbedder.TYPE);
-        assertThat(docs.vectors().dimension()).isEqualTo(FakeEmbedder.DIMENSION);
+        assertThat(docs.vectors().type()).isEqualTo(FakeEmbeddingModel.TYPE);
+        assertThat(docs.vectors().dimension()).isEqualTo(FakeEmbeddingModel.DIMENSION);
         assertThat(docs.vectors().queryPrefix()).isEqualTo("query: ");
         assertThat(docs.vectors().passagePrefix()).isEqualTo("passage: ");
-        assertThat(docs.vectors().files()).containsOnlyKeys(FakeEmbedder.FILE);
+        assertThat(docs.vectors().files()).containsOnlyKeys(FakeEmbeddingModel.FILE);
         assertThat(store.manifest(API).orElseThrow().vectors()).isNull();
         assertThat(firstBuild.get(DOCS).embedded()).isEqualTo(docs.records());
     }
@@ -156,9 +156,9 @@ class VectorSearchTest {
     void anotherModelFailsVectorSearchAndLexicalStillWorks(@TempDir Path otherModels) throws IOException {
         Path dir = otherModels.resolve(EmbeddingModels.MODELS_DIR).resolve("fake");
         Files.createDirectories(dir);
-        Files.writeString(dir.resolve(FakeEmbedder.FILE), "fake model 2");
+        Files.writeString(dir.resolve(FakeEmbeddingModel.FILE), "fake model 2");
         var other = new EmbeddingModels(otherModels.resolve(EmbeddingModels.MODELS_DIR),
-                Map.of(FakeEmbedder.TYPE, FakeEmbedder::load));
+                Map.of(FakeEmbeddingModel.TYPE, FakeEmbeddingModel::load));
         var withOther = new SearchService(store, properties, other);
 
         assertThatThrownBy(() -> withOther.search(List.of(DOCS), "платёж", null, null, null, "vector"))
@@ -169,7 +169,7 @@ class VectorSearchTest {
         assertThat(withOther.search(List.of(DOCS), "платёж", null, null, null, "lexical").hits()).isNotEmpty();
 
         var missing = new SearchService(store, properties, new EmbeddingModels(otherModels.resolve("none"),
-                Map.of(FakeEmbedder.TYPE, FakeEmbedder::load)));
+                Map.of(FakeEmbeddingModel.TYPE, FakeEmbeddingModel::load)));
         assertThatThrownBy(() -> missing.search(List.of(DOCS), "платёж", null, null, null, "hybrid"))
                 .isInstanceOf(ModelUnavailableException.class).hasMessageContaining("cannot be loaded");
 
