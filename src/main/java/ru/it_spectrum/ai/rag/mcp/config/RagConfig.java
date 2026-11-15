@@ -3,7 +3,11 @@ package ru.it_spectrum.ai.rag.mcp.config;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ListableBeanFactory;
+import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
+import ru.it_spectrum.ai.rag.mcp.embedding.ModelType;
+import ru.it_spectrum.ai.rag.mcp.embedding.OnnxModelType;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.Converter;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
@@ -33,10 +37,26 @@ public class RagConfig {
                 formats.orderedStream().toList(), splitter, mapper);
     }
 
-    /** The embedding models under {@code <data-dir>/models/}, loaded on first use. */
+    /** Models run in-process from their files under {@code <data-dir>/models/} (D11). */
+    @Bean
+    ModelType onnxModelType(RagMcpProperties properties) {
+        return new OnnxModelType(EmbeddingModels.nativeCache(properties.resolvedDataDir()));
+    }
+
+    /** Models that are Spring AI {@code EmbeddingModel} beans, configured by Spring AI properties (D43). */
+    @Bean
+    ModelType beanModelType(ListableBeanFactory beans) {
+        return new BeanModelType(beans);
+    }
+
+    /**
+     * The embedding models, loaded on first use. Every {@link ModelType} bean of the context,
+     * built-in or added by a jar, is a type a {@code models} entry can name (docs/decisions.md D43).
+     */
     @Bean(destroyMethod = "close")
-    EmbeddingModels embeddingModels(RagMcpProperties properties) {
-        return EmbeddingModels.inProcess(properties.resolvedDataDir());
+    EmbeddingModels embeddingModels(RagMcpProperties properties, ObjectProvider<ModelType> types) {
+        return new EmbeddingModels(properties.resolvedDataDir().resolve(EmbeddingModels.MODELS_DIR),
+                types.orderedStream().toList());
     }
 
     @Bean

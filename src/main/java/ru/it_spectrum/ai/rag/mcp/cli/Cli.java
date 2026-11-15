@@ -1,5 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+
 /** What the user-run commands share. */
 final class Cli {
 
@@ -15,15 +18,22 @@ final class Cli {
     }
 
     /**
-     * Commands report on stdout, so logging goes to stderr only ({@code logback-cli.xml}). For a
-     * command that runs without Spring; one that starts a context names the same file in
-     * {@code logging.config} and calls {@link #quietLucene()}.
+     * The application context of a command (docs/decisions.md D42): the beans the server has,
+     * models of every type among them, with the MCP server switched off, so the stdio transport is
+     * never opened and stdout carries only the report. Logging goes to stderr only
+     * ({@code logback-cli.xml}).
+     *
+     * @param application the Spring Boot application class; passed in because this package must
+     *                    not depend on the root package
      */
-    static void useCliLogging() {
-        if (System.getProperty("logback.configurationFile") == null) {
-            System.setProperty("logback.configurationFile", "logback-cli.xml");
-        }
+    static ConfigurableApplicationContext context(Class<?> application) {
         quietLucene();
+        return new SpringApplicationBuilder(application)
+                .properties("spring.ai.mcp.server.enabled=false",
+                        "spring.ai.mcp.server.annotation-scanner.enabled=false",
+                        "logging.config=classpath:logback-cli.xml")
+                .logStartupInfo(false)
+                .run();
     }
 
     static void quietLucene() {

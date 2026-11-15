@@ -1,5 +1,6 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
+import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
@@ -18,8 +19,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * User-run search over built collections, for looking something up without a model. Runs without
- * Spring and never opens the MCP transport. Uses the same search and the same limits as the
+ * User-run search over built collections, for looking something up without a chat model. Runs in
+ * the application context without the MCP transport, so the models are those of the server, beans
+ * included (docs/decisions.md D42, D43). Uses the same search and the same limits as the
  * {@code search} tool.
  *
  * <p>Exit codes: 0 searched (also when nothing matched), 1 unexpected error, 2 usage, an unknown
@@ -33,10 +35,11 @@ public final class RagSearchCommand {
     private RagSearchCommand() {
     }
 
-    public static int run(String[] args) {
-        Cli.useCliLogging();
-        try {
-            return run(args, RagMcpProperties.fromEnvironment(System::getenv), System.out);
+    /** @param application the Spring Boot application class */
+    public static int run(Class<?> application, String[] args) {
+        try (ConfigurableApplicationContext context = Cli.context(application)) {
+            return run(args, context.getBean(RagMcpProperties.class), context.getBean(EmbeddingModels.class),
+                    System.out);
         } catch (RuntimeException e) {
             System.out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 1;

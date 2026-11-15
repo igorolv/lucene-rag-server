@@ -175,7 +175,8 @@ still held the expected record for 14 of 17 questions against 15 for 10. A start
 ## The rag-search command
 
 Searches from the command line with the same search and the same limits, without a chat model.
-A `vector` or `hybrid` search loads the embedding model in the command's process:
+It starts the application without the MCP server, about a second, so its embedding models are the
+server's; a `vector` or `hybrid` search loads the model in the command's process:
 
 ```bash
 java -jar lucene-rag-server.jar rag-search docs@billing "отмена платежа" --limit 5

@@ -1,6 +1,5 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
@@ -36,13 +35,7 @@ public final class RagIndexCommand {
      *                    not depend on the root package
      */
     public static int run(Class<?> application, String[] args) {
-        Cli.quietLucene();
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(application)
-                .properties("spring.ai.mcp.server.enabled=false",
-                        "spring.ai.mcp.server.annotation-scanner.enabled=false",
-                        "logging.config=classpath:logback-cli.xml")
-                .logStartupInfo(false)
-                .run()) {
+        try (ConfigurableApplicationContext context = Cli.context(application)) {
             return run(args, context.getBean(RagMcpProperties.class), context.getBean(StepRegistry.class),
                     context.getBean(EmbeddingModels.class), System.out, System::getenv, Cli.serverVersion());
         } catch (RuntimeException e) {

@@ -447,7 +447,7 @@ one of them. Several collections may share a model.
 
 | Key of a model | Default | Meaning |
 |---|---|---|
-| `type` | `onnx` | How the model runs. `onnx`: in the server process, by ONNX Runtime; the text never leaves the machine. No other type exists yet |
+| `type` | `onnx` | How the model runs. `onnx`: in the server process, by ONNX Runtime, from its files; the text never leaves the machine. `bean`: a Spring AI embedding model of the application, named as this model ([Spring AI models](#spring-ai-models)) |
 | `queryPrefix` | empty | Put before a search query. The E5 models expect `query: ` |
 | `passagePrefix` | empty | Put before the text of a record. The E5 models expect `passage: ` |
 | `maxTokens` | 512 | Input limit in tokens; a longer record is cut and its vector covers only its beginning. 512 is the limit of the E5 models |
@@ -483,6 +483,28 @@ layout. Its `model_qint8_avx512_vnni.onnx` variant needs a processor with AVX-51
 
 On first use the tokenizer library unpacks its native code into `<data-dir>/cache/djl/`. The
 server switches off that library's usage reporting and its downloads before loading it.
+
+### Spring AI models
+
+A model of type `bean` is a Spring AI `EmbeddingModel` that the application configures, for
+example a remote endpoint. The key of the model under `models` is the name of the bean; the model
+has no files under `models/`. The prefixes apply as to any model; `maxTokens` does not, and such a
+model reports no records as cut.
+
+```json
+"models": {
+  "openAiEmbeddingModel": { "type": "bean", "queryPrefix": "", "passagePrefix": "" }
+}
+```
+
+- The bean comes from a Spring AI model starter on the class path and its own properties, for
+  example `spring.ai.openai.embedding.*`. The server includes no such starter yet; a site that needs
+  one gets it added to the build (`docs/decisions.md` D43). Records then leave the machine, which
+  is why the model has to be named in `collections.json`.
+- When the model is loaded it embeds one probe text. Its vector size and the model name its
+  response gives are recorded in the manifest with the bean name, and a collection is searched by
+  vectors only with a bean that gives the same.
+- A bean that does not exist is an error that lists the embedding model beans there are.
 
 ### What is embedded
 

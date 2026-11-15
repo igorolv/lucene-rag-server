@@ -13,9 +13,10 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * The embedding models of this installation. The files of a model named {@code e5-small} are in
- * {@code <data-dir>/models/e5-small/}, on the machine that builds and on the one that serves; a
- * model is loaded on first use and kept for the life of the process.
+ * The embedding models of this installation, by the {@link ModelType}s it has. The files of a
+ * model named {@code e5-small} are in {@code <data-dir>/models/e5-small/}, on the machine that
+ * builds and on the one that serves; a model of a type without files, such as a Spring AI bean
+ * (D43), needs none. A model is loaded on first use and kept for the life of the process.
  *
  * <p>Search checks the loaded model against the manifest of the collection: the same type, vector
  * size and file hashes, or {@link ModelUnavailableException}. A model whose files are replaced
@@ -46,26 +47,54 @@ public final class EmbeddingModels implements AutoCloseable {
     }
 
     private final Path modelsDir;
-    private final Map<String, Loader> loaders;
+    private final Map<String, ModelType> loaders;
     private final Map<String, Loaded> loaded = new HashMap<>();
 
     /**
      * @param modelsDir directory holding one directory per model
-     * @param loaders   how a model of each type is loaded, by type
+     * @param loaders   how a model of each type is loaded from its files, by type
      */
     public EmbeddingModels(Path modelsDir, Map<String, Loader> loaders) {
-        this.modelsDir = modelsDir;
-        this.loaders = Map.copyOf(loaders);
+        this(modelsDir, loaders.entrySet().stream().map(e -> (ModelType) new ModelType() {
+            @Override
+            public String name() {
+                return e.getKey();
+            }
+
+            @Override
+            public Loaded load(String name, Path dir, ModelParameters parameters) throws IOException {
+                return e.getValue().load(dir, parameters);
+            }
+        }).toList());
     }
 
-    /** The models of a data directory, run in-process by ONNX Runtime (docs/decisions.md D11). */
+    /**
+     * @param modelsDir directory holding one directory per model
+     * @param types     the model types, each by its name
+     * @throws IllegalStateException when two types share a name
+     */
+    public EmbeddingModels(Path modelsDir, List<ModelType> types) {
+        this.modelsDir = modelsDir;
+        Map<String, ModelType> byName = new HashMap<>();
+        for (ModelType type : types) {
+            if (byName.put(type.name(), type) != null) {
+                throw new IllegalStateException("Two model types are named '" + type.name() + "'");
+            }
+        }
+        this.loaders = Map.copyOf(byName);
+    }
+
+    /** Where the native code of the tokenizer library is kept, under the data directory. */
+    public static Path nativeCache(Path dataDir) {
+        return dataDir.resolve("cache").resolve("djl");
+    }
+
+    /**
+     * The models of a data directory run in-process by ONNX Runtime only (docs/decisions.md D11):
+     * for tests and for code without an application context, which has no bean models.
+     */
     public static EmbeddingModels inProcess(Path dataDir) {
-        Path nativeCache = dataDir.resolve("cache").resolve("djl");
-        return new EmbeddingModels(dataDir.resolve(MODELS_DIR), Map.of(ModelParameters.ONNX,
-                (dir, parameters) -> {
-                    OnnxEmbeddingModel model = OnnxEmbeddingModel.open(dir, parameters.maxTokens(), nativeCache);
-                    return new Loaded(model, model.info());
-                }));
+        return new EmbeddingModels(dataDir.resolve(MODELS_DIR), List.of(new OnnxModelType(nativeCache(dataDir))));
     }
 
     /** Where the files of a model are. */
@@ -85,7 +114,7 @@ public final class EmbeddingModels implements AutoCloseable {
      * @throws IllegalArgumentException when the type is unknown
      */
     public synchronized VectorModel load(String name, ModelParameters parameters) throws IOException {
-        Loader loader = loaders.get(parameters.type());
+        ModelType loader = loaders.get(parameters.type());
         if (loader == null) {
             throw new IllegalArgumentException("Model type '" + parameters.type() + "' is not supported; supported: "
                     + String.join(", ", types()));
@@ -94,12 +123,13 @@ public final class EmbeddingModels implements AutoCloseable {
         String key = parameters.type() + "|" + parameters.maxTokens() + "|" + dir;
         Loaded model = loaded.get(key);
         if (model == null) {
-            if (!Files.isDirectory(dir)) {
+            if (loader.usesFiles() && !Files.isDirectory(dir)) {
                 throw new IOException("The files of model '" + name + "' are not in " + dir);
             }
             long start = System.nanoTime();
-            model = loader.load(dir, parameters);
-            log.info("Model '{}' loaded from {} in {} ms", name, dir, (System.nanoTime() - start) / 1_000_000);
+            model = loader.load(name, dir, parameters);
+            log.info("Model '{}' ({}) loaded in {} ms", name, loader.usesFiles() ? dir : parameters.type(),
+                    (System.nanoTime() - start) / 1_000_000);
             loaded.put(key, model);
         }
         return new VectorModel(name, parameters, model.model(), model.info());

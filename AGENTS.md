@@ -14,7 +14,8 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
 Measurement (stage 4) is in progress: `rag-eval`, a first tuning pass and one section per
 document in search results are done; results and open proposals are in `docs/plan.md` section 4.
-A second pass of the Spring AI alignment (stage 3b: D42–D46) is decided; D44 is implemented.
+A second pass of the Spring AI alignment (stage 3b: D42–D46) is decided; D42, D43 and D44 are
+implemented.
 
 ## Repository contents
 
@@ -119,14 +120,14 @@ then keeps the summary and links to the owner.
   shapes in `ingest/` name no Spring or Spring AI type other than that annotation; Spring AI's
   `Document` meets the pipeline in `document/` (D31). A step implementation may use a Spring AI
   reader inside its class, as `PdfFormat` does.
-- `rag-index` runs inside a Spring context without the MCP server; it must print nothing but its
-  report to stdout and nothing to stderr on success.
+- Every command runs inside a Spring context without the MCP server (`Cli.context`, D42); it must
+  print nothing but its report to stdout and nothing to stderr on success.
 - Unit tests never load a real embedding model: they use `FakeEmbeddingModel` (test sources) through
   `EmbeddingModels`. A test of the real model runs only when `RAG_MCP_TEST_MODEL_DIR` names its
   files, which stay outside the repository.
 - A model is a Spring AI `EmbeddingModel` (D29) and is reached only through `embedding/`: the
   indexer and search name `VectorModel` and `EmbeddingModels`, never ONNX Runtime or DJL. A new
-  model type is a loader given to `EmbeddingModels`.
+  model type is a `ModelType` bean (D43).
 - Change dependency versions in `gradle/libs.versions.toml`, not in the build script.
 
 Sibling projects used as references (same author):

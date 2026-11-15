@@ -5,7 +5,6 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.function.UnaryOperator;
 
 /**
  * Top-level server settings: where local data lives, where the collections file is and how much
@@ -39,40 +38,6 @@ public record RagMcpProperties(String dataDir, String collectionsFile, Search se
 
     public RagMcpProperties(String dataDir, String collectionsFile) {
         this(dataDir, collectionsFile, null, null);
-    }
-
-    /** Environment variable that overrides {@link #dataDir()}. */
-    public static final String DATA_DIR_ENV = "RAG_MCP_DATA_DIR";
-
-    /** Environment variable that overrides {@link #collectionsFile()}. */
-    public static final String COLLECTIONS_FILE_ENV = "RAG_MCP_COLLECTIONS_FILE";
-
-    public static final String SEARCH_DEFAULT_LIMIT_ENV = "RAG_MCP_SEARCH_DEFAULT_LIMIT";
-    public static final String SEARCH_MAX_LIMIT_ENV = "RAG_MCP_SEARCH_MAX_LIMIT";
-    public static final String RESPONSE_MAX_CHARS_ENV = "RAG_MCP_RESPONSE_MAX_CHARS";
-
-    /**
-     * Settings read straight from the environment, for a user-run command without Spring.
-     * Mirrors the {@code rag-mcp.*} block of {@code application.yml}.
-     *
-     * @throws IllegalArgumentException when a numeric variable is not a whole number
-     */
-    public static RagMcpProperties fromEnvironment(UnaryOperator<String> env) {
-        return new RagMcpProperties(env.apply(DATA_DIR_ENV), env.apply(COLLECTIONS_FILE_ENV),
-                new Search(number(env, SEARCH_DEFAULT_LIMIT_ENV), number(env, SEARCH_MAX_LIMIT_ENV)),
-                new Response(number(env, RESPONSE_MAX_CHARS_ENV)));
-    }
-
-    private static Integer number(UnaryOperator<String> env, String name) {
-        String value = env.apply(name);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(value.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + " must be a whole number");
-        }
     }
 
     /** The most results one call may return; at least 1. */

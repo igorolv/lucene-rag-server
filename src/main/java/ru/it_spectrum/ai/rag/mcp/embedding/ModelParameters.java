@@ -4,7 +4,8 @@ package ru.it_spectrum.ai.rag.mcp.embedding;
  * How a model is run, as {@code models.<name>} of {@code collections.json} sets it and the
  * manifest of a collection records it.
  *
- * @param type          implementation; {@value #ONNX} is the only one
+ * @param type          the {@link ModelType}: {@value #ONNX} (files run in-process) or
+ *                      {@code bean} (a Spring AI bean named as the model, D43)
  * @param queryPrefix   put before a search query, {@code "query: "} for E5; may be empty
  * @param passagePrefix put before a record's text, {@code "passage: "} for E5; may be empty
  * @param maxTokens     input limit in tokens; a longer text is cut

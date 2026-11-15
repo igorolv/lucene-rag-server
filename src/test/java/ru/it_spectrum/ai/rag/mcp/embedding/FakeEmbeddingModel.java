@@ -33,6 +33,11 @@ public final class FakeEmbeddingModel implements EmbeddingModel {
         this.maxTokens = maxTokens;
     }
 
+    /** A model as a Spring AI bean would be: no files, cutting texts at {@code maxTokens} words. */
+    public static FakeEmbeddingModel of(int maxTokens) {
+        return new FakeEmbeddingModel(maxTokens);
+    }
+
     public static EmbeddingModels.Loaded load(Path dir, ModelParameters parameters) throws IOException {
         Path file = dir.resolve(FILE);
         if (!Files.isRegularFile(file)) {

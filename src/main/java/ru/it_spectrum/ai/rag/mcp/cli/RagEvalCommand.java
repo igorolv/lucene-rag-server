@@ -1,5 +1,6 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
+import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
@@ -26,8 +27,8 @@ import java.util.stream.Collectors;
 
 /**
  * Measures search on a question set (docs/plan.md section 4, stage 4): searches every question
- * in every mode and reports how high the records the question expects rank. Runs without Spring,
- * like {@code rag-search}, and searches as the {@code search} tool does except that the response
+ * in every mode and reports how high the records the question expects rank. Runs in the
+ * application context without the MCP transport, like {@code rag-search} (D42), and searches as the {@code search} tool does except that the response
  * limits of the server do not apply.
  *
  * <p>Exit codes: 0 measured, 1 unexpected error, 2 usage, an unknown collection or mode, or a
@@ -45,10 +46,11 @@ public final class RagEvalCommand {
     private RagEvalCommand() {
     }
 
-    public static int run(String[] args) {
-        Cli.useCliLogging();
-        try {
-            return run(args, RagMcpProperties.fromEnvironment(System::getenv), System.out);
+    /** @param application the Spring Boot application class */
+    public static int run(Class<?> application, String[] args) {
+        try (ConfigurableApplicationContext context = Cli.context(application)) {
+            return run(args, context.getBean(RagMcpProperties.class), context.getBean(EmbeddingModels.class),
+                    System.out);
         } catch (RuntimeException e) {
             System.out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 1;
