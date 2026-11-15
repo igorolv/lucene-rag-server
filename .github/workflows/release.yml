@@ -1,0 +1,82 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the fat jar and publish it as a GitHub Release, with the notes in
+# .github/release-notes/<tag>.md, and to point the JBang alias in jbang-catalog.json on main at the
+# released jar. No Docker image and no MCP Registry entry yet (docs/decisions.md D51, D73).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Check release notes exist
+        run: test -s ".github/release-notes/${GITHUB_REF_NAME}.md"
+
+      - name: Run unit tests
+        run: ./gradlew test --no-daemon -Pversion=${{ steps.version.outputs.value }}
+
+      - name: Build fat jar
+        run: ./gradlew bootJar --no-daemon -Pversion=${{ steps.version.outputs.value }}
+
+      - name: Attach checksum
+        run: |
+          cd build/libs
+          sha256sum lucene-rag-server.jar > lucene-rag-server.jar.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: .github/release-notes/${{ github.ref_name }}.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            build/libs/lucene-rag-server.jar
+            build/libs/lucene-rag-server.jar.sha256
+
+  jbang-catalog:
+    name: Point the JBang catalog at this release
+    runs-on: ubuntu-latest
+    needs: release
+    # Pre-release tags such as v0.2.0-rc1 leave the alias on the last full release.
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Stamp the release into jbang-catalog.json
+        run: |
+          jq --arg t "$GITHUB_REF_NAME" \
+            '.aliases["lucene-rag-server"]["script-ref"] = "https://github.com/igorolv/lucene-rag-server/releases/download/" + $t + "/lucene-rag-server.jar"' \
+            jbang-catalog.json > catalog.tmp && mv catalog.tmp jbang-catalog.json
+          cat jbang-catalog.json
+
+      - name: Commit and push the catalog
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Point the JBang catalog at $GITHUB_REF_NAME"
+          git push origin HEAD:main

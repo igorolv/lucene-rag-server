@@ -1,7 +1,8 @@
 # Search
 
 How the `search`, `lookup` and `getDocument` tools and the `rag-search` command find records, how
-the server bounds what one call returns, and how `rag-eval` measures search on a question set.
+the server bounds what one call returns, how `fieldValues`, `relatedRecords` and `explainSearch`
+help look around and tune, and how `rag-eval` measures search on a question set.
 
 - [Modes](#modes)
 - [Queries](#queries)
@@ -9,6 +10,8 @@ the server bounds what one call returns, and how `rag-eval` measures search on a
 - [Exact lookup](#exact-lookup)
 - [Results](#results)
 - [Limits](#limits)
+- [Browsing](#browsing)
+- [Explaining a search](#explaining-a-search)
 - [The rag-search command](#the-rag-search-command)
 - [Measuring search](#measuring-search)
 - [Known limits](#known-limits)
@@ -189,6 +192,50 @@ still held the expected record for 14 of 17 questions against 15 for 10. A start
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | 10 | 5 |
 | `RAG_MCP_SEARCH_MAX_LIMIT` | 50 | 10 |
 | `RAG_MCP_RESPONSE_MAX_CHARS` | 20000 | 4000 |
+
+## Browsing
+
+The `browse` group helps a client find its way without a query. Listing the records that have
+some field values is `search` with `filters` and no query.
+
+**`fieldValues`** takes a `collection` and a `field` from its `fields` and returns the values of
+that field with the number of records of each, most frequent first: 50 by default, `limit` up to
+200, and `distinct`, how many values there are in all. `prefix` keeps the values that start with
+it, ignoring case. A value is written as a record has it, and passed in `filters` it finds exactly
+the records it counts.
+
+**`relatedRecords`** takes a `collection` and the `id` of a record and returns what is around it:
+
+- `sections`: the other sections of its document nearest to it by position, in document order.
+  A row of a catalog or a table stands alone and has none.
+- `similar`: the records most like it outside its document (outside itself for a row), best
+  first, each with the start of its text as the snippet. In a collection with vectors they are
+  compared by the stored vectors, so no model is loaded (`similarBy: vector`); without vectors, by
+  the words the record shares with them (`similarBy: words`).
+
+`limit` (5 by default, up to the server's maximum page size) applies to each list.
+
+## Explaining a search
+
+**`explainSearch`** of the `debug` group shows why a search finds what it finds. It takes the
+arguments of `search` (`collections`, `query`, `filters`, `filterExpression`, `mode`), an
+optional `id` of a record to explain, and `limit`, and returns:
+
+- `terms` and `englishTerms`: the query's words as the Russian and the English analysis index
+  them. A stop word is gone, a word is cut to its stem; a word that is not there cannot match.
+- `matching`: how many records the words and filters match.
+- `ranked`: the first records of the ranking with, for each, `rank`, `lexicalRank` (its place
+  among the records the words match) and `vectorRank` (its place among the records nearest to the
+  query vector). The limit of sections per document of `search` is not applied here, so a section
+  it would drop is shown too.
+- With `id`, `target`: the same for that record, looked for among the first 1,000 of each list,
+  and `targetMatchesWords` and `targetPassesFilters`. A record the words do not match has no
+  `lexicalRank`; one the filters exclude is in no list.
+- `notice`, as in `search`, when a missing model made the search run by words.
+
+A typical use is a question whose expected record `rag-eval` reports as missed: explain the
+question with that record's id, and see whether the words do not reach it (look at `terms`), the
+filters exclude it, or it ranks low in one list.
 
 ## The rag-search command
 

@@ -1,6 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -187,6 +189,165 @@ public final class SearchService {
             return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL, perGroup)
                     .withNotice("Searched by words only: " + e.getMessage());
         }
+    }
+
+    /** How deep an explanation looks into each ranked list for the record it is asked about. */
+    static final int EXPLAIN_DEPTH = 1_000;
+
+    /**
+     * A record of an explanation.
+     *
+     * @param hit         the record, without text or snippet, with its fused score
+     * @param rank        its place in the ranking of the search, 1 first, before the limit of
+     *                    records per document; {@code null} beyond {@value #EXPLAIN_DEPTH}
+     * @param lexicalRank its place among the records the words match; {@code null} when the words
+     *                    do not match it, it is beyond the depth, or the mode has no word list
+     * @param vectorRank  its place among the records nearest to the query vector of its model;
+     *                    {@code null} beyond the depth or when the mode has no vector list
+     */
+    public record Ranked(SearchHit hit, Integer rank, Integer lexicalRank, Integer vectorRank) {
+    }
+
+    /**
+     * Why a search ranks records as it does (docs/decisions.md D72).
+     *
+     * @param mode          the mode the search ran in
+     * @param terms         the query's words as the Russian analysis indexes them, stop words gone
+     * @param englishTerms  the same for the English analysis
+     * @param matching      records the words and filters match
+     * @param ranked        the first records of the ranking
+     * @param target        the record asked about; {@code null} when none was
+     * @param matchesWords  whether the words match the target at all
+     * @param passesFilters whether the target passes the filters
+     * @param notice        why the mode differs from the one asked for; {@code null} when it does not
+     */
+    public record Explanation(SearchMode mode, List<String> terms, List<String> englishTerms, int matching,
+                              List<Ranked> ranked, Ranked target, Boolean matchesWords, Boolean passesFilters,
+                              String notice) {
+    }
+
+    /**
+     * Explains a search: the words the query becomes, and for the first records of the ranking and
+     * for one record by its id, the rank in the fused ranking and in each list fused. The limit of
+     * records per document is not applied, so a record dropped by it is still shown.
+     *
+     * @param id    a record to explain; {@code null} for none
+     * @param limit records of the ranking to show; capped as a page of search is
+     * @throws IllegalArgumentException as {@link #search} does, and for an id no collection has
+     */
+    public Explanation explain(List<String> collections, String query, Map<String, String> filters,
+                               String filterExpression, String mode, String id, Integer limit) throws IOException {
+        SearchMode requested = SearchMode.parse(mode);
+        List<Manifest> manifests = resolve(collections);
+        String text = query == null ? "" : query.strip();
+        if (text.isEmpty()) {
+            throw new IllegalArgumentException("query is required");
+        }
+        if (text.length() > MAX_QUERY_CHARS) {
+            throw new IllegalArgumentException("query is longer than " + MAX_QUERY_CHARS + " characters");
+        }
+        Query textQuery = parse(text);
+        SearchMode effective = effectiveMode(requested, manifests, true);
+        Query filter = filter(manifests, filters, filterExpression);
+        var builder = new BooleanQuery.Builder().add(textQuery, BooleanClause.Occur.MUST);
+        if (filter != null) {
+            builder.add(filter, BooleanClause.Occur.FILTER);
+        }
+        Query lexical = builder.build();
+        Map<VectorGroup, List<Integer>> groups = new LinkedHashMap<>();
+        Map<VectorGroup, float[]> queries = new LinkedHashMap<>();
+        String notice = null;
+        if (effective != SearchMode.LEXICAL) {
+            for (int i = 0; i < manifests.size(); i++) {
+                Manifest.Vectors vectors = manifests.get(i).vectors();
+                if (vectors != null) {
+                    groups.computeIfAbsent(VectorGroup.of(vectors), k -> new ArrayList<>()).add(i);
+                }
+            }
+            try {
+                for (var group : groups.entrySet()) {
+                    queries.put(group.getKey(), queryVector(manifests.get(group.getValue().getFirst()), text));
+                }
+            } catch (ModelUnavailableException e) {
+                if (requested != null) {
+                    throw e;
+                }
+                effective = SearchMode.LEXICAL;
+                groups.clear();
+                notice = "Searched by words only: " + e.getMessage();
+            }
+        }
+        try (Opened opened = open(manifests)) {
+            IndexSearcher searcher = new IndexSearcher(opened.reader);
+            List<TopDocs> lists = new ArrayList<>();
+            Map<Integer, Integer> lexicalRanks = new HashMap<>();
+            Map<Integer, Integer> vectorRanks = new HashMap<>();
+            if (effective != SearchMode.VECTOR) {
+                TopDocs top = searcher.search(lexical, EXPLAIN_DEPTH);
+                lists.add(top);
+                ranks(top, lexicalRanks);
+            }
+            for (var group : groups.entrySet()) {
+                TopDocs top = nearest(opened, group.getValue(), queries.get(group.getKey()), filter, EXPLAIN_DEPTH);
+                lists.add(top);
+                ranks(top, vectorRanks);
+            }
+            TopDocs fused = lists.size() == 1 ? lists.getFirst()
+                    : TopDocs.rrf(EXPLAIN_DEPTH, RRF_K, lists.toArray(TopDocs[]::new));
+            Map<Integer, Integer> fusedRanks = new HashMap<>();
+            ranks(fused, fusedRanks);
+            Map<Integer, Float> scores = new HashMap<>();
+            for (ScoreDoc scoreDoc : fused.scoreDocs) {
+                scores.put(scoreDoc.doc, scoreDoc.score);
+            }
+            var stored = searcher.storedFields();
+            List<Ranked> ranked = new ArrayList<>();
+            for (int i = 0; i < Math.min(pageSize(limit), fused.scoreDocs.length); i++) {
+                int doc = fused.scoreDocs[i].doc;
+                ranked.add(new Ranked(hit(stored.document(doc), fused.scoreDocs[i].score, null, null), i + 1,
+                        lexicalRanks.get(doc), vectorRanks.get(doc)));
+            }
+            Ranked target = null;
+            Boolean matchesWords = null;
+            Boolean passesFilters = null;
+            if (id != null && !id.isBlank()) {
+                Query byId = new TermQuery(new Term(IndexFields.ID, id.strip()));
+                TopDocs found = searcher.search(byId, 1);
+                if (found.scoreDocs.length == 0) {
+                    throw new IllegalArgumentException("No record '" + id.strip() + "' in "
+                            + String.join(", ", manifests.stream().map(Manifest::name).toList()));
+                }
+                int doc = found.scoreDocs[0].doc;
+                target = new Ranked(hit(stored.document(doc), scores.getOrDefault(doc, 0f), null, null),
+                        fusedRanks.get(doc), lexicalRanks.get(doc), vectorRanks.get(doc));
+                matchesWords = searcher.count(new BooleanQuery.Builder().add(byId, BooleanClause.Occur.MUST)
+                        .add(textQuery, BooleanClause.Occur.MUST).build()) > 0;
+                passesFilters = filter == null || searcher.count(new BooleanQuery.Builder()
+                        .add(byId, BooleanClause.Occur.MUST).add(filter, BooleanClause.Occur.FILTER).build()) > 0;
+            }
+            return new Explanation(effective, analyzed(IndexFields.TEXT, text), analyzed(IndexFields.TEXT_EN, text),
+                    searcher.count(lexical), List.copyOf(ranked), target, matchesWords, passesFilters, notice);
+        }
+    }
+
+    private static void ranks(TopDocs top, Map<Integer, Integer> ranks) {
+        for (int i = 0; i < top.scoreDocs.length; i++) {
+            ranks.putIfAbsent(top.scoreDocs[i].doc, i + 1);
+        }
+    }
+
+    /** The terms a field's analysis makes of a text, in order, without repeats. */
+    private List<String> analyzed(String field, String text) throws IOException {
+        Set<String> terms = new LinkedHashSet<>();
+        try (TokenStream stream = analyzer.tokenStream(field, text)) {
+            CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+            stream.reset();
+            while (stream.incrementToken()) {
+                terms.add(term.toString());
+            }
+            stream.end();
+        }
+        return List.copyOf(terms);
     }
 
     /**
@@ -508,7 +669,7 @@ public final class SearchService {
         return resolve(collections).stream().filter(m -> m.vectors() != null).map(Manifest::name).toList();
     }
 
-    private List<Manifest> resolve(List<String> collections) {
+    List<Manifest> resolve(List<String> collections) {
         if (collections == null || collections.isEmpty()) {
             throw new IllegalArgumentException("Name at least one collection. Available: " + available());
         }
@@ -544,7 +705,7 @@ public final class SearchService {
                 .build();
     }
 
-    private static String snippet(UnifiedHighlighter highlighter, Query query, String body) throws IOException {
+    static String snippet(UnifiedHighlighter highlighter, Query query, String body) throws IOException {
         // Bold markers of the source would be indistinguishable from the highlighting.
         body = body == null ? null : body.replace("**", "");
         String snippet = null;
@@ -565,7 +726,7 @@ public final class SearchService {
         return cut + (markers % 2 == 1 ? "**" : "") + "…";
     }
 
-    private static SearchHit hit(Document doc, float score, String snippet, String text) {
+    static SearchHit hit(Document doc, float score, String snippet, String text) {
         Map<String, List<String>> fields = new LinkedHashMap<>();
         for (IndexableField field : doc.getFields()) {
             if (field.name().startsWith(IndexFields.VALUE_PREFIX)) {
@@ -580,7 +741,7 @@ public final class SearchService {
                 ordinal.intValue(), score, snippet, text, fields);
     }
 
-    private Opened open(List<Manifest> manifests) throws IOException {
+    Opened open(List<Manifest> manifests) throws IOException {
         Opened opened = new Opened();
         try {
             List<IndexReader> readers = new ArrayList<>();
@@ -603,7 +764,7 @@ public final class SearchService {
     }
 
     /** Readers and directories of one call, closed in reverse order of opening. */
-    private static final class Opened implements Closeable {
+    static final class Opened implements Closeable {
         final List<Closeable> resources = new ArrayList<>();
         /** The index of each collection, in the order of the call. */
         List<IndexReader> readers;

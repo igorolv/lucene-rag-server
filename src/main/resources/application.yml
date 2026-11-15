@@ -58,3 +58,5 @@ rag-mcp:
     search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument, resource rag://{collection}/{id}
     lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup
     admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # rebuildCollection
+    browse: ${RAG_MCP_TOOLS_BROWSE:true}                 # fieldValues, relatedRecords
+    debug: ${RAG_MCP_TOOLS_DEBUG:true}                   # explainSearch

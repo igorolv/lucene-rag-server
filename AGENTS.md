@@ -17,7 +17,9 @@ document in search results are done; results and open proposals are in `docs/pla
 A second pass of the Spring AI alignment (stage 3b: D42–D46) is implemented, the HTTP transport
 of MCP among it. Stage 5 (delivery) is done: a rebuild swaps a collection in whole,
 `rebuildCollection` rebuilds through MCP, a record is also an MCP resource, and the delivery of
-collections and models is described in `docs/collections.md`; no Docker image (D51).
+collections and models is described in `docs/collections.md`; no Docker image (D51). Stage 6 is
+done: the `browse` and `debug` tool groups, CI, the release workflow and the third-party notices;
+no release has been made yet.
 
 ## Repository contents
 
@@ -33,7 +35,9 @@ collections and models is described in `docs/collections.md`; no Docker image (D
 | `src/main/java/ru/it_spectrum/ai/rag/mcp/` | Server source; packages in `docs/plan.md` section 3.6 |
 | `src/test/` | Unit tests; none needs a network |
 | `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, `gradle/` | Gradle build, version, version catalog `gradle/libs.versions.toml`, wrapper |
-| `LICENSE`, `NOTICE` | Apache 2.0 license and copyright notice |
+| `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md` | Apache 2.0 license, copyright notice, licenses of the bundled libraries; update the last when a dependency is added |
+| `.github/workflows/`, `.github/release-notes/` | CI on Linux and Windows; the release on a `v*` tag, which needs `release-notes/<tag>.md` |
+| `jbang-catalog.json`, `glama.json` | The JBang alias, which the release workflow points at each release; the Glama maintainer file |
 | `.local/` | **Ignored by git.** Real environment values. May not exist in your checkout |
 
 ## Instruction routing

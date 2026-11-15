@@ -16,6 +16,7 @@ import ru.it_spectrum.ai.rag.mcp.ingest.Mapper;
 import ru.it_spectrum.ai.rag.mcp.ingest.Origin;
 import ru.it_spectrum.ai.rag.mcp.ingest.Splitter;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
+import ru.it_spectrum.ai.rag.mcp.search.BrowseService;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 
 /** Wires the plain classes the tools use; the same classes serve the user-run commands. */
@@ -64,5 +65,10 @@ public class RagConfig {
     @Bean
     SearchService searchService(CollectionStore store, RagMcpProperties properties, EmbeddingModels models) {
         return new SearchService(store, properties, models);
+    }
+
+    @Bean
+    BrowseService browseService(SearchService search, RagMcpProperties properties) {
+        return new BrowseService(search, properties);
     }
 }

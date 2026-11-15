@@ -29,6 +29,7 @@ dependencies {
     implementation(libs.lucene.analysis.common)
     implementation(libs.lucene.queryparser)
     implementation(libs.lucene.highlighter)
+    implementation(libs.lucene.queries)
     implementation(libs.onnxruntime)
     implementation(libs.djl.tokenizers)
 

@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D71; agent proposals as P28 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D73; agent proposals as P28 onwards).
 
 ## 1. Idea
 
@@ -36,11 +36,12 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index`, `rag-search`, `rag-eval` and `rag-model` (D70), each in a Spring context without the MCP server (D42); the tool groups
   `collections` (`listCollections`), `search` (`search`, `getDocument`, the record resource),
-  `lookup` (`lookup`) and `admin` (`rebuildCollection`);
+  `lookup` (`lookup`), `admin` (`rebuildCollection`), `browse` (`fieldValues`, `relatedRecords`) and
+  `debug` (`explainSearch`);
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (198 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (205 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -216,8 +217,8 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 | `search` | `search`, `getDocument`; the resource `rag://{collection}/{id}` and its completion (D48) | done |
 | `lookup` | `lookup`: exact lookups by the key fields of catalog collections (D23) | done |
 | `admin` | `rebuildCollection` (D50) | done |
-| `browse` | list by filters, facets, related records | 6 |
-| `debug` | analyzer output, score explanation, mode comparison | 6 |
+| `browse` | `fieldValues`, `relatedRecords` (D72); listing by filters is `search` without a query | done |
+| `debug` | `explainSearch` (D72) | done |
 
 ### 3.5 Environments
 
@@ -260,7 +261,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts; `Cli.context` starts the application context without the MCP server (D42) |
-| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`, `AdminTools`; `RecordResources` (the record resource and its completion, D48) |
+| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`, `AdminTools`, `BrowseTools`, `DebugTools`; `RecordResources` (the record resource and its completion, D48) |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig`, `TransportSettings` (stdio or HTTP, D45) |
 
@@ -352,7 +353,7 @@ done here. A stage is taken only when the user asks for it.
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
 | 5 | Delivery | Atomic rebuild and `rebuildCollection` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/collections.md`, "Delivering collections"); Docker image not needed for now (D51) | done 2026-11-15 |
-| 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
+| 6 | Convenience and release | `browse` and `debug` groups (D72); CI and release workflow, JBang alias, Glama file, third-party notices (D73); the MCP Registry waits for a Docker image | done 2026-11-15; no release made yet |
 
 Stage 4, in progress:
 

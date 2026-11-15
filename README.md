@@ -5,8 +5,10 @@ Text and embedding vectors live in one Apache Lucene index per collection; a sea
 and vector similarity. The server returns passages and their sources and leaves answering to the
 client.
 
-> **Status: early.** Markdown, TSV, YAML, JSONL, SQL and PDF sources, lexical, vector and hybrid search
-> work; search quality is not measured yet. See [docs/plan.md](docs/plan.md).
+> **Status: before the first release.** Markdown, TSV, YAML, JSONL, SQL and PDF sources, lexical,
+> vector and hybrid search, MCP over stdio and HTTP, in-process and OpenAI-compatible embedding
+> models work. Search quality is measured with `rag-eval` on one real corpus, with a small question
+> set so far. See [docs/plan.md](docs/plan.md).
 
 ## What it is for
 
@@ -31,7 +33,10 @@ java -jar build/libs/lucene-rag-server.jar
 ```
 
 The server speaks MCP over stdio. Register it in an MCP client as
-`java -jar <absolute path>/lucene-rag-server.jar`.
+`java -jar <absolute path>/lucene-rag-server.jar`. Released jars are on the
+[Releases](https://github.com/igorolv/lucene-rag-server/releases) page; with
+[JBang](https://www.jbang.dev/) the latest release runs as
+`jbang lucene-rag-server@igorolv/lucene-rag-server`.
 
 With `RAG_MCP_TRANSPORT=http` it serves the streamable HTTP transport of MCP at
 `http://127.0.0.1:8080/mcp` instead, for clients that connect to a running server:
@@ -87,6 +92,9 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 | `rebuildCollection` | `admin` | Rebuild a collection of `collections.json` from its sources, as `rag-index` does ([docs/collections.md](docs/collections.md#building)) |
+| `fieldValues` | `browse` | Values of a field with the number of records of each, to filter by ([docs/search.md](docs/search.md#browsing)) |
+| `relatedRecords` | `browse` | Other sections of a record's document and the records most like it |
+| `explainSearch` | `debug` | The query's words after analysis and where records rank in each list, for tuning ([docs/search.md](docs/search.md#explaining-a-search)) |
 
 A record is also the MCP resource `rag://{collection}/{id}`, and clients that support completion
 suggest its collection and id ([docs/search.md](docs/search.md#results)).
@@ -101,6 +109,8 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |
 | `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`rebuildCollection`) |
+| `RAG_MCP_TOOLS_BROWSE` | `true` | Expose the `browse` tool group (`fieldValues`, `relatedRecords`) |
+| `RAG_MCP_TOOLS_DEBUG` | `true` | Expose the `debug` tool group (`explainSearch`) |
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |
 | `RAG_MCP_SEARCH_MAX_LIMIT` | `50` | The most hits per page a call can get |
 | `RAG_MCP_RESPONSE_MAX_CHARS` | `20000` | Characters of passage text in one response |
@@ -115,4 +125,5 @@ OpenAI-compatible endpoint configured by Spring AI's `SPRING_AI_OPENAI_*` settin
 
 ## License
 
-Apache License 2.0, see [LICENSE](LICENSE).
+Apache License 2.0, see [LICENSE](LICENSE). The licenses of the bundled libraries are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,0 +1,11 @@
+{
+  "catalogs": {},
+  "aliases": {
+    "lucene-rag-server": {
+      "script-ref": "https://github.com/igorolv/lucene-rag-server/releases/download/v0.1.0/lucene-rag-server.jar",
+      "description": "Hybrid BM25 and vector search over prepared project knowledge, in Apache Lucene, for AI agents",
+      "java": "25+"
+    }
+  },
+  "templates": {}
+}
