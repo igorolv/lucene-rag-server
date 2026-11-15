@@ -36,7 +36,7 @@ class CommandsTest {
     }
 
     private int index(String... args) {
-        return RagIndexCommand.run(args, properties(), StepRegistry.builtIn(), out, name -> null, "test");
+        return RagIndexCommand.run(args, properties(), StepRegistry.builtIn(), null, out, name -> null, "test");
     }
 
     private int search(String... args) {
@@ -104,7 +104,7 @@ class CommandsTest {
                 .contains("1. [" + DOCS + "] Платежи › Привязка к счёту")
                 .contains("id: article.billing.payments#привязка-к-счёту   source: payments.md")
                 .contains("### **Ручная** **привязка**")
-                .containsPattern("RESULT: OK \\(\\d+ found, 2 shown\\)");
+                .containsPattern("RESULT: OK \\(\\d+ found, 2 shown, lexical\\)");
     }
 
     @Test

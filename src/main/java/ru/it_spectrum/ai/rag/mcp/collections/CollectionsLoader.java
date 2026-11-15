@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 
 /**
  * Reads {@code collections.json}: the only place the collections this installation can build are
@@ -31,6 +32,10 @@ import java.util.function.UnaryOperator;
  * itself replaces the reader's key whole (docs/decisions.md D18). The reader is resolved here,
  * before the steps are checked, so the rest of the server sees only complete sources.
  *
+ * <p>A top-level {@code models} object names the embedding models; a collection with
+ * {@code "vectors": {"model": "<name>"}} is embedded with one of them, a collection without
+ * {@code vectors} is searched lexically only.
+ *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
  *
@@ -42,6 +47,8 @@ public final class CollectionsLoader {
 
     /** The keys of a source a named reader may hold. */
     static final List<String> READER_KEYS = List.of("convert", "format", "split", "map");
+
+    private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}");
 
     private CollectionsLoader() {
     }
@@ -83,12 +90,83 @@ public final class CollectionsLoader {
         } else if (!readers.isObject()) {
             throw new IllegalStateException("\"readers\" in " + file + " must be a JSON object");
         }
+        JsonNode modelsNode = root.get("models");
+        if (modelsNode != null && !modelsNode.isNull() && !modelsNode.isObject()) {
+            throw new IllegalStateException("\"models\" in " + file + " must be a JSON object");
+        }
+        Map<String, Object> models = models(modelsNode);
         Path baseDir = file.toAbsolutePath().getParent();
         List<CollectionDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
-            result.add(collection(entry.getKey(), entry.getValue(), readers, baseDir, env));
+            CollectionDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
+            result.add(definition.usable() ? withVectors(definition, entry.getValue(), models) : definition);
         }
         return List.copyOf(result);
+    }
+
+    /** The entries of {@code models}: a {@link ModelDefinition}, or the message of a wrong entry. */
+    private static Map<String, Object> models(JsonNode node) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (node == null || node.isNull()) {
+            return result;
+        }
+        for (var entry : node.properties()) {
+            String name = entry.getKey();
+            JsonNode model = entry.getValue();
+            try {
+                if (!MODEL_NAME.matcher(name).matches()) {
+                    throw new IllegalArgumentException("the name must be letters, digits, '.', '_' or '-', "
+                            + "up to 64 characters, not starting with a dot; it is the directory of the model files");
+                }
+                if (!model.isObject()) {
+                    throw new IllegalArgumentException("the entry must be a JSON object");
+                }
+                String type = text(model.get("type"));
+                int maxTokens = number(model.get("maxTokens"), "maxTokens", ModelDefinition.DEFAULT_MAX_TOKENS);
+                if (maxTokens < 1) {
+                    throw new IllegalArgumentException("maxTokens must be at least 1");
+                }
+                result.put(name, new ModelDefinition(name, type == null ? ModelDefinition.DEFAULT_TYPE : type,
+                        prefix(model.get("queryPrefix"), "queryPrefix"),
+                        prefix(model.get("passagePrefix"), "passagePrefix"), maxTokens));
+            } catch (IllegalArgumentException e) {
+                result.put(name, "models." + name + ": " + e.getMessage());
+            }
+        }
+        return result;
+    }
+
+    private static String prefix(JsonNode node, String field) {
+        if (node == null || node.isNull()) {
+            return "";
+        }
+        if (!node.isString()) {
+            throw new IllegalArgumentException(field + " must be a string");
+        }
+        return node.asString();
+    }
+
+    /** The collection with the model its {@code vectors} names, or broken when that is wrong. */
+    private static CollectionDefinition withVectors(CollectionDefinition definition, JsonNode node,
+                                                    Map<String, Object> models) {
+        JsonNode vectors = node.get("vectors");
+        if (vectors == null || vectors.isNull()) {
+            return definition;
+        }
+        String model = vectors.isObject() ? text(vectors.get("model")) : null;
+        if (model == null) {
+            return definition.withError("\"vectors\" must be an object naming a model: {\"model\": \"<name>\"}");
+        }
+        Object entry = models.get(model);
+        if (entry == null) {
+            return definition.withError("vectors.model \"" + model + "\" is not defined in \"models\"; defined: "
+                    + (models.isEmpty() ? "none" : String.join(", ", models.keySet())));
+        }
+        if (entry instanceof String error) {
+            return definition.withError(error);
+        }
+        return new CollectionDefinition(definition.name(), definition.description(), definition.sources(),
+                (ModelDefinition) entry, null);
     }
 
     private static CollectionDefinition collection(String name, JsonNode node, JsonNode readers, Path baseDir,

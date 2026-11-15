@@ -27,13 +27,26 @@ public final class TestKnowledge {
 
     /** Writes a collections file for {@link #DOCS} (Russian articles and playbooks) and {@link #API}. */
     public static Path writeCollectionsFile(Path dataDir) throws IOException {
+        return writeCollectionsFile(dataDir, false);
+    }
+
+    /**
+     * @param vectors {@link #DOCS} gets vectors of the model {@code fake} of type
+     *                {@code FakeEmbedder.TYPE}, with E5 prefixes; {@link #API} stays lexical
+     */
+    public static Path writeCollectionsFile(Path dataDir, boolean vectors) throws IOException {
         String root = root().toString().replace('\\', '/');
         Path file = dataDir.resolve("collections.json");
         Files.createDirectories(dataDir);
+        String models = vectors ? """
+                "models": {"fake": {"type": "fake", "queryPrefix": "query: ", "passagePrefix": "passage: "}},
+                """ : "";
+        String docsVectors = vectors ? "\"vectors\": {\"model\": \"fake\"}," : "";
         Files.writeString(file, """
-                {"collections": {
+                {%s"collections": {
                   "%s": {
                     "description": "Billing: articles and playbooks",
+                    %s
                     "sources": [
                       {"path": "%s/articles"},
                       {"path": "%s/playbooks"}
@@ -44,7 +57,7 @@ public final class TestKnowledge {
                     "sources": [{"path": "%s/api"}]
                   }
                 }}
-                """.formatted(DOCS, root, root, API, root));
+                """.formatted(models, DOCS, docsVectors, root, root, API, root));
         return file;
     }
 

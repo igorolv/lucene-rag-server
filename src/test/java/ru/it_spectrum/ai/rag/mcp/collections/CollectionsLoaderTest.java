@@ -226,4 +226,47 @@ class CollectionsLoaderTest {
         assertThatThrownBy(() -> load("{\"collections\": []}", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"collections\"");
     }
+
+    @Test
+    void aCollectionNamesItsModelInVectors() throws IOException {
+        List<CollectionDefinition> collections = load("""
+                {"models": {"e5-small": {"type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
+                                         "maxTokens": 256},
+                            "plain": {}},
+                 "collections": {
+                   "docs@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "e5-small"}},
+                   "notes@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "plain"}},
+                   "catalogs@billing": {"sources": [{"path": "kb"}]}
+                 }}
+                """, Map.of());
+
+        assertThat(collections.get(0).vectors())
+                .isEqualTo(new ModelDefinition("e5-small", "onnx", "query: ", "passage: ", 256));
+        assertThat(collections.get(1).vectors()).isEqualTo(new ModelDefinition("plain", "onnx", "", "", 512));
+        assertThat(collections.get(2).vectors()).isNull();
+        assertThat(collections).allMatch(CollectionDefinition::usable);
+    }
+
+    @Test
+    void aWrongModelBreaksOnlyTheCollectionsThatNameIt() throws IOException {
+        List<CollectionDefinition> collections = load("""
+                {"models": {"bad": {"maxTokens": 0}, "../up": {}},
+                 "collections": {
+                   "a@x": {"sources": [{"path": "kb"}], "vectors": {"model": "absent"}},
+                   "b@x": {"sources": [{"path": "kb"}], "vectors": {"model": "bad"}},
+                   "c@x": {"sources": [{"path": "kb"}], "vectors": {"model": "../up"}},
+                   "d@x": {"sources": [{"path": "kb"}], "vectors": "bad"},
+                   "e@x": {"sources": [{"path": "kb"}]}
+                 }}
+                """, Map.of());
+
+        assertThat(collections.get(0).configError()).contains("vectors.model \"absent\" is not defined")
+                .contains("bad");
+        assertThat(collections.get(1).configError()).contains("models.bad: maxTokens must be at least 1");
+        assertThat(collections.get(2).configError()).contains("directory of the model files");
+        assertThat(collections.get(3).configError()).contains("\"vectors\" must be an object");
+        assertThat(collections.get(4).usable()).isTrue();
+        assertThatThrownBy(() -> load("{\"models\": [], \"collections\": {}}", Map.of()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"models\"");
+    }
 }

@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.index;
 import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.WhereSettings;
+import ru.it_spectrum.ai.rag.mcp.embedding.ModelParameters;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,17 +29,41 @@ import java.util.Map;
  * @param fields        names of the document fields usable as filters, sorted
  * @param keys          names of the fields the {@code lookup} tool searches, sorted; empty for none
  * @param sources       what the collection was built from
+ * @param vectors       the model the records were embedded with, or {@code null} for a collection
+ *                      searched lexically only
  */
 public record Manifest(int schema, String name, String description, String builtAt, String serverVersion,
                        int files, int documents, int records, List<String> fields, List<String> keys,
-                       List<Source> sources) {
+                       List<Source> sources, Vectors vectors) {
 
     public Manifest {
         keys = keys == null ? List.of() : List.copyOf(keys);
     }
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 6;
+    public static final int SCHEMA = 7;
+
+    /**
+     * The embedding model of a collection with vectors: everything search needs to embed a query
+     * the same way and to tell whether the model at hand is the one the records were embedded
+     * with (docs/decisions.md D7).
+     *
+     * @param model         name of the model; its files are in {@code <data-dir>/models/<model>/}
+     * @param type          how the model is run
+     * @param queryPrefix   put before a query
+     * @param passagePrefix put before a record's text
+     * @param maxTokens     input limit in tokens
+     * @param dimension     length of a vector
+     * @param files         SHA-256 of each model file, by file name
+     * @param truncated     records longer than {@code maxTokens} whose vector covers only their beginning
+     */
+    public record Vectors(String model, String type, String queryPrefix, String passagePrefix, int maxTokens,
+                          int dimension, Map<String, String> files, int truncated) {
+
+        public ModelParameters parameters() {
+            return new ModelParameters(type, queryPrefix, passagePrefix, maxTokens);
+        }
+    }
 
     public static final String FILE_NAME = "manifest.json";
     public static final String INDEX_DIR = "index";

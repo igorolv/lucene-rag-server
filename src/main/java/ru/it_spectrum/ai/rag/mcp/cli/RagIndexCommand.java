@@ -5,6 +5,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
+import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
@@ -43,15 +44,15 @@ public final class RagIndexCommand {
                 .logStartupInfo(false)
                 .run()) {
             return run(args, context.getBean(RagMcpProperties.class), context.getBean(StepRegistry.class),
-                    System.out, System::getenv, Cli.serverVersion());
+                    context.getBean(EmbeddingModels.class), System.out, System::getenv, Cli.serverVersion());
         } catch (RuntimeException e) {
             System.out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 1;
         }
     }
 
-    static int run(String[] args, RagMcpProperties properties, StepRegistry registry, PrintStream out,
-                   UnaryOperator<String> env, String serverVersion) {
+    static int run(String[] args, RagMcpProperties properties, StepRegistry registry, EmbeddingModels models,
+                   PrintStream out, UnaryOperator<String> env, String serverVersion) {
         if (args.length != 1 || List.of("--help", "-h").contains(args[0])) {
             out.println("Usage: java -jar lucene-rag-server.jar rag-index <collection> | --all");
             out.println("Builds collections from their sources as described in collections.json.");
@@ -91,11 +92,18 @@ public final class RagIndexCommand {
             out.println("Collection " + definition.name());
             long start = System.nanoTime();
             try {
-                Manifest manifest = CollectionIndexer.build(definition, registry, properties.resolvedDataDir(),
-                        serverVersion);
+                CollectionIndexer.Built built = CollectionIndexer.build(definition, registry, models,
+                        properties.resolvedDataDir(), serverVersion);
+                Manifest manifest = built.manifest();
                 out.println(String.format(Locale.ROOT, "  files %d, documents %d, records %d, %.1f s",
                         manifest.files(), manifest.documents(), manifest.records(),
                         (System.nanoTime() - start) / 1e9));
+                if (manifest.vectors() != null) {
+                    out.println(String.format(Locale.ROOT,
+                            "  vectors: model %s, %d dimensions, %d embedded, %d from cache, %d cut to %d tokens",
+                            manifest.vectors().model(), manifest.vectors().dimension(), built.embedded(),
+                            built.cached(), manifest.vectors().truncated(), manifest.vectors().maxTokens()));
+                }
             } catch (IllegalArgumentException e) {
                 out.println("RESULT: FAILED (" + e.getMessage() + ")");
                 return 2;

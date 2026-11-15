@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D21, proposals as P1…P11).
+reasons are in `docs/decisions.md` (cited here as D1…D27, proposals as P1…P14).
 
 ## 1. Idea
 
@@ -18,13 +18,14 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Stages 1 and 2, 2026-11-15: collections described in `collections.json` are
-built from Markdown sources into one Lucene index each and searched lexically; every source
+Stages 1 to 3, 2026-11-15: collections described in `collections.json` are
+built into one Lucene index each and searched lexically, by vectors or by both fused; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
 by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQL as formats and
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
 named reader and select its records with `where`; catalog records are found by an exact value of
-their key fields.
+their key fields; a collection with `vectors` gets an embedding of every record from an in-process
+ONNX model.
 
 - Implemented: the collections file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
@@ -32,18 +33,21 @@ their key fields.
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index` (in a Spring context without the MCP server) and `rag-search`; the tool groups
-  `collections` (`listCollections`), `search` (`search`, `getDocument`) and `lookup` (`lookup`).
-  User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (111 tests on the synthetic knowledge in `testdata/`) and by running
-  the jar: `rag-index` writes nothing but its report, and a stdio session lists the four tools,
-  answers `lookup` and drops it with `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where` and
-  `lookup` were checked by building collections from the first real corpus (numbers in section
-  4, stage 2). Requirement files without front matter (stage 1: 141 files, 601 records) have not
+  `collections` (`listCollections`), `search` (`search`, `getDocument`) and `lookup` (`lookup`);
+  the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
+  modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
+  manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
+- Verified by `gradlew build` (131 tests on the synthetic knowledge in `testdata/`, vectors from a
+  deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
+  set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
+  the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
+  `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where`, `lookup` and the vectors were checked by
+  building collections from the first real corpus (numbers in section 4, stages 2 and 3). Requirement files without front matter (stage 1: 141 files, 601 records) have not
   been rebuilt on the pipeline.
-- Not measured: search quality. That is stage 4.
+- Not measured: search quality beyond the first check of stage 3. That is stage 4.
 
-In section 3, everything about models, vectors, hybrid search and the tool groups after `lookup`
-is the target design, not implemented.
+In section 3, the tool groups after `lookup`, the remote embedding endpoint and the allowed
+collections are the target design, not implemented.
 
 ## 3. Architecture
 
@@ -94,16 +98,16 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 ### 3.2 Collections file
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
-described in `docs/collections.md`, which owns the format: `readers`, `description` and
-`sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`, `convert`, `format`,
-`split`, `map` and `reader`. The sketch below is the
-target shape; the remaining field names are fixed by the stage that implements them:
+described in `docs/collections.md`, which owns the format: `models`, `readers`, `description`,
+`vectors` and `sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`,
+`convert`, `format`, `split`, `map`, `where` and `reader`. Everything in the sketch below is
+implemented except `language`, which nothing reads yet:
 
 ```json
 {
   "models": {
-    "e5-base": { "type": "onnx", "path": "models/multilingual-e5-base",
-                 "queryPrefix": "query: ", "passagePrefix": "passage: " }
+    "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
+                  "maxTokens": 512 }
   },
   "collections": {
     "docs@billing": {
@@ -122,7 +126,7 @@ target shape; the remaining field names are fixed by the stage that implements t
           "format": "jsonl" }
       ],
       "language": "ru",
-      "vectors": { "model": "e5-base" }
+      "vectors": { "model": "e5-small" }
     },
     "catalogs@billing": {
       "description": "Billing: menu, error messages, checks, parameters",
@@ -141,7 +145,8 @@ target shape; the remaining field names are fixed by the stage that implements t
 - A top-level `readers` object holds named sets of `convert`, `format`, `split` and `map`; a
   source names one with `reader` and may override single keys (D18).
 - `where` selects records by field values.
-- A collection without `vectors` is lexical only (catalogs of codes and names).
+- A collection without `vectors` is lexical only (catalogs of codes and names). The files of a
+  model are in `<data-dir>/models/<name>/` on every machine (D26).
 - Relative paths resolve against the directory of `collections.json`. String values may reference
   `${VAR}`.
 - A file with commands is executable configuration: do not use one from an untrusted
@@ -152,8 +157,9 @@ target shape; the remaining field names are fixed by the stage that implements t
 ```
 <data-dir>/
   collections.json            build side only
-  models/<model>/             ONNX model and tokenizer files
-  cache/embeddings/           vectors by hash of model and text (P4)
+  models/<model>/             model.onnx and tokenizer.json (D25)
+  cache/embeddings/           vectors by hash of model and text, a Lucene index (D27)
+  cache/djl/                  native code of the tokenizer library
   logs/
   <collection>/
     manifest.json             name, description, field schema, analyzer, model id and its
@@ -161,10 +167,11 @@ target shape; the remaining field names are fixed by the stage that implements t
     index/                    Lucene index
 ```
 
-Implemented so far: `<collection>/manifest.json` (schema, name, description, build time, server
-version, counts, field names, sources with their chunking parameters) and `<collection>/index/`.
-The model, the analyzer description and the source revision are added to the manifest by the
-stages that need them.
+Implemented: `<collection>/manifest.json` (schema, name, description, build time, server version,
+counts, field names, key fields, sources with their chunking parameters, and for a collection with
+vectors the model name, parameters, vector size, file hashes and the number of records cut to the
+input limit) and `<collection>/index/`. The analyzer description and the source revision are not
+in the manifest.
 
 - The server serves every collection directory it finds, filtered by the allowed list (P3, not
   implemented). It reads the manifest, not `collections.json` (D7).
@@ -184,10 +191,13 @@ stages that need them.
   document field for filters, the stored record, a vector field when the collection has vectors.
   Field names are in `index/IndexFields`; the behavior a user sees is in `docs/search.md`.
 - Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (P7).
-- Modes: `lexical` (BM25), `vector` (kNN), `hybrid` — both, fused by RRF (D12). Lucene 10 has a
-  built-in RRF helper on `TopDocs`; the exact class and the version that introduced it are to
-  verify in stage 3.
-- A call may search several collections; results carry their collection.
+- Modes: `lexical` (BM25), `vector` (kNN on the `vector` field, cosine), `hybrid` — both, fused
+  by RRF (D12, D26) with `TopDocs.rrf(topN, k, TopDocs[])` of Lucene, present in the 10.5.2 we
+  use (the release that introduced it is to verify). Collections of one model form one kNN list,
+  with doc ids moved to the reader of all searched collections; the lists and the BM25 list are
+  fused by doc id. The query vector is computed by the model of the manifest, loaded once per
+  process by `EmbeddingModels`.
+- A call may search several collections; results carry their collection and the mode used.
 - Responses are bounded: a default and a maximum number of results and a total size cap set by the
   server; a search returns snippets, `getDocument` returns the full record (P3).
 
@@ -219,8 +229,9 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 ```
 tools/ ──► search/ ──► index/
   └──────► collections/, ingest/    (listCollections shows collections that are not built)
-cli/ ───► collections/, ingest/, index/, search/
+cli/ ───► collections/, ingest/, index/, search/, embedding/
 index/ ──► ingest/ ──► collections/           (build: list, convert, parse, split, map, write)
+search/, index/ ──► embedding/                (embed queries and records; the cache)
 api/     — MCP wire records returned by tools
 config/  — Spring wiring, properties, MCP customizer
 ```
@@ -236,13 +247,12 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
-| `search/` | `SearchService` (query, filters, paging, snippets, limits), `SearchHit`, `SearchPage` |
+| `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `SearchMode`, `SearchHit`, `SearchPage` |
+| `embedding/` | `Embedder` (the model interface; a remote endpoint would be a second implementation), `OnnxEmbedder` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, loaded once, checked against a manifest), `VectorModel` (a model with its prefixes), `ModelParameters`, `ModelInfo`, `Embeddings`, `EmbeddingCache`, `ModelUnavailableException` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig` |
-
-Planned: `embedding/` (model interface, ONNX implementation, cache) in stage 3.
 
 How the pipeline is wired:
 
@@ -271,12 +281,28 @@ done here. A stage is taken only when the user asks for it.
 | 0 | Scaffold | Build, stdio server, `listCollections` stub, documents | done 2026-11-14 |
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
-| 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | ⬜ |
+| 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
-Stage 2 in more detail; the next stage is 3:
+Stage 3, done 2026-11-15 (D24–D27); the next stage is 4:
+
+- Dependencies: ONNX Runtime 1.20.0 (pinned because later versions do not load on Windows with
+  the C++ runtime JDKs ship, D24) and DJL Hugging Face tokenizers 0.40.0; the jar manifest has
+  `Enable-Native-Access: ALL-UNNAMED`, so the JVM prints no warning when they load native code.
+- Model: `multilingual-e5-small` FP32 (D25); SHA-256 of `model.onnx` and `tokenizer.json` matched
+  the hashes Hugging Face publishes.
+- Checked on the first corpus: the Markdown collection of 239 files gave 1,031 records with 384
+  dimensions in 61 s on a 16-thread desktop CPU, 123 records longer than 512 tokens; a rebuild from
+  the cache took 3.2 s. On the 10 questions of its question set that expect a Markdown document,
+  the expected document was first in 7 (lexical), 4 (vector) and 8 (hybrid), and within the top
+  5 in 9 for each mode; MRR 0.80, 0.60 and 0.85. `rag-search` takes 0.8 s per lexical query and
+  2.7 s per vector or hybrid query, JVM start and model load included. A collection served from a
+  data directory without its model answers `lexical` and reports the missing model for `vector`
+  and `hybrid`.
+
+Stage 2 in more detail:
 
 0. Done 2026-11-14: `split` and `map` on every source (D14), so the formats below only have to
    name their values and their defaults.
@@ -330,12 +356,17 @@ word-form rules (`docs/decisions.md` P9).
 
 Observed while verifying stage 1, for stage 4: a lexical query phrased differently from the text
 ranks an unrelated record first; Spring AI repeats the message of a tool error twice in the
-response text.
+response text. Observed in stage 3: 12% of the Markdown records exceed the 512-token input of E5,
+so their ends have no vector of their own; `split.maxChars` is a stage 4 tuning question. Lucene
+logs that the incubating Vector API is not enabled (`--add-modules jdk.incubator.vector` would
+speed up kNN); not measured.
 
 ## 5. Open questions
 
 - How the assistant service connects to this server and to other MCP servers (D1).
-- Which model and API the target site provides; whether it has an embedding endpoint.
+- Which model and API the target site provides; whether it has an embedding endpoint (a remote
+  `Embedder` would be the second implementation, D11).
+- When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
 - Built-in converters for PDF and Office sources (code exists in `mail-mcp-server` `convert/`), if
   a `convert` command with Pandoc turns out not to be enough (D17).
 - When the DocBook reader is written (D17).

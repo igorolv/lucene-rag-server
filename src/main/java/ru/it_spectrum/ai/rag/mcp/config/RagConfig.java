@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.config;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.Converter;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
@@ -32,8 +33,14 @@ public class RagConfig {
                 formats.orderedStream().toList(), splitter, mapper);
     }
 
+    /** The embedding models under {@code <data-dir>/models/}, loaded on first use. */
+    @Bean(destroyMethod = "close")
+    EmbeddingModels embeddingModels(RagMcpProperties properties) {
+        return EmbeddingModels.inProcess(properties.resolvedDataDir());
+    }
+
     @Bean
-    SearchService searchService(CollectionStore store, RagMcpProperties properties) {
-        return new SearchService(store, properties);
+    SearchService searchService(CollectionStore store, RagMcpProperties properties, EmbeddingModels models) {
+        return new SearchService(store, properties, models);
     }
 }

@@ -5,8 +5,8 @@ Text and embedding vectors live in one Apache Lucene index per collection; a sea
 and vector similarity. The server returns passages and their sources and leaves answering to the
 client.
 
-> **Status: early.** Markdown sources and lexical (BM25) search work. Other formats, embedding
-> vectors and hybrid search are planned; see [docs/plan.md](docs/plan.md).
+> **Status: early.** Markdown, TSV, YAML, JSONL and SQL sources, lexical, vector and hybrid search
+> work; search quality is not measured yet. See [docs/plan.md](docs/plan.md).
 
 ## What it is for
 
@@ -66,7 +66,7 @@ The server speaks MCP over stdio. Register it in an MCP client as
 | Tool | Group | What it does |
 |---|---|---|
 | `listCollections` | `collections` | Collections of this server, their descriptions and filter fields |
-| `search` | `search` | Passages matching a query and filters in one or more collections ([docs/search.md](docs/search.md)) |
+| `search` | `search` | Passages matching a query and filters in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 
@@ -74,7 +74,7 @@ The server speaks MCP over stdio. Register it in an MCP client as
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per collection, plus `logs/` |
+| `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per collection, plus `models/` (embedding model files, [docs/collections.md](docs/collections.md#vectors)), `cache/` and `logs/` |
 | `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json` | Collection definitions; needed to build, not to serve |
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |

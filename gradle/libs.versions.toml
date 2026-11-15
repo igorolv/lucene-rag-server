@@ -4,6 +4,12 @@
 spring-boot = "4.2.0-RC1"
 spring-ai = "2.1.0-RC1"
 lucene = "10.5.2"
+# In-process embeddings (docs/decisions.md D11, D24): ONNX Runtime runs the model, DJL's Hugging Face
+# tokenizer reads its tokenizer.json.
+# 1.21 and later need msvcp140.dll 14.40+, older than what JDKs ship in bin/ on Windows (14.31 in
+# Liberica 25.0.2): 1.32 crashes the JVM, 1.21 fails to load. Stay on 1.20 until JDKs catch up (D24).
+onnxruntime = "1.20.0"
+djl-tokenizers = "0.40.0"
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
@@ -17,3 +23,5 @@ lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene"
 lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
 lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }
 lucene-highlighter = { module = "org.apache.lucene:lucene-highlighter", version.ref = "lucene" }
+onnxruntime = { module = "com.microsoft.onnxruntime:onnxruntime", version.ref = "onnxruntime" }
+djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "djl-tokenizers" }

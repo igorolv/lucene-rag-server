@@ -35,6 +35,10 @@ public record CollectionInfo(
         @Schema(description = "Fields whose values the lookup tool finds records by; absent when none",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> keys,
+        @Schema(description = "Values the 'mode' argument of search accepts for this collection; vector and " +
+                "hybrid only when the collection has vectors",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        List<String> modes,
         @Schema(description = "Why the collection cannot be built, when its configuration is wrong",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String configError) {

@@ -27,7 +27,7 @@ class LookupCommandTest {
         Path file = LookupTestData.writeCollectionsFile(dataDir);
         properties = new RagMcpProperties(dataDir.toString(), file.toString());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int code = RagIndexCommand.run(new String[]{"--all"}, properties, StepRegistry.builtIn(),
+        int code = RagIndexCommand.run(new String[]{"--all"}, properties, StepRegistry.builtIn(), null,
                 new PrintStream(out, true, StandardCharsets.UTF_8), name -> null, "test");
         assertThat(code).as(out.toString(StandardCharsets.UTF_8)).isZero();
     }

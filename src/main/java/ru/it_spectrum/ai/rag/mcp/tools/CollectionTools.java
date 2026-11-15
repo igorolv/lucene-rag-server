@@ -49,7 +49,7 @@ public class CollectionTools {
             description = "List the collections of this server. Call first when the collection to search " +
                     "is not known yet: name is the value for the collection arguments of other tools, " +
                     "description says what the collection holds, fields are the names search accepts as " +
-                    "filters, keys are the fields lookup finds records by. Only collections with built=true can be searched.",
+                    "filters, keys are the fields lookup finds records by, modes are the search modes it supports. Only collections with built=true can be searched.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -60,6 +60,7 @@ public class CollectionTools {
         for (Manifest manifest : built) {
             infos.add(new CollectionInfo(manifest.name(), manifest.description(), true, manifest.records(),
                     manifest.builtAt(), manifest.fields(), manifest.keys().isEmpty() ? null : manifest.keys(),
+                    manifest.vectors() == null ? List.of("lexical") : List.of("lexical", "vector", "hybrid"),
                     null));
         }
         Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
@@ -68,7 +69,7 @@ public class CollectionTools {
                     : registry.checked(CollectionsLoader.load(properties, System::getenv))) {
                 if (!builtNames.contains(definition.name())) {
                     infos.add(new CollectionInfo(definition.name(), definition.description(), false, null,
-                            null, null, null, definition.configError()));
+                            null, null, null, null, definition.configError()));
                 }
             }
         } catch (IllegalStateException e) {

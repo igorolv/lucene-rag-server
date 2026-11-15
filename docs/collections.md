@@ -14,6 +14,7 @@ another machine.
 - [Splitting](#splitting)
 - [Mapping](#mapping)
 - [Selecting records](#selecting-records)
+- [Vectors](#vectors)
 - [Examples](#examples)
 - [Building](#building)
 - [What a built collection is](#what-a-built-collection-is)
@@ -355,6 +356,86 @@ record has in the index, inherited and mapped.
 - A file whose records are all dropped counts as a file but not as a document in the build
   report.
 
+## Vectors
+
+A collection with `vectors` gets an embedding of every record, so that `search` can find passages
+close in meaning to the query even when they share no words with it
+([search.md](search.md#modes)). A collection without `vectors` is searched by words only, which
+suits catalogs of codes and names.
+
+```json
+{
+  "models": {
+    "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
+                  "maxTokens": 512 }
+  },
+  "collections": {
+    "docs@billing": {
+      "description": "Billing: articles and troubleshooting playbooks",
+      "vectors": { "model": "e5-small" },
+      "sources": [ { "path": "C:/projects/billing/knowledge/articles" } ]
+    }
+  }
+}
+```
+
+The top-level `models` object names the embedding models; `vectors.model` of a collection names
+one of them. Several collections may share a model.
+
+| Key of a model | Default | Meaning |
+|---|---|---|
+| `type` | `onnx` | How the model runs. `onnx`: in the server process, by ONNX Runtime; the text never leaves the machine. No other type exists yet |
+| `queryPrefix` | empty | Put before a search query. The E5 models expect `query: ` |
+| `passagePrefix` | empty | Put before the text of a record. The E5 models expect `passage: ` |
+| `maxTokens` | 512 | Input limit in tokens; a longer record is cut and its vector covers only its beginning. 512 is the limit of the E5 models |
+
+The model name is also a directory name: letters, digits, `.`, `_` and `-`, up to 64 characters,
+not starting with a dot. A model that is not defined, or a wrong entry in `models`, is a
+configuration error of the collections that name it.
+
+### Model files
+
+The files of a model named `e5-small` are in `<data-dir>/models/e5-small/`, both where collections
+are built and where they are served; there is no setting for another place. An `onnx` model
+needs two files there:
+
+| File | What it is |
+|---|---|
+| `model.onnx` | The encoder graph. Its output `last_hidden_state` is averaged over the tokens and scaled to unit length, as the E5 models are trained; a graph that outputs `sentence_embedding` is only scaled |
+| `tokenizer.json` | The Hugging Face tokenizer that belongs to the graph |
+
+The server never downloads anything. The default model is `intfloat/multilingual-e5-small`
+(384 dimensions); download the two files from the `onnx/` folder of that model on Hugging Face:
+
+```bash
+curl -L -o model.onnx https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/model.onnx
+```
+
+```bash
+curl -L -o tokenizer.json https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/tokenizer.json
+```
+
+`intfloat/multilingual-e5-base` (768 dimensions, about three times slower to embed) has the same
+layout. Its `model_qint8_avx512_vnni.onnx` variant needs a processor with AVX-512 VNNI.
+
+On first use the tokenizer library unpacks its native code into `<data-dir>/cache/djl/`. The
+server switches off that library's usage reporting and its downloads before loading it.
+
+### What is embedded
+
+Each record is embedded as its breadcrumb, a blank line and its text, after `passagePrefix`. Keep
+records within the model's limit: about 512 tokens is 1,500–2,500 characters of Russian or English
+prose, so a `split.maxChars` above that leaves the end of long records without a vector of their
+own. `rag-index` reports how many records were cut.
+
+### The embedding cache
+
+Vectors are kept in `<data-dir>/cache/embeddings/` by a hash of the model files, `maxTokens` and
+the embedded text. A rebuild embeds only records whose text changed, and collections with the same
+model share the entries. The cache is never pruned; deleting the directory only makes the next
+build slower. While one build uses it, a build in another process embeds every record and logs a
+warning.
+
 ## Examples
 
 Requirement files, one directory per capability, no front matter:
@@ -469,15 +550,24 @@ java -jar lucene-rag-server.jar rag-index docs@billing
 java -jar lucene-rag-server.jar rag-index --all
 ```
 
-The command prints the number of files, documents and records per collection and ends with
-`RESULT: OK (...)` or `RESULT: FAILED (...)`.
+The command prints the number of files, documents and records per collection; for a collection
+with vectors also the model, the vector size, how many records were embedded, how many vectors
+came from the [cache](#the-embedding-cache) and how many records were cut to `maxTokens`. It ends
+with `RESULT: OK (...)` or `RESULT: FAILED (...)`.
+
+```
+Collection docs@billing
+  files 3, documents 3, records 12, 4.1 s
+  vectors: model e5-small, 384 dimensions, 12 embedded, 0 from cache, 0 cut to 512 tokens
+RESULT: OK (1 collection built)
+```
 
 | Exit code | Meaning |
 |---|---|
 | 0 | built |
 | 1 | unexpected error |
 | 2 | wrong usage, unknown collection or wrong configuration |
-| 4 | a source could not be read, a command failed or the index could not be written |
+| 4 | a source could not be read, a command failed, the model could not be loaded or the index could not be written |
 
 A build always reads every source again and replaces the whole collection. The new index is
 written next to the old one and swapped in when complete, so a failed build keeps the previous
@@ -491,13 +581,18 @@ A running server sees a rebuilt collection on its next call; no restart is neede
 ```
 <data-dir>/
   collections.json        needed to build only
+  models/e5-small/        model.onnx, tokenizer.json
+  cache/                  embedding cache and the tokenizer's native code; derived
   docs@billing/
     manifest.json         name, description, build time, counts, field names,
-                          sources with their command, convert, split and map settings
-    index/                Lucene index
+                          sources with their command, convert, split and map settings,
+                          the model with its parameters and the SHA-256 of its files
+    index/                Lucene index, with the vectors
 ```
 
 A collection directory is self-contained. To serve it elsewhere, copy the directory under that
 machine's data directory, keeping its name; neither the sources nor `collections.json` are needed
-there. A directory is served when its `manifest.json` names the directory and has the index
+there. A collection with vectors needs its model for vector and hybrid search: copy
+`models/<model>/` too. Search compares the files with the hashes in the manifest, so a collection
+built with other model files is searched lexically only until it is rebuilt. A directory is served when its `manifest.json` names the directory and has the index
 schema of the running server; after an upgrade that changes the schema, rebuild.

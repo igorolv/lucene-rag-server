@@ -16,5 +16,8 @@ public record SearchResult(
         Integer nextOffset,
         @Schema(description = "true when the page is shorter than asked because the response size cap was reached",
                 nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-        boolean truncated) {
+        boolean truncated,
+        @Schema(description = "How the hits were ranked: lexical, vector or hybrid",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String mode) {
 }

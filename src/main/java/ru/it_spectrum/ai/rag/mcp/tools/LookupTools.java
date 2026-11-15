@@ -61,6 +61,6 @@ public class LookupTools {
         }
         List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.collection(), hit.id(),
                 hit.breadcrumb(), hit.source(), hit.score(), hit.snippet())).toList();
-        return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated());
+        return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated(), null);
     }
 }

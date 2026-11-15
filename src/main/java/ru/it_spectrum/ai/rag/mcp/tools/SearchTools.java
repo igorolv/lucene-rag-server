@@ -35,9 +35,11 @@ public class SearchTools {
     }
 
     @McpTool(
-            description = "Find passages in one or more collections. The query is plain words in any " +
-                    "language of the texts; word forms match, \"quoted words\" are a phrase, and words are " +
-                    "optional — records matching more of them rank higher. Returns snippets; call " +
+            description = "Find passages in one or more collections. The query is plain words or a question " +
+                    "in any language of the texts. Lexical mode matches words: word forms match, \"quoted words\" " +
+                    "are a phrase, and records matching more of the words rank higher. Vector mode finds passages " +
+                    "close in meaning even without shared words; hybrid, the default for collections with " +
+                    "vectors, fuses both. Returns snippets; call " +
                     "getDocument with a hit's collection and id for the full passage. Before concluding " +
                     "that nothing exists, retry with synonyms or fewer words.",
             generateOutputSchema = true,
@@ -54,22 +56,26 @@ public class SearchTools {
             @McpToolParam(description = "Page size; the server applies its own default and maximum", required = false)
             Integer limit,
             @McpToolParam(description = "nextOffset of the previous page", required = false)
-            Integer offset) {
-        log.info("Tool call: search collections={} queryChars={} filters={} limit={} offset={}",
+            Integer offset,
+            @McpToolParam(description = "lexical, vector or hybrid. Omit for hybrid on collections with vectors " +
+                    "and lexical on the others; listCollections shows the modes of each collection", required = false)
+            String mode) {
+        log.info("Tool call: search collections={} queryChars={} filters={} limit={} offset={} mode={}",
                 collections, query == null ? 0 : query.length(), filters == null ? List.of() : filters.keySet(),
-                limit, offset);
+                limit, offset, mode);
         if ((query == null || query.isBlank()) && (filters == null || filters.isEmpty())) {
             throw new IllegalArgumentException("Give a query, filters or both");
         }
         final SearchPage page;
         try {
-            page = search.search(collections, query, filters, limit, offset);
+            page = search.search(collections, query, filters, limit, offset, mode);
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }
         List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.collection(), hit.id(),
                 hit.breadcrumb(), hit.source(), hit.score(), hit.snippet())).toList();
-        return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated());
+        return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated(),
+                page.mode() == null ? null : page.mode().id());
     }
 
     @McpTool(

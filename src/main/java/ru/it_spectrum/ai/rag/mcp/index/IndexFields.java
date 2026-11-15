@@ -32,6 +32,11 @@ public final class IndexFields {
     public static final String FILTER_PREFIX = "f.";
     /** Every value of the key fields of the record ({@code map.keys}) as one lower-cased exact term. */
     public static final String LOOKUP = "k";
+    /**
+     * Unit-length embedding of the breadcrumb and the passage, compared by cosine; only in a
+     * collection with vectors.
+     */
+    public static final String VECTOR = "vector";
     /** Prefix of the stored original values of a document field. */
     public static final String VALUE_PREFIX = "v.";
 

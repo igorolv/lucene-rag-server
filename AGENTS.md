@@ -4,11 +4,12 @@ An MCP server that indexes prepared project knowledge (Markdown, TSV, YAML, JSON
 Apache Lucene and serves hybrid search over it: BM25 plus dense vectors kept in the same Lucene
 index. It retrieves; it does not generate answers. User-facing overview: `README.md`.
 
-**Current status:** stages 1 and 2 of `docs/plan.md` section 4 are implemented: Markdown, TSV, YAML,
-JSONL and SQL collections with configurable `split` and `map`, built by the five-step source
+**Current status:** stages 1 to 3 of `docs/plan.md` section 4 are implemented: Markdown, TSV,
+YAML, JSONL and SQL collections with configurable `split` and `map`, built by the five-step source
 pipeline in `ingest/`, external commands as an origin and as `convert` steps, named readers,
-`where`, lexical search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
-`search`, `getDocument` and `lookup`. Vectors and hybrid search (stage 3) are not implemented.
+`where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
+`hybrid` search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
+`search`, `getDocument` and `lookup`. Measurement (stage 4) is next.
 
 ## Repository contents
 
@@ -110,6 +111,11 @@ then keeps the summary and links to the owner.
   in `ingest/` name no Spring type other than that annotation.
 - `rag-index` runs inside a Spring context without the MCP server; it must print nothing but its
   report to stdout and nothing to stderr on success.
+- Unit tests never load a real embedding model: they use `FakeEmbedder` (test sources) through
+  `EmbeddingModels`. A test of the real model runs only when `RAG_MCP_TEST_MODEL_DIR` names its
+  files, which stay outside the repository.
+- A model is reached only through `embedding/`: the indexer and search name `VectorModel` and
+  `EmbeddingModels`, never ONNX Runtime or DJL.
 - Change dependency versions in `gradle/libs.versions.toml`, not in the build script.
 
 Sibling projects used as references (same author):

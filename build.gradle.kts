@@ -23,6 +23,8 @@ dependencies {
     implementation(libs.lucene.analysis.common)
     implementation(libs.lucene.queryparser)
     implementation(libs.lucene.highlighter)
+    implementation(libs.onnxruntime)
+    implementation(libs.djl.tokenizers)
 
     testImplementation(libs.spring.boot.starter.test)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -45,6 +47,10 @@ tasks.bootJar {
     archiveBaseName.set("lucene-rag-server")
     archiveVersion.set("")
     archiveClassifier.set("")
+    // ONNX Runtime and the tokenizer load native libraries; without this the JVM warns on stderr.
+    manifest {
+        attributes("Enable-Native-Access" to "ALL-UNNAMED")
+    }
 }
 
 tasks.withType<JavaCompile> {
