@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D74; agent proposals as P28 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D75; agent proposals as P29 onwards).
 
 ## 1. Idea
 
@@ -387,8 +387,41 @@ Stage 4, in progress:
 4. Done 2026-11-15: one section per document (D38). Measured with the server: hybrid 17 of 17
    within 10, MRR 0.69, recall@10 0.76; lexical 16 of 17, 0.69, 0.75; vector 17 of 17, 0.55,
    0.76. A limit of 2 is no better than none (hybrid 15 of 17).
-5. Next: more questions in the set of the first corpus (at least 50 measured, D41), then the
-   reranker question again.
+5. Done 2026-11-15: the question set of the first corpus grew to 50 questions (the corpus authors
+   keep adding to it). 47 are measured; 3 name only requirements, which are not indexed (D36).
+   On the documents, the table descriptions and the symptoms, rebuilt from the current sources:
+
+   | Mode | @1 | @5 | @10 | MRR | recall@10 |
+   |---|---|---|---|---|---|
+   | lexical | 31/47 | 41/47 | 44/47 | 0.77 | 0.83 |
+   | vector | 25/47 | 41/47 | 44/47 | 0.68 | 0.80 |
+   | hybrid | 32/47 | 42/47 | 45/47 | 0.78 | 0.83 |
+
+   Both questions hybrid misses within 10 were explained with `explainSearch`: in one, no word of
+   the question is in the expected article, which uses other terms for the same screen, and its
+   best section is 20th by vector; in the other, the expected symptom is a row of a few words,
+   which longer sections matching more of the question outrank. Both are gaps of the
+   collections, not ranking errors, so the condition of D41 for a reranker is not met.
+6. Done 2026-11-15: three embedding models compared on the same corpus, rebuilt from the same
+   sources, with the set grown to 63 questions, 60 measured (`rag-model fetch`, one collection
+   set per model; lexical is the same for all: 43/57/0.81/0.85):
+
+   | Model | vector @10 | vector MRR | hybrid @1 | hybrid @10 | hybrid MRR | hybrid recall@10 | build of the documents |
+   |---|---|---|---|---|---|---|---|
+   | `e5-small` (384) | 57/60 | 0.73 | 43/60 | 58/60 | 0.81 | 0.86 | about 60 s |
+   | `e5-base` (768) | 58/60 | 0.76 | 46/60 | 58/60 | 0.84 | 0.86 | 219 s |
+   | MiniLM-L12 multilingual (384, 128 tokens) | 44/60 | 0.44 | 32/60 | 56/60 | 0.67 | 0.82 | 31 s |
+
+   - `e5-base` puts 3 more questions first in hybrid (MRR +0.03; one question is about 0.017) at
+     three times the embedding time and twice the vector size; recall@10 is the same.
+   - MiniLM cuts 1,029 of 1,120 document records at its input limit of 128 tokens and is far
+     weaker here; `rag-model fetch` now prints the input length a repository names.
+   - The two questions outside the first ten are the same for every model, the gaps of item 5.
+     With 60 measured questions the misses are still gaps of the collections, so D41 keeps the
+     reranker out; 15 questions rank 2 to 9 in hybrid with `e5-small`, which a reranker could
+     only move up within the page a client already reads.
+7. Next: grow the set further (its authors aim at several hundred questions) and close the gaps
+   it shows in the corpus. The default model stays `e5-small` (D75).
 
 Stage 3, done 2026-11-15 (D24–D27):
 

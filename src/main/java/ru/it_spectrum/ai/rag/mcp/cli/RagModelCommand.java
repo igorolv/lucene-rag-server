@@ -156,7 +156,7 @@ public final class RagModelCommand {
             return 4;
         }
         out.println("  revision " + source.revision());
-        return fetch(name, source, entry(name, source.pooling()), true, models, from, http, out);
+        return fetch(name, source, entry(name, source.pooling(), source.maxTokens()), true, models, from, http, out);
     }
 
     /**
@@ -199,6 +199,11 @@ public final class RagModelCommand {
         } else if (prefixes) {
             out.println("  pooling: " + source.pooling() + ", as the repository says");
         }
+        if (prefixes) {
+            out.println(source.maxTokens() == null
+                    ? "  input length: the repository does not say; 512 is assumed, check the model card"
+                    : "  input length: " + source.maxTokens() + " tokens, as the repository says");
+        }
         out.println("  in collections.json, under \"models\":");
         out.println("    " + entry);
         if (prefixes) {
@@ -208,10 +213,15 @@ public final class RagModelCommand {
         return 0;
     }
 
-    /** The entry of {@code models} for a model of a repository; prefixes are left for the operator. */
-    static String entry(String name, String pooling) {
+    /**
+     * The entry of {@code models} for a model of a repository; prefixes are left for the operator.
+     *
+     * @param maxTokens the input length the repository names; 512 when it names none
+     */
+    static String entry(String name, String pooling, Integer maxTokens) {
         return "\"" + name + "\": { \"type\": \"onnx\", \"queryPrefix\": \"\", \"passagePrefix\": \"\", "
-                + "\"maxTokens\": 512" + (ModelParameters.CLS.equals(pooling) ? ", \"pooling\": \"cls\"" : "") + " }";
+                + "\"maxTokens\": " + (maxTokens == null ? 512 : maxTokens)
+                + (ModelParameters.CLS.equals(pooling) ? ", \"pooling\": \"cls\"" : "") + " }";
     }
 
     private static void writeSource(Path dir, HuggingFace.Source source) throws IOException {

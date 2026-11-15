@@ -596,10 +596,12 @@ java -jar lucene-rag-server.jar rag-model fetch minilm --repo sentence-transform
   hold its weights: everything but other `.onnx` graphs and the `.json`, `.md`, `.txt` and
   `.model` files exports carry. Hugging Face publishes the SHA-256 of large files and the git
   object id of small ones; each download is checked against one of them.
-- A model of `sentence-transformers` says its pooling in `1_Pooling/config.json`; `fetch` reads
-  it and prints the entry with `"pooling": "cls"` when that is it. When the repository does not
-  say, mean is assumed: check the model card. A pooling the server does not support (max, for
-  example) is reported; such a model gives vectors that are not the model's.
+- A model of `sentence-transformers` says its pooling in `1_Pooling/config.json` and its input
+  length in `sentence_bert_config.json` (`max_seq_length`); `fetch` reads both and prints the
+  entry with them, `"pooling": "cls"` when that is it and `maxTokens` as named. When the
+  repository does not say, mean pooling and 512 tokens are assumed: check the model card. A
+  pooling the server does not support (max, for example) is reported; such a model gives vectors
+  that are not the model's.
 - Prefixes cannot be read from a repository: set `queryPrefix` and `passagePrefix` as the model
   card says. The E5 models want `query: ` and `passage: `; most others want none.
 - A repository without an ONNX export is reported with the command that converts one

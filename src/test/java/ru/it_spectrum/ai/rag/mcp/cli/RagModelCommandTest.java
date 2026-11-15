@@ -128,6 +128,8 @@ class RagModelCommandTest {
         served.put("/test/bge-like/resolve/def456/tokenizer.json", TOKENIZER);
         if (pooling != null) {
             served.put("/test/bge-like/resolve/def456/1_Pooling/config.json", pooling.getBytes(StandardCharsets.UTF_8));
+            served.put("/test/bge-like/resolve/def456/sentence_bert_config.json",
+                    "{\"max_seq_length\": 256}".getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -208,7 +210,8 @@ class RagModelCommandTest {
         assertThat(dir.resolve("config.json")).doesNotExist();
         assertThat(dir.resolve("model_O4.onnx")).doesNotExist();
         assertThat(out).contains("revision def456", "model.onnx_data: ", "SHA-256 verified",
-                "Constant_7_attr__value: ", "git object id verified", "pooling: cls, as the repository says", "\"pooling\": \"cls\"",
+                "Constant_7_attr__value: ", "git object id verified", "pooling: cls, as the repository says", "input length: 256 tokens",
+                "\"maxTokens\": 256, \"pooling\": \"cls\"",
                 "set queryPrefix and passagePrefix as the model card of test/bge-like says",
                 "RESULT: OK (bge-like fetched)");
         assertThat(Files.readString(dir.resolve("source.json"))).contains("\"revision\" : \"def456\"",
@@ -220,7 +223,8 @@ class RagModelCommandTest {
     void aRepositoryWithoutPoolingOrWithAnUnsupportedOneSaysSo() throws Exception {
         serveRepository(null);
         assertThat(run(0, "fetch", "plain", "--repo", "test/bge-like", "--from", base))
-                .contains("mean is assumed, check the model card").doesNotContain("\"pooling\"");
+                .contains("mean is assumed, check the model card", "512 is assumed", "\"maxTokens\": 512")
+                .doesNotContain("\"pooling\"");
 
         serveRepository("{\"pooling_mode_max_tokens\": true}");
         assertThat(run(0, "fetch", "maxed", "--repo", "test/bge-like", "--from", base))

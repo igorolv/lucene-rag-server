@@ -41,8 +41,16 @@ public final class HuggingFace {
      * @param files      the files and their local names
      * @param pooling    {@code mean} or {@code cls} when the repository says so; {@code null} when it
      *                   does not, and the name of an unsupported mode prefixed by {@code !}
+     * @param maxTokens  the input length the model is trained with, when the repository says so
+     *                   ({@code max_seq_length} of {@code sentence_bert_config.json}); {@code null}
+     *                   when it does not
      */
-    public record Source(String repository, String revision, List<ModelCatalog.File> files, String pooling) {
+    public record Source(String repository, String revision, List<ModelCatalog.File> files, String pooling,
+                         Integer maxTokens) {
+
+        public Source(String repository, String revision, List<ModelCatalog.File> files, String pooling) {
+            this(repository, revision, files, pooling, null);
+        }
     }
 
     /** The default file of the graph in a repository. */
@@ -106,7 +114,8 @@ public final class HuggingFace {
                     + repository + " next to " + graph + " or at its root; name one with --tokenizer"));
         }
         files.add(file(tokenizerEntry, OnnxEmbeddingModel.TOKENIZER_FILE));
-        return new Source(repository, sha, List.copyOf(files), pooling(http, base, repository, sha));
+        return new Source(repository, sha, List.copyOf(files), pooling(http, base, repository, sha),
+                maxTokens(http, base, repository, sha));
     }
 
     /**
@@ -177,6 +186,19 @@ public final class HuggingFace {
         String lower = name.toLowerCase(Locale.ROOT);
         return !lower.startsWith(".") && !lower.endsWith(".onnx") && !lower.endsWith(".json")
                 && !lower.endsWith(".md") && !lower.endsWith(".txt") && !lower.endsWith(".model");
+    }
+
+    /** {@code max_seq_length} of the sentence-transformers configuration, when there is one. */
+    private static Integer maxTokens(HttpClient http, String base, String repository, String sha)
+            throws IOException, InterruptedException {
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(
+                        URI.create(url(base, repository, sha, "sentence_bert_config.json")))
+                .timeout(Duration.ofMinutes(1)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            return null;
+        }
+        int length = JSON.readTree(response.body()).path("max_seq_length").asInt(0);
+        return length > 0 ? length : null;
     }
 
     private static String pooling(HttpClient http, String base, String repository, String sha)
