@@ -66,7 +66,7 @@ The server speaks MCP over stdio. Register it in an MCP client as
 | Tool | Group | What it does |
 |---|---|---|
 | `listCollections` | `collections` | Collections of this server, their descriptions and filter fields |
-| `search` | `search` | Passages matching a query and filters in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
+| `search` | `search` | Passages matching a query, filters and a filter expression in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 

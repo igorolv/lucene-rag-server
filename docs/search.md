@@ -57,20 +57,55 @@ The rules below are those of the lexical part: `lexical` mode and the BM25 list 
 - **Case** does not matter, and `ё` matches `е`.
 - Common **stop words** (`и`, `в`, `the`, …) are ignored; a query of stop words alone finds
   nothing.
-- **No wildcards, fuzzy matching or boolean operators.**
+- **No wildcards, fuzzy matching or boolean operators** in the query; conditions on fields are
+  [filters](#filters).
 - A query has at most 1,000 characters.
 
 ## Filters
 
-`filters` maps a field name to a value every result must have: `{"kind": "article"}`.
+Two arguments of `search` select records by their fields; a call may give either, both or
+neither.
 
-- Fields are the front matter keys of the documents ([collections.md](collections.md#markdown));
-  `listCollections` returns the names available in each collection.
-- A value matches exactly, without regard to case. A field with several values matches when one
-  of them equals the filter.
-- Several filters must all hold. An unknown field name is an error that lists the known ones.
-- With filters the query may be omitted: the call then lists the matching records in index order.
-- Filters apply to every mode: the vector list holds only records that pass them.
+- `filters` maps a field name to a value every result must have: `{"kind": "article"}`. Several
+  entries must all hold.
+- `filterExpression` is a condition in the filter syntax of Spring AI, for what a map cannot say:
+  `kind == 'playbook' || tags in ['refunds', 'payments']`. With both, the expression must hold
+  together with the map.
+
+What applies to both:
+
+- Fields are the document fields of the records ([collections.md](collections.md#mapping));
+  `listCollections` returns the names available in each collection. An unknown field name is an
+  error that lists the known ones.
+- A value matches exactly, without regard to case and surrounding blanks. A field with several
+  values matches when one of them equals the value.
+- With filters or an expression the query may be omitted: the call then lists the matching records
+  in index order.
+- They apply to every mode: the vector list holds only records that pass them.
+
+### Filter expressions
+
+| Write | Holds when |
+|---|---|
+| `kind == 'article'` | the field has the value |
+| `kind != 'article'` | the field does not have the value; a record without the field holds |
+| `tags in ['refunds', 'payments']` | the field has one of the values |
+| `tags nin ['refunds']` | the field has none of the values; a record without the field holds |
+| `tables IS NULL`, `tables IS NOT NULL` | the record has no value of the field, or has one |
+| `id >= 'playbook'`, also `>`, `<`, `<=` | a value of the field sorts after or before this text |
+| `a && b`, `a AND b` | both hold |
+| `a \|\| b`, `a OR b` | either holds |
+| `NOT (a)` | `a` does not hold; parentheses group conditions |
+
+- Values are in single or double quotes. A number or `true`/`false` without quotes is compared as
+  the text it is written as: `year == 2026` is `year == '2026'`.
+- `<`, `<=`, `>` and `>=` compare text, ignoring case, so `'10' < '9'`. They take quoted values
+  only and suit values of one width, such as dates written `2026-01-01`; a number without quotes
+  is an error.
+- An expression has at most 1,000 characters. One that does not parse is an error with an
+  example.
+- The syntax is Spring AI's `FilterExpressionTextParser`; the server turns the parsed expression
+  into a Lucene query.
 
 ## Exact lookup
 
@@ -131,6 +166,10 @@ java -jar lucene-rag-server.jar rag-search docs@billing,api@billing --filter kin
 ```
 
 ```bash
+java -jar lucene-rag-server.jar rag-search docs@billing --filter-expression "kind == 'article' && tags in ['refunds']"
+```
+
+```bash
 java -jar lucene-rag-server.jar rag-search docs@billing "деньги вернулись клиенту" --mode vector
 ```
 
@@ -139,11 +178,12 @@ java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STA
 ```
 
 The first argument is one or more collection names separated by commas; the remaining words are the
-query. `--filter name=value` may be repeated. `--mode lexical|vector|hybrid` chooses the
+query. `--filter name=value` may be repeated; `--filter-expression` takes one
+[filter expression](#filter-expressions). `--mode lexical|vector|hybrid` chooses the
 [mode](#modes); without it the default applies, and the last line names the mode used.
-`--lookup value` makes an [exact lookup](#exact-lookup) instead and takes no query, no filters and
-no mode. Exit codes: 0 searched (also with no matches), 1 unexpected error, 2 wrong usage or an
-unknown collection, filter field or mode, 4 an index could not be read, 5 the embedding model of a
+`--lookup value` makes an [exact lookup](#exact-lookup) instead and takes no query, no filters, no
+expression and no mode. Exit codes: 0 searched (also with no matches), 1 unexpected error, 2 wrong
+usage, an unknown collection, filter field or mode, or an expression that does not parse, 4 an index could not be read, 5 the embedding model of a
 collection is missing or is not the one it was built with.
 
 ## Known limits

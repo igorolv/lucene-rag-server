@@ -29,7 +29,7 @@ public record CollectionInfo(
         @Schema(description = "When the index was built, ISO-8601 UTC",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String builtAt,
-        @Schema(description = "Field names accepted by the 'filters' argument of search",
+        @Schema(description = "Field names accepted by the 'filters' and 'filterExpression' arguments of search",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> fields,
         @Schema(description = "Fields whose values the lookup tool finds records by; absent when none",

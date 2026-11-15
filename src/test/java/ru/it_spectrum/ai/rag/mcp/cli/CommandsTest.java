@@ -114,6 +114,10 @@ class CommandsTest {
         assertThat(search(DOCS, "--filter", "kind=playbook")).isZero();
 
         assertThat(output()).contains("Платёж не привязался к счёту › Симптом").doesNotContain("Возвраты");
+
+        assertThat(search(DOCS, "--filter-expression", "tags in ['refunds'] && kind == 'article'")).isZero();
+        String second = output().substring(output().indexOf("RESULT: OK") + 1);
+        assertThat(second).contains("Возвраты").doesNotContain("Платёж не привязался");
     }
 
     @Test
@@ -128,5 +132,8 @@ class CommandsTest {
         assertThat(output()).contains("Unknown collection 'nope'");
         assertThat(search(DOCS, "x", "--filter", "colour=red")).isEqualTo(2);
         assertThat(output()).contains("Unknown filter field 'colour'");
+        assertThat(search(DOCS, "--filter-expression", "kind ==")).isEqualTo(2);
+        assertThat(output()).contains("not a filter expression");
+        assertThat(search(DOCS, "--lookup", "x", "--filter-expression", "kind == 'a'")).isEqualTo(2);
     }
 }

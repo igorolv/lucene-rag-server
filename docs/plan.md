@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D32, proposals as P1…P16).
+reasons are in `docs/decisions.md` (cited here as D1…D32, proposals as P1…P17).
 
 ## 1. Idea
 
@@ -25,19 +25,20 @@ by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL and SQ
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
 named reader and select its records with `where`; catalog records are found by an exact value of
 their key fields; a collection with `vectors` gets an embedding of every record from an in-process
-ONNX model, used through Spring AI's `EmbeddingModel` (D29).
+ONNX model, used through Spring AI's `EmbeddingModel` (D29); search filters take Spring AI filter
+expressions next to the map of field to value (D30).
 
 - Implemented: the collections file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
   converter, the formats `markdown`, `tsv`, `yaml`, `jsonl` and `sql`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
-  filters and snippets; exact lookup by key fields; server-side response limits; the commands
+  filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index` (in a Spring context without the MCP server) and `rag-search`; the tool groups
   `collections` (`listCollections`), `search` (`search`, `getDocument`) and `lookup` (`lookup`);
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (132 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (137 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -247,7 +248,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
-| `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `SearchMode`, `SearchHit`, `SearchPage` |
+| `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, each type a loader of an `EmbeddingModel` with its `ModelInfo`; loaded once, checked against a manifest), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `EmbeddingCache`, `ModelUnavailableException` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
@@ -281,14 +282,15 @@ D28 with its reason.
 |---|---|---|
 | MCP server, tools | `spring-ai-starter-mcp-server`, `@McpTool` | used |
 | Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29) | used; no remote type yet |
-| Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30) | not implemented |
+| Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31) | not implemented |
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | not implemented |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
-Dependencies these decisions allow: `spring-ai-model` (declared), and, each with the work that
-needs it, `spring-ai-vector-store`, `spring-ai-tika-document-reader`,
+Dependencies these decisions allow: `spring-ai-model` and `spring-ai-vector-store` (declared;
+the latter brings nothing the build did not have), and, each with the work that needs it,
+`spring-ai-tika-document-reader`,
 `spring-ai-pdf-document-reader` and `spring-ai-jsoup-document-reader`.
 
 - A model type is one entry of the loaders `EmbeddingModels` is built with: it returns an
@@ -296,6 +298,8 @@ needs it, `spring-ai-vector-store`, `spring-ai-tika-document-reader`,
   type is added.
 - A model reports the inputs it cut under the response metadata key `truncated`
   (`Embeddings.TRUNCATED`); a model that does not is taken to have cut nothing.
+- The `filters` map of `search` is turned into a Spring AI expression (equality joined by "and")
+  and joined to `filterExpression` by "and", so one conversion serves both.
 - `EmbeddingModel.call` throws no checked exception; `VectorModel` turns a failure into the
   `IOException` the indexer and search expect.
 
@@ -310,7 +314,7 @@ done here. A stage is taken only when the user asks for it.
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
-| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29 done 2026-11-15; D30–D32 ⬜ |
+| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29, D30 done 2026-11-15; D31, D32 ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
@@ -395,7 +399,6 @@ speed up kNN); not measured.
 - How the assistant service connects to this server and to other MCP servers (D1).
 - Which model and API the target site provides; whether it has an embedding endpoint (a Spring AI
   `EmbeddingModel` registered as a second model type, D11, D29).
-- Whether the present map of field to value stays next to filter expressions in `search` (D30).
 - When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
 - Which of the Spring AI readers of D32 is added first, and whether its unstructured text is
   enough where a `convert` command with Pandoc gives Markdown with headings (D17).

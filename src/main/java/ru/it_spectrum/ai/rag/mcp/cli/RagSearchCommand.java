@@ -22,8 +22,8 @@ import java.util.Map;
  * Spring and never opens the MCP transport. Uses the same search and the same limits as the
  * {@code search} tool.
  *
- * <p>Exit codes: 0 searched (also when nothing matched), 1 unexpected error, 2 usage or an
- * unknown collection or filter, 4 an index could not be read, 5 the embedding model a vector or
+ * <p>Exit codes: 0 searched (also when nothing matched), 1 unexpected error, 2 usage, an unknown
+ * collection or filter field or a filter expression that does not parse, 4 an index could not be read, 5 the embedding model a vector or
  * hybrid search needs is missing or is not the one the collection was built with.
  */
 public final class RagSearchCommand {
@@ -54,6 +54,7 @@ public final class RagSearchCommand {
         Integer limit = null;
         String lookup = null;
         String mode = null;
+        String expression = null;
         Map<String, String> filters = new LinkedHashMap<>();
         List<String> positional = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
@@ -62,7 +63,7 @@ public final class RagSearchCommand {
                 usage(out);
                 return 0;
             }
-            if (List.of("--limit", "--filter", "--lookup", "--mode").contains(arg)) {
+            if (List.of("--limit", "--filter", "--filter-expression", "--lookup", "--mode").contains(arg)) {
                 if (i + 1 >= args.length) {
                     usage(out);
                     return 2;
@@ -72,6 +73,8 @@ public final class RagSearchCommand {
                     lookup = value;
                 } else if ("--mode".equals(arg)) {
                     mode = value;
+                } else if ("--filter-expression".equals(arg)) {
+                    expression = value;
                 } else if ("--limit".equals(arg)) {
                     try {
                         limit = Integer.valueOf(value);
@@ -92,8 +95,9 @@ public final class RagSearchCommand {
             }
         }
         boolean byLookup = lookup != null;
-        if (positional.isEmpty() || (byLookup && (positional.size() > 1 || !filters.isEmpty() || mode != null))
-                || (!byLookup && positional.size() == 1 && filters.isEmpty())) {
+        boolean filtered = !filters.isEmpty() || expression != null;
+        if (positional.isEmpty() || (byLookup && (positional.size() > 1 || filtered || mode != null))
+                || (!byLookup && positional.size() == 1 && !filtered)) {
             usage(out);
             return 2;
         }
@@ -105,7 +109,7 @@ public final class RagSearchCommand {
             SearchService service = new SearchService(new CollectionStore(properties.resolvedDataDir()), properties,
                     models);
             page = byLookup ? service.lookup(collections, lookup, limit, null)
-                    : service.search(collections, query, filters, limit, null, mode);
+                    : service.search(collections, query, filters, expression, limit, null, mode);
         } catch (ModelUnavailableException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 5;
@@ -136,10 +140,12 @@ public final class RagSearchCommand {
 
     private static void usage(PrintStream out) {
         out.println("Usage: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] <query>"
-                + " [--limit N] [--filter name=value]... [--mode lexical|vector|hybrid]");
+                + " [--limit N] [--filter name=value]... [--filter-expression \"<expression>\"]"
+                + " [--mode lexical|vector|hybrid]");
         out.println("Without --mode: hybrid for collections with vectors, lexical for the others.");
         out.println("Searches built collections. Words are optional, \"quoted words\" are a phrase.");
-        out.println("With --filter the query may be omitted to list matching records.");
+        out.println("--filter-expression takes Spring AI filter syntax: kind == 'article' && tags in ['refunds'].");
+        out.println("With --filter or --filter-expression the query may be omitted to list matching records.");
         out.println("   or: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] --lookup <value>"
                 + " [--limit N]");
         out.println("Finds records whose key fields (map.keys) have the exact value, ignoring case.");

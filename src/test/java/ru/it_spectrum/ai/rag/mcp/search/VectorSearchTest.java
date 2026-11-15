@@ -122,6 +122,11 @@ class VectorSearchTest {
 
         assertThat(page.hits()).isNotEmpty()
                 .allSatisfy(hit -> assertThat(hit.id()).startsWith("playbook.billing.payment-not-matched#"));
+
+        SearchPage byExpression = search.search(List.of(DOCS), "платёж", null, "kind != 'article'", 50, null,
+                "hybrid");
+        assertThat(byExpression.hits()).isNotEmpty()
+                .allSatisfy(hit -> assertThat(hit.id()).startsWith("playbook.billing.payment-not-matched#"));
     }
 
     @Test

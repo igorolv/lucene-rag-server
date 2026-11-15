@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -122,6 +124,64 @@ class SearchServiceTest {
         assertThatThrownBy(() -> search.search(List.of(DOCS), "платёж", Map.of("colour", "red"), null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("colour").hasMessageContaining("kind, subsystem");
+    }
+
+    private static Set<String> documents(String expression) throws IOException {
+        return documents(null, expression);
+    }
+
+    private static Set<String> documents(Map<String, String> filters, String expression) throws IOException {
+        return search.search(List.of(DOCS), null, filters, expression, 50, null, null).hits().stream()
+                .map(SearchHit::document).collect(Collectors.toSet());
+    }
+
+    private static final String PAYMENTS = "article.billing.payments";
+    private static final String REFUNDS = "article.billing.refunds";
+    private static final String PLAYBOOK = "playbook.billing.payment-not-matched";
+
+    @Test
+    void aFilterExpressionCombinesConditionsWithOrAndLists() throws IOException {
+        assertThat(documents("kind == 'Playbook' || tags in ['refunds']")).containsExactlyInAnyOrder(PLAYBOOK, REFUNDS);
+        assertThat(documents("kind == 'article' && (tags == 'payments' || tables == 'refund')"))
+                .containsExactlyInAnyOrder(PAYMENTS, REFUNDS);
+        assertThat(documents("kind == 'article' AND tags == 'refunds'")).containsExactly(REFUNDS);
+    }
+
+    @Test
+    void negationsIncludeRecordsWithoutTheField() throws IOException {
+        assertThat(documents("kind != 'article'")).containsExactly(PLAYBOOK);
+        assertThat(documents("NOT (tags == 'payments')")).containsExactly(REFUNDS);
+        assertThat(documents("tables nin ['invoice']")).containsExactlyInAnyOrder(REFUNDS, PLAYBOOK);
+        assertThat(documents("tables IS NULL")).containsExactly(PLAYBOOK);
+        assertThat(documents("tables IS NOT NULL")).containsExactlyInAnyOrder(PAYMENTS, REFUNDS);
+    }
+
+    @Test
+    void rangesCompareTextAndRejectNumbers() throws IOException {
+        assertThat(documents("id >= 'playbook'")).containsExactly(PLAYBOOK);
+        assertThat(documents("id < 'article.billing.r'")).containsExactly(PAYMENTS);
+        assertThatThrownBy(() -> documents("id > 5"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("in quotes");
+    }
+
+    @Test
+    void anExpressionMustHoldTogetherWithTheFiltersMap() throws IOException {
+        assertThat(documents(Map.of("kind", "article"), "tags == 'refunds' || tags == 'payments'"))
+                .containsExactlyInAnyOrder(PAYMENTS, REFUNDS);
+        assertThat(documents(Map.of("kind", "playbook"), "tags == 'refunds'")).isEmpty();
+        assertThat(search.search(List.of(DOCS), "платёж", null, "kind == 'playbook'", 50, null, null).hits())
+                .isNotEmpty().allSatisfy(hit -> assertThat(hit.document()).isEqualTo(PLAYBOOK));
+    }
+
+    @Test
+    void aBadExpressionIsReported() {
+        assertThatThrownBy(() -> documents("colour == 'red'"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown filter field 'colour'").hasMessageContaining("kind, subsystem");
+        assertThatThrownBy(() -> documents("kind = = 'article'"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not a filter expression");
+        assertThatThrownBy(() -> documents("kind == 'x' || ".repeat(100)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("longer than");
     }
 
     @Test

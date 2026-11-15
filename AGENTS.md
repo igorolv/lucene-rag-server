@@ -10,7 +10,8 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
 `hybrid` search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
-`EmbeddingModel`; the rest of the Spring AI alignment (`docs/plan.md` section 3.7) and measurement
+`EmbeddingModel` and search filters take Spring AI filter expressions; the rest of the Spring AI
+alignment (`docs/plan.md` section 3.7) and measurement
 (stage 4) are next.
 
 ## Repository contents

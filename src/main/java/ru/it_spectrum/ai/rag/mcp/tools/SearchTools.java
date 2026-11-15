@@ -53,6 +53,11 @@ public class SearchTools {
             @McpToolParam(description = "Exact field values every result must have, e.g. {\"kind\": \"article\"}. " +
                     "Field names come from listCollections", required = false)
             Map<String, String> filters,
+            @McpToolParam(description = "Conditions on fields when filters are not enough, in the Spring AI filter " +
+                    "syntax: ==, !=, in [...], nin [...], <, <=, >, >= on quoted text, && (or AND), || (or OR), NOT, " +
+                    "parentheses, values in single quotes, e.g. kind == 'article' && tags in ['refunds', 'payments']. " +
+                    "Values compare ignoring case; must hold together with filters", required = false)
+            String filterExpression,
             @McpToolParam(description = "Page size; the server applies its own default and maximum", required = false)
             Integer limit,
             @McpToolParam(description = "nextOffset of the previous page", required = false)
@@ -60,15 +65,17 @@ public class SearchTools {
             @McpToolParam(description = "lexical, vector or hybrid. Omit for hybrid on collections with vectors " +
                     "and lexical on the others; listCollections shows the modes of each collection", required = false)
             String mode) {
-        log.info("Tool call: search collections={} queryChars={} filters={} limit={} offset={} mode={}",
-                collections, query == null ? 0 : query.length(), filters == null ? List.of() : filters.keySet(),
+        log.info("Tool call: search collections={} queryChars={} filters={} filterExpressionChars={} limit={} offset={}"
+                        + " mode={}", collections, query == null ? 0 : query.length(),
+                filters == null ? List.of() : filters.keySet(), filterExpression == null ? 0 : filterExpression.length(),
                 limit, offset, mode);
-        if ((query == null || query.isBlank()) && (filters == null || filters.isEmpty())) {
-            throw new IllegalArgumentException("Give a query, filters or both");
+        if ((query == null || query.isBlank()) && (filters == null || filters.isEmpty())
+                && (filterExpression == null || filterExpression.isBlank())) {
+            throw new IllegalArgumentException("Give a query, filters, a filterExpression or several of them");
         }
         final SearchPage page;
         try {
-            page = search.search(collections, query, filters, limit, offset, mode);
+            page = search.search(collections, query, filters, filterExpression, limit, offset, mode);
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }

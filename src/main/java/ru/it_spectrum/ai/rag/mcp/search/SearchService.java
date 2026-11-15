@@ -23,6 +23,7 @@ import org.apache.lucene.search.uhighlight.DefaultPassageFormatter;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.springframework.ai.vectorstore.filter.Filter;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelParameters;
@@ -53,7 +54,9 @@ import java.util.stream.Collectors;
  *   <li>The query is plain words; {@code "quoted words"} are a phrase. Words are optional: a
  *       record matching more of them, or matching them in its title, ranks higher (BM25), so a
  *       question in natural language still finds its passage.</li>
- *   <li>Filters are exact matches on document fields, case-insensitive; every filter must hold.</li>
+ *   <li>Filters are exact matches on document fields, case-insensitive; every filter must hold. A
+ *       filter expression of Spring AI adds "or", "not", lists and text ranges
+ *       ({@link FilterQueries}); it must hold together with the filters.</li>
  *   <li>Several collections are searched as one index, with shared term statistics.</li>
  *   <li>The number of results and the total size of the returned text are capped by the server
  *       settings whatever a call asks for.</li>
@@ -102,13 +105,21 @@ public final class SearchService {
     /** A search in the default mode. */
     public SearchPage search(List<String> collections, String query, Map<String, String> filters,
                              Integer limit, Integer offset) throws IOException {
-        return search(collections, query, filters, limit, offset, null);
+        return search(collections, query, filters, null, limit, offset, null);
+    }
+
+    /** A search without a filter expression. */
+    public SearchPage search(List<String> collections, String query, Map<String, String> filters,
+                             Integer limit, Integer offset, String mode) throws IOException {
+        return search(collections, query, filters, null, limit, offset, mode);
     }
 
     /**
      * @param collections names of built collections; at least one
      * @param query       words to look for; blank lists the records matching the filters
      * @param filters     field name to required value; may be {@code null}
+     * @param filterExpression a Spring AI filter expression in its text syntax; blank or
+     *                    {@code null} for none (docs/decisions.md D30)
      * @param limit       page size; {@code null} for the server default, capped by the server maximum
      * @param offset      results to skip; {@code null} for none
      * @param mode        {@code lexical}, {@code vector} or {@code hybrid}; blank for hybrid when a
@@ -117,7 +128,7 @@ public final class SearchService {
      * @throws ModelUnavailableException when the model of a collection is needed and cannot be used
      */
     public SearchPage search(List<String> collections, String query, Map<String, String> filters,
-                             Integer limit, Integer offset, String mode) throws IOException {
+                             String filterExpression, Integer limit, Integer offset, String mode) throws IOException {
         SearchMode requested = SearchMode.parse(mode);
         List<Manifest> manifests = resolve(collections);
         String text = query == null ? "" : query.strip();
@@ -126,32 +137,32 @@ public final class SearchService {
         }
         Query textQuery = text.isEmpty() ? null : parse(text);
         SearchMode effective = effectiveMode(requested, manifests, textQuery != null);
+        Query filter = filter(manifests, filters, filterExpression);
         var builder = new BooleanQuery.Builder();
         builder.add(textQuery == null ? new MatchAllDocsQuery() : textQuery, BooleanClause.Occur.MUST);
-        var filterBuilder = new BooleanQuery.Builder();
-        boolean filtered = false;
-        if (filters != null) {
-            Set<String> known = manifests.stream().flatMap(m -> m.fields().stream()).collect(Collectors.toSet());
-            for (var filter : filters.entrySet()) {
-                if (filter.getValue() == null || filter.getValue().isBlank()) {
-                    continue;
-                }
-                if (!known.contains(filter.getKey())) {
-                    throw new IllegalArgumentException("Unknown filter field '" + filter.getKey()
-                            + "'. Fields of the searched collections: " + String.join(", ", new java.util.TreeSet<>(known)));
-                }
-                Query term = new TermQuery(new Term(IndexFields.FILTER_PREFIX + filter.getKey(),
-                        CollectionIndexer.filterTerm(filter.getValue())));
-                builder.add(term, BooleanClause.Occur.FILTER);
-                filterBuilder.add(term, BooleanClause.Occur.FILTER);
-                filtered = true;
-            }
+        if (filter != null) {
+            builder.add(filter, BooleanClause.Occur.FILTER);
         }
         if (effective == SearchMode.LEXICAL) {
             return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL);
         }
-        return fused(manifests, effective, text, builder.build(), filtered ? filterBuilder.build() : null,
-                textQuery, limit, offset);
+        return fused(manifests, effective, text, builder.build(), filter, textQuery, limit, offset);
+    }
+
+    /**
+     * The filters and the filter expression as one Lucene query, or {@code null} for none. The map
+     * is the equality conditions of a Spring AI expression joined by "and".
+     */
+    private static Query filter(List<Manifest> manifests, Map<String, String> filters, String filterExpression) {
+        Filter.Expression expression = FilterQueries.of(filters);
+        if (filterExpression != null && !filterExpression.isBlank()) {
+            expression = FilterQueries.and(expression, FilterQueries.parse(filterExpression.strip()));
+        }
+        if (expression == null) {
+            return null;
+        }
+        Set<String> known = manifests.stream().flatMap(m -> m.fields().stream()).collect(Collectors.toSet());
+        return new FilterQueries(known).query(expression);
     }
 
     /** The mode a search runs in, or why the requested one cannot. */
