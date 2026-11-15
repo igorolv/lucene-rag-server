@@ -34,6 +34,12 @@ import java.util.regex.Pattern;
  *
  * <p>A unit carries the values {@link Unit#HEADING}, {@link Unit#PARENTS}, {@link Unit#BODY} and
  * one {@code heading.<group>} per named group of the heading pattern that matched.
+ *
+ * <p>With {@code tableRows} every body row of a Markdown table in a unit becomes a unit instead,
+ * and the rest of the unit is left out. A row keeps the heading values of its section, has that
+ * section as the last of its parents, the cells as {@code column.<n>} from 1 and as
+ * {@code column.<header>} when the header cell is a name, its position in the table as
+ * {@code row}, and a table of the header and the row alone as {@code body}.
  */
 @Component
 public final class HeadingSplitter implements Splitter {
@@ -59,7 +65,38 @@ public final class HeadingSplitter implements Splitter {
             }
             drafts = merge(drafts, settings);
         }
+        if (settings.tableRows()) {
+            drafts = rows(drafts);
+        }
         return drafts.stream().map(Draft::toUnit).toList();
+    }
+
+    private static final Pattern COLUMN_NAME = Pattern.compile("[A-Za-z0-9_.-]+");
+
+    /** The table rows of the drafts, each a draft of its own. */
+    private static List<Draft> rows(List<Draft> drafts) {
+        List<Draft> rows = new ArrayList<>();
+        for (Draft draft : drafts) {
+            List<String> ancestors = new ArrayList<>(draft.ancestors);
+            if (!draft.intro && draft.heading != null && !draft.heading.isEmpty() && draft.level > 0) {
+                ancestors.add(draft.heading);
+            }
+            for (TableRows.Row row : TableRows.of(draft.text.toString())) {
+                Map<String, String> cells = new LinkedHashMap<>();
+                for (int i = 0; i < row.cells().size(); i++) {
+                    String cell = row.cells().get(i);
+                    cells.put(Unit.COLUMN + (i + 1), cell);
+                    String name = i < row.header().size() ? row.header().get(i) : "";
+                    if (COLUMN_NAME.matcher(name).matches() && !name.chars().allMatch(Character::isDigit)) {
+                        cells.putIfAbsent(Unit.COLUMN + name, cell);
+                    }
+                }
+                cells.put(Unit.ROW, String.valueOf(row.number()));
+                rows.add(new Draft(List.copyOf(ancestors), draft.level, draft.heading, draft.groups, row.text(),
+                        false, cells));
+            }
+        }
+        return rows;
     }
 
     private static void collect(Section section, List<String> ancestors, int splitLevel, Pattern pattern,
@@ -136,15 +173,23 @@ public final class HeadingSplitter implements Splitter {
         final Map<String, String> groups;
         final StringBuilder text;
         final boolean intro;
+        /** Further unit values: the cells of a table row. */
+        final Map<String, String> extra;
 
         Draft(List<String> ancestors, int level, String heading, Map<String, String> groups, String text,
               boolean intro) {
+            this(ancestors, level, heading, groups, text, intro, Map.of());
+        }
+
+        Draft(List<String> ancestors, int level, String heading, Map<String, String> groups, String text,
+              boolean intro, Map<String, String> extra) {
             this.ancestors = ancestors;
             this.level = level;
             this.heading = heading;
             this.groups = groups;
             this.text = new StringBuilder(text);
             this.intro = intro;
+            this.extra = extra;
         }
 
         Unit toUnit() {
@@ -153,6 +198,7 @@ public final class HeadingSplitter implements Splitter {
             groups.forEach((name, value) -> values.put(Unit.HEADING_GROUP + name, one(value)));
             values.put(Unit.PARENTS, one(String.join(ChunkRecord.BREADCRUMB_SEPARATOR, ancestors)));
             values.put(Unit.BODY, one(text.toString()));
+            extra.forEach((name, value) -> values.put(name, one(value)));
             return new Unit(ancestors, intro, values);
         }
 

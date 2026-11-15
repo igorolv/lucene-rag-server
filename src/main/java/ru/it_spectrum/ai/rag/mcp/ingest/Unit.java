@@ -21,8 +21,13 @@ public record Unit(List<String> ancestors, boolean intro, Map<String, List<Strin
     public static final String PARENTS = "parents";
     /** The text of the unit: the sections of a tree format, the file or list item of YAML. */
     public static final String BODY = "body";
-    /** Position of the unit among the units of its item, from 1. Row formats. */
+    /**
+     * Position of the unit among the units of its item, from 1, in a row format; position of a
+     * table row in its table with {@code split.tableRows}.
+     */
     public static final String ROW = "row";
+    /** Prefix of the cells of a table row: {@code column.<n>} by position from 1, {@code column.<name>} by header. */
+    public static final String COLUMN = "column.";
 
     /** First value of a name, or an empty string. */
     public String value(String name) {

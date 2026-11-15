@@ -40,7 +40,8 @@ final class TemplateCheck {
     static void check(MapSettings map, SplitSettings split, Format format) {
         Check check = new Check(format.valueNames(),
                 split.headingPattern() == null ? Set.of() : split.compiledHeadingPattern().namedGroups().keySet(),
-                map.pathPattern() == null ? Set.of() : map.compiledPathPattern().namedGroups().keySet());
+                map.pathPattern() == null ? Set.of() : map.compiledPathPattern().namedGroups().keySet(),
+                split.tableRows());
         check.template("map.document", map.document(), 0);
         check.template("map.title", map.title(), 1);
         if (map.breadcrumb() != null) {
@@ -78,7 +79,7 @@ final class TemplateCheck {
         }
     }
 
-    private record Check(ValueNames names, Set<String> headingGroups, Set<String> pathGroups) {
+    private record Check(ValueNames names, Set<String> headingGroups, Set<String> pathGroups, boolean tableRows) {
 
         void template(String where, String template, int stage) {
             if (template == null) {
@@ -128,6 +129,7 @@ final class TemplateCheck {
         private boolean unitValue(String name) {
             return TITLE.contains(name)
                     || (names.tree() ? TREE_TITLE.contains(name)
+                    || tableRows && (Unit.ROW.equals(name) || prefixed(Set.of(Unit.COLUMN), name))
                     : names.unitNames().contains(name) || prefixed(names.unitPrefixes(), name));
         }
 

@@ -106,7 +106,7 @@ class RowFormatsTest {
         Unit second = rows.units().get(1);
         assertThat(second.value("record.id")).isEqualTo("q-0002");
         assertThat(second.values().get("record.expected"))
-                .containsExactly("article.billing.refunds", "catalogs/messages/messages-billing.tsv");
+                .containsExactly("article.billing.refunds", "data:PAYMENT");
         assertThat(second.value("row")).isEqualTo("2");
         assertThat(rows.units().get(2).values()).as("nested objects are skipped").doesNotContainKey("record.meta");
     }

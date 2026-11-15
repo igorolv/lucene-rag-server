@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D35, proposals as P1…P16).
+reasons are in `docs/decisions.md` (cited here as D1…D37, proposals as P1…P21).
 
 ## 1. Idea
 
@@ -34,19 +34,20 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql` and `pdf`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
-  `rag-index` (in a Spring context without the MCP server) and `rag-search`; the tool groups
+  `rag-index` (in a Spring context without the MCP server), `rag-search` and `rag-eval`; the tool groups
   `collections` (`listCollections`), `search` (`search`, `getDocument`) and `lookup` (`lookup`);
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (148 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (158 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
   `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where`, `lookup` and the vectors were checked by
   building collections from the first real corpus (numbers in section 4, stages 2 and 3). Requirement files without front matter (stage 1: 141 files, 601 records) have not
   been rebuilt on the pipeline.
-- Not measured: search quality beyond the first check of stage 3. That is stage 4.
+- Measured: one question set of the first corpus with `rag-eval` (stage 4, section 4); tuning is
+  not done.
 
 In section 3, the tool groups after `lookup`, the remote embedding endpoint, the allowed
 collections and the rows of section 3.7 marked "not implemented" are the target design.
@@ -77,7 +78,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 | origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
 | `format` | text → section tree or rows; a binary format reads the file instead (D34) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf` (Spring AI reader, D32) |
-| `split` | section tree → units | `split` | one: by heading level and pattern |
+| `split` | section tree → units | `split` | one: by heading level and pattern, optionally into table rows (D37) |
 | `map` | unit → records | `map` | one: templates (D14) |
 
 - Three shapes travel between the steps: **text** (with the item's relative path), a **section
@@ -231,7 +232,8 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 ```
 tools/ ──► search/ ──► index/
   └──────► collections/, ingest/    (listCollections shows collections that are not built)
-cli/ ───► collections/, ingest/, index/, search/, embedding/
+cli/ ───► collections/, ingest/, index/, search/, embedding/, eval/
+eval/ ──► search/                              (question sets, references, measures)
 index/ ──► document/ ──► ingest/ ──► collections/   (build: list, convert, parse, split, map, write)
 search/, index/ ──► embedding/                (embed queries and records; the cache)
 api/     — MCP wire records returned by tools
@@ -245,14 +247,15 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |
 | `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, `SqlFormat`, and `PdfFormat` (Spring AI's `PagePdfDocumentReader`, reads the file) |
-| `ingest/split/` | `HeadingSplitter` |
+| `ingest/split/` | `HeadingSplitter`, `TableRows` (the rows of Markdown tables, D37) |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`) |
 | `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, each type a loader of an `EmbeddingModel` with its `ModelInfo`; loaded once, checked against a manifest), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `EmbeddingCache`, `ModelUnavailableException` |
-| `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
+| `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
+| `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts |
 | `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools` |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig` |
@@ -327,11 +330,30 @@ done here. A stage is taken only when the user asks for it.
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
-| 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
+| 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
-Stage 3, done 2026-11-15 (D24–D27); the next stage is 4:
+Stage 4, in progress:
+
+1. Done 2026-11-15: `rag-eval` (P20, P21), the measuring command; user description in
+   `docs/search.md`, "Measuring search". On the question set of the first corpus (20 questions:
+   10 expect a Markdown document, the others tables by `data:`, requirements by `spec:` and
+   symptoms by `symptom:`) it reproduces the check of stage 3 on the Markdown collection: MRR 0.80,
+   0.60 and 0.85 for lexical, vector and hybrid. With a collection of the 16 YAML table
+   descriptions (29 records, 19 of them longer than 512 tokens) and `--ref data=table`, 12
+   questions are measured: MRR 0.71, 0.50 and 0.71, recall@10 0.67, 0.56 and 0.56; the 9 `spec:`
+   and 8 `symptom:` references then named nothing indexed.
+2. Done 2026-11-15: `spec:` references stay unreachable (D36); symptoms are indexed as table
+   rows (D37). With the 35 symptoms as a third collection and `--ref symptom=number`, 17 of 20
+   questions are measured: MRR 0.67, 0.53 and 0.66, recall@10 0.69, 0.69 and 0.72 for lexical,
+   vector and hybrid; 15 of 17 are found within 10 in every mode.
+3. Next: tune
+   `split.maxChars` (12% of the Markdown records and most table records exceed the 512 tokens of
+   E5) and the text of table records; limits for a small-context model; the reranker decision
+   (D12).
+
+Stage 3, done 2026-11-15 (D24–D27):
 
 - Dependencies: ONNX Runtime 1.20.0 (pinned because later versions do not load on Windows with
   the C++ runtime JDKs ship, D24) and DJL Hugging Face tokenizers 0.40.0; the jar manifest has

@@ -310,11 +310,43 @@ The same steps written once as a [named reader](#named-readers):
 | `maxChars` | `2500` | A longer text is split at blank lines, then at line ends, then inside a line; every part is a record |
 | `minChars` | `0` | A shorter unit is joined to the previous one under the same parent heading. `0` joins nothing |
 | `list` | none | YAML only: the top-level key whose list items become units. Without it a YAML file is one unit. Any other format reports it as a configuration error |
+| `tableRows` | `false` | Markdown only: every row of a table in a unit becomes a unit of its own, and the rest of the unit is left out ([Table rows](#table-rows)) |
 
 - Without a pattern, a section above `level` contributes its own text as a unit, and text before
   the first heading is a unit too. A heading without text of its own yields nothing.
 - Raising `minChars` makes fewer, larger records, but a joined section loses its own title and
   breadcrumb, which is what a query usually matches.
+
+### Table rows
+
+With `"tableRows": true` a Markdown source makes one record of each row of its tables: a list of
+symptoms, of error codes or of settings kept as a table in a document.
+
+```json
+{ "path": "C:/projects/billing/knowledge/queue/symptoms.md",
+  "split": { "tableRows": true },
+  "map": { "title": "{column.2}", "id": "{document.key}#{column.1}",
+           "fields": { "number": "{column.1}" } } }
+```
+
+| Value | What it is |
+|---|---|
+| `{column.<n>}` | The cell in column `n` of the row, from 1 |
+| `{column.<name>}` | The same cell by its header, when the header has only letters, digits, `.`, `_`, `-` and is not a number |
+| `{row}` | The position of the row in its table, from 1 |
+| `{body}` | A table of the header line and this row alone, so the passage keeps the column names |
+| `{heading}`, `{parents}`, `{heading.<group>}` | Those of the section the table is in |
+
+- The units are cut first by `level` and `headingPattern`, then each unit gives the rows of its
+  tables; text that is not a table row is left out. `headingPattern` therefore chooses which
+  tables are read.
+- A table is a header line, a delimiter line of dashes (`|---|:--:|`) and the lines after it up
+  to a blank line or a line without `|`. Tables inside fenced code blocks are not read. `\|` in a
+  cell is a `|` of its text. A row with fewer cells than the header has no values for the missing
+  ones.
+- The breadcrumb ends with the section heading and the record title: set `map.title` to a column,
+  since the default title is the section heading and would be the same for every row. The
+  default id is made unique with `-2`, `-3`; an id from a column, as above, is stable.
 
 ## Mapping
 

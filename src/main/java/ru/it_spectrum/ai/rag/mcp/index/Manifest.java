@@ -41,7 +41,7 @@ public record Manifest(int schema, String name, String description, String built
     }
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 7;
+    public static final int SCHEMA = 8;
 
     /**
      * The embedding model of a collection with vectors: everything search needs to embed a query

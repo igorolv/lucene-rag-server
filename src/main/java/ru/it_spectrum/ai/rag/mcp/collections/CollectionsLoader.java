@@ -334,7 +334,7 @@ public final class CollectionsLoader {
         return new SplitSettings(level, text(node.get("headingPattern")),
                 number(node.get("maxChars"), "split.maxChars", SplitSettings.DEFAULT.maxChars()),
                 number(node.get("minChars"), "split.minChars", SplitSettings.DEFAULT.minChars()),
-                text(node.get("list")));
+                text(node.get("list")), bool(node.get("tableRows"), "split.tableRows"));
     }
 
     private static MapSettings map(JsonNode node) {
@@ -363,6 +363,16 @@ public final class CollectionsLoader {
                 strings(node.get("breadcrumb"), "map.breadcrumb"), text(node.get("text")),
                 fields == null ? null : Collections.unmodifiableMap(fields),
                 strings(node.get("inheritFields"), "map.inheritFields"), strings(node.get("keys"), "map.keys"));
+    }
+
+    private static boolean bool(JsonNode node, String field) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        if (!node.isBoolean()) {
+            throw new IllegalArgumentException(field + " must be true or false");
+        }
+        return node.booleanValue();
     }
 
     private static List<String> strings(JsonNode node, String field) {

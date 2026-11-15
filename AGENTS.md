@@ -12,7 +12,7 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
 `EmbeddingModel`, search filters take Spring AI filter expressions, records reach the index as
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
-Measurement (stage 4) is next.
+Measurement (stage 4) is in progress: the `rag-eval` command is done, tuning is next.
 
 ## Repository contents
 
@@ -23,7 +23,7 @@ Measurement (stage 4) is next.
 | `CLAUDE.md` | One line, `@AGENTS.md`, so Claude Code loads this file. Keep all rules here, not there |
 | `docs/plan.md` | Idea and status, architecture and data flow, configuration, the stages of work, open questions |
 | `docs/decisions.md` | The user's decisions with reasons, what no change may add without one, unconfirmed agent proposals |
-| `docs/collections.md`, `docs/search.md` | User documents: the collections file, sources, chunking, building and moving a collection; query syntax, filters, limits, the `rag-search` command |
+| `docs/collections.md`, `docs/search.md` | User documents: the collections file, sources, chunking, building and moving a collection; query syntax, filters, limits, the `rag-search` and `rag-eval` commands |
 | `testdata/` | Synthetic knowledge of an invented billing system for the tests; described in `testdata/README.md` |
 | `src/main/java/ru/it_spectrum/ai/rag/mcp/` | Server source; packages in `docs/plan.md` section 3.6 |
 | `src/test/` | Unit tests; none needs a network |
@@ -40,7 +40,7 @@ Read this file first. Then read only the documents whose `When` matches the task
 | `docs/plan.md` | any design question; starting or finishing a stage; adding a setting, a format or a tool | status, architecture, configuration sketch, stages, open questions |
 | `docs/decisions.md` | any design question; before adding a dependency, a tool, a format or a setting; recording a user decision | decisions with reasons, what not to add without the user, unconfirmed proposals |
 | `docs/collections.md` | changing the collections file format, a reader, `split`, `map`, the values a template may use, record ids, `rag-index` output or exit codes, the collection directory layout | the user-facing description; the single source for formats, output and exit codes |
-| `docs/search.md` | changing query analysis, ranking, filters, snippets, response limits, a search tool's arguments or `rag-search` | the user-facing description of search behavior and limits |
+| `docs/search.md` | changing query analysis, ranking, filters, snippets, response limits, a search tool's arguments, `rag-search` or `rag-eval` | the user-facing description of search behavior and limits |
 
 User documents describe what a user sees and does; a change of user-visible behavior updates
 them in the same change. Name new engineering documents `docs/<topic>-agent.md`, write them in

@@ -35,6 +35,10 @@ public final class SourcePipeline {
                              Format format,
                              Splitter splitter, Mapper mapper) {
         format.check(source.split());
+        if (source.split().tableRows() && !format.valueNames().tree()) {
+            throw new IllegalArgumentException("split.tableRows is not a setting of " + format.valueNames().label()
+                    + "; it cuts the tables of a Markdown source");
+        }
         if (format.readsFile() && !converters.isEmpty()) {
             throw new IllegalArgumentException("format " + format.name()
                     + " reads the file of an item itself and takes no convert steps");

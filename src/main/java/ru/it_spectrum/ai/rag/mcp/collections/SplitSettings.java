@@ -21,17 +21,25 @@ import java.util.regex.PatternSyntaxException;
  *                       title and breadcrumb, which is what a query usually matches
  * @param list           key of the top-level list whose items become units, or {@code null} for
  *                       one unit per file
+ * @param tableRows      every row of a Markdown table in a unit becomes a unit of its own, and the
+ *                       rest of the unit is left out; tree formats only
  */
-public record SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list) {
+public record SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list,
+                            boolean tableRows) {
 
     /** {@link #level()} of a source whose files are not split by headings. */
     public static final int DOCUMENT = 0;
 
-    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0, null);
+    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0, null, false);
 
     /** Settings without {@code list}. */
     public SplitSettings(int level, String headingPattern, int maxChars, int minChars) {
-        this(level, headingPattern, maxChars, minChars, null);
+        this(level, headingPattern, maxChars, minChars, null, false);
+    }
+
+    /** Settings without {@code tableRows}. */
+    public SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list) {
+        this(level, headingPattern, maxChars, minChars, list, false);
     }
 
     public SplitSettings {

@@ -356,6 +356,30 @@ public final class SearchService {
         }
     }
 
+    /**
+     * Every record of the collections, without text or snippet, in index order. For measuring
+     * search (which records a question set names), not for a tool: it is not bounded.
+     */
+    public List<SearchHit> all(List<String> collections) throws IOException {
+        List<Manifest> manifests = resolve(collections);
+        try (Opened opened = open(manifests)) {
+            var stored = opened.reader.storedFields();
+            var live = org.apache.lucene.index.MultiBits.getLiveDocs(opened.reader);
+            List<SearchHit> hits = new ArrayList<>();
+            for (int doc = 0; doc < opened.reader.maxDoc(); doc++) {
+                if (live == null || live.get(doc)) {
+                    hits.add(hit(stored.document(doc), 0f, null, null));
+                }
+            }
+            return hits;
+        }
+    }
+
+    /** Names of the collections whose manifest records vectors. */
+    public List<String> withVectors(List<String> collections) {
+        return resolve(collections).stream().filter(m -> m.vectors() != null).map(Manifest::name).toList();
+    }
+
     private List<Manifest> resolve(List<String> collections) {
         if (collections == null || collections.isEmpty()) {
             throw new IllegalArgumentException("Name at least one collection. Available: " + available());

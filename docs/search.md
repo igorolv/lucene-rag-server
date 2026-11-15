@@ -1,7 +1,7 @@
 # Search
 
-How the `search`, `lookup` and `getDocument` tools and the `rag-search` command find records, and
-how the server bounds what one call returns.
+How the `search`, `lookup` and `getDocument` tools and the `rag-search` command find records, how
+the server bounds what one call returns, and how `rag-eval` measures search on a question set.
 
 - [Modes](#modes)
 - [Queries](#queries)
@@ -10,6 +10,7 @@ how the server bounds what one call returns.
 - [Results](#results)
 - [Limits](#limits)
 - [The rag-search command](#the-rag-search-command)
+- [Measuring search](#measuring-search)
 - [Known limits](#known-limits)
 
 ## Modes
@@ -186,14 +187,65 @@ expression and no mode. Exit codes: 0 searched (also with no matches), 1 unexpec
 usage, an unknown collection, filter field or mode, or an expression that does not parse, 4 an index could not be read, 5 the embedding model of a
 collection is missing or is not the one it was built with.
 
+## Measuring search
+
+`rag-eval` searches every question of a question set in every mode and reports how high the
+records each question expects rank. It searches as the `search` tool does, without the response
+limits, and runs without a chat model:
+
+```bash
+java -jar lucene-rag-server.jar rag-eval docs@billing,data@billing,queue@billing C:/projects/billing/knowledge/eval/questions.jsonl --ref data=table --ref symptom=number
+```
+
+```
+Questions: 20 read, 17 measured, 3 left out (0 without references, the others with no reference that names a record)
+References that name no record: 9 (spec: 9)
+
+mode          @1      @5     @10    MRR recall@10  ms/query
+lexical     9/17   14/17   15/17   0.67      0.69        25
+vector      6/17   13/17   15/17   0.53      0.69       121
+hybrid      9/17   14/17   15/17   0.66      0.72        27
+```
+
+**The question set** is a JSONL file, one question per line: `question` is the text searched,
+`expected` a list of references to the records that answer it, `id` names the question in the
+details. Other keys are ignored.
+
+**A reference names a record** when it is
+- the record's document key or id (`article.billing.refunds`);
+- the record's source path, also written from a directory above the source
+  (`catalogs/menu/menu.tsv` names the records of `menu.tsv`);
+- `prefix:value`, and a field of the record has the value, compared as a filter compares. The
+  field is the one `--ref prefix=field` maps the prefix to, else the field named as the prefix:
+  with `--ref data=table`, `data:PAYMENT` names the records whose field `table` is `PAYMENT`.
+
+**What is measured:**
+- A reference that names no record of the collections cannot be found by any search. It is counted
+  by prefix and left out; a question with no reference that names a record is left out too. Add the
+  collection, the mapping or the field that makes it reachable, or accept it as a gap.
+- Ranks count records as a client sees them: two records of one document take two places.
+- `@1`, `@5` and `@N`: the questions whose first expected record is at rank 1, within 5, and within
+  the depth N. `MRR`: the mean of 1 / rank, 0 when not found within the depth. `recall@N`: the mean
+  share of a question's references found within the depth. `ms/query`: the mean time of one
+  search; the first vector search includes loading the model.
+
+**Options:** `--limit N` sets the depth (default 10, at most 100). `--modes lexical,hybrid`
+chooses the modes; without it every mode the collections have is measured (`vector` only when
+every collection has vectors). `--ref prefix=field` may be repeated. `--details` adds a line per
+question with its rank in each mode (`-` when not found) and the references that name no record.
+
+Exit codes: 0 measured, 1 unexpected error, 2 wrong usage, an unknown collection or mode, or a
+question file that cannot be read, 4 an index could not be read, 5 the embedding model of a
+collection is missing or is not the one it was built with.
+
 ## Known limits
 
 - Lexical search does not find a passage that uses other words than the query; retry with
   synonyms, or use `vector` or `hybrid` on a collection with vectors.
 - A vector covers at most `maxTokens` of a record (512 tokens for E5); the rest of a longer
   record is found by its words only.
-- How well each mode finds the right passage has not been measured yet ([plan.md](plan.md)
-  section 4, stage 4).
+- How well each mode finds the right passage has been measured on one question set only; tuning is
+  stage 4 of [plan.md](plan.md) section 4.
 - The Snowball stemmer does not join irregular Russian forms (`письмо` and `писем`).
 - Snippets are cut at sentence boundaries found in Markdown source, so a snippet may start with a
   heading marker or contain a whole table row.

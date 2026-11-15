@@ -61,6 +61,13 @@ The server speaks MCP over stdio. Register it in an MCP client as
    java -jar build/libs/lucene-rag-server.jar rag-search docs@billing "payment was not matched"
    ```
 
+4. Measure how well it finds what a question set expects
+   ([docs/search.md](docs/search.md#measuring-search)):
+
+   ```bash
+   java -jar build/libs/lucene-rag-server.jar rag-eval docs@billing C:/projects/billing/knowledge/eval/questions.jsonl
+   ```
+
 ## Tools
 
 | Tool | Group | What it does |
