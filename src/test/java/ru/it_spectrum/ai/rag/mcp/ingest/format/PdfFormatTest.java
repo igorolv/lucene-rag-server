@@ -5,6 +5,9 @@ import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageXYZDestination;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,6 +62,35 @@ class PdfFormatTest {
                         content.newLineAtOffset(0, -16);
                     }
                     content.endText();
+                }
+            }
+            document.save(file.toFile());
+        }
+        return file;
+    }
+
+    /**
+     * Writes {@link #pdf} and adds an outline: a bookmark per page, at its top, with the titles
+     * given; a title starting with {@code "  "} is a child of the bookmark before it.
+     */
+    private Path pdfWithOutline(String name, List<String> titles, String... pages) throws IOException {
+        Path file = pdf(name, "Billing operator manual", pages);
+        try (PDDocument document = org.apache.pdfbox.Loader.loadPDF(file.toFile())) {
+            PDDocumentOutline outline = new PDDocumentOutline();
+            document.getDocumentCatalog().setDocumentOutline(outline);
+            PDOutlineItem parent = null;
+            for (int i = 0; i < titles.size(); i++) {
+                PDOutlineItem item = new PDOutlineItem();
+                item.setTitle(titles.get(i).strip());
+                PDPageXYZDestination destination = new PDPageXYZDestination();
+                destination.setPage(document.getPage(i));
+                destination.setTop((int) document.getPage(i).getMediaBox().getHeight());
+                item.setDestination(destination);
+                if (titles.get(i).startsWith("  ") && parent != null) {
+                    parent.addLast(item);
+                } else {
+                    outline.addLast(item);
+                    parent = item;
                 }
             }
             document.save(file.toFile());
@@ -152,6 +184,44 @@ class PdfFormatTest {
 
         assertThat(page.hits()).isNotEmpty();
         assertThat(page.hits().getFirst().id()).isEqualTo("refunds.pdf#page-2");
+    }
+
+    @Test
+    void withOutlineEveryBookmarkIsASectionUnderItsParents() throws IOException {
+        pdfWithOutline("manual.pdf", List.of("Payments", "  Payment statuses", "Refunds"),
+                "Payments\nA payment is matched to an invoice.",
+                "Payment statuses\nCreated, Matched, Cancelled.",
+                "Refunds\nA refund is issued for a matched payment.");
+
+        List<ChunkRecord> records = records("{\"path\": \"manuals\", \"format\": \"pdf\", \"split\": {\"outline\": true}}");
+
+        assertThat(records).extracting(ChunkRecord::id)
+                .containsExactly("manual.pdf#payments", "manual.pdf#payment-statuses", "manual.pdf#refunds");
+        assertThat(records).extracting(ChunkRecord::breadcrumb).containsExactly(
+                "Billing operator manual › Payments",
+                "Billing operator manual › Payments › Payment statuses",
+                "Billing operator manual › Refunds");
+        assertThat(records.get(1).text()).contains("Created, Matched, Cancelled.").doesNotContain("invoice");
+        assertThat(records.get(2).text()).contains("A refund is issued").doesNotContain("Cancelled");
+    }
+
+    @Test
+    void aFileWithoutOutlineIsReadByPages() throws IOException {
+        pdf("plain.pdf", null, "First page", "Second page");
+
+        List<ChunkRecord> records = records("{\"path\": \"manuals\", \"format\": \"pdf\", \"split\": {\"outline\": true}}");
+
+        assertThat(records).extracting(ChunkRecord::id).containsExactly("plain.pdf#page-1", "plain.pdf#page-2");
+    }
+
+    @Test
+    void outlineAndSelectorBelongToTheirFormats() throws IOException {
+        assertThat(load("""
+                {"path": "manuals", "format": "pdf", "split": {"selector": "article"}}
+                """).getFirst().configError()).contains("split.selector is not a setting of a PDF source");
+        assertThat(load("""
+                {"path": "manuals", "split": {"outline": true}}
+                """).getFirst().configError()).contains("split.outline is not a setting of a Markdown source");
     }
 
     @Test

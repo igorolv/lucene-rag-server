@@ -23,6 +23,13 @@ dependencies {
     implementation(libs.spring.ai.model)
     implementation(libs.spring.ai.vector.store)
     implementation(libs.spring.ai.pdf.document.reader)
+    implementation(libs.spring.ai.jsoup.document.reader)
+    implementation(libs.spring.ai.tika.document.reader) {
+        exclude(group = "org.apache.tika", module = "tika-parsers-standard-package")
+    }
+    implementation(libs.tika.parser.microsoft)
+    implementation(libs.tika.parser.miscoffice)
+    implementation(libs.poi.ooxml.full)
     implementation(libs.spring.ai.openai)
     implementation(libs.spring.ai.autoconfigure.model.openai)
     implementation(libs.lucene.core)

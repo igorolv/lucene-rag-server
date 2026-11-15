@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D73; agent proposals as P28 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D74; agent proposals as P28 onwards).
 
 ## 1. Idea
 
@@ -31,7 +31,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
 
 - Implemented: the collections file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
-  converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql` and `pdf`, the heading splitter and
+  converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` and `office`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index`, `rag-search`, `rag-eval` and `rag-model` (D70), each in a Spring context without the MCP server (D42); the tool groups
@@ -41,7 +41,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (205 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (214 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -79,7 +79,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 |---|---|---|---|
 | origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
-| `format` | text → section tree or rows; a binary format reads the file instead (D34) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf` (Spring AI reader, D32) |
+| `format` | text → section tree or rows; a binary format reads the file instead (D34) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html`, `office` (Spring AI readers, D32, D74) |
 | `split` | section tree → units | `split` | one: by heading level and pattern, optionally into table rows (D37) |
 | `map` | unit → records | `map` | one: templates (D14) |
 
@@ -297,7 +297,7 @@ D28 with its reason.
 | Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29, D67) | used |
 | Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
-| PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
+| PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32, D74) | used: `pdf` by pages or outline, `html`, `office` |
 | Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans: the model type `bean` (D43); every command in a Spring context (D42); an OpenAI-compatible endpoint by `spring-ai-autoconfigure-model-openai` (D67) | used; the remote model is off until configured |
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
@@ -306,12 +306,12 @@ D28 with its reason.
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
-Dependencies these decisions allow: `spring-ai-model`, `spring-ai-vector-store` (brings nothing
-the build did not have), `spring-ai-pdf-document-reader` (PDFBox 3, four modules) and
+Dependencies these decisions allow, all declared: `spring-ai-model`, `spring-ai-vector-store`
+(brings nothing the build did not have), `spring-ai-pdf-document-reader` (PDFBox 3, four
+modules), `spring-ai-jsoup-document-reader` and `spring-ai-tika-document-reader` with two Tika
+parser modules and `poi-ooxml-full` instead of Tika's standard parser package (44 modules, D74),
 `spring-ai-starter-mcp-server-webmvc` (Tomcat and Spring MVC, 18 modules, D45) and
-`spring-ai-openai` with `spring-ai-autoconfigure-model-openai` (26 modules, D67), declared;
-`spring-ai-jsoup-document-reader` (two modules) and `spring-ai-tika-document-reader` (107 modules)
-each with the format that needs it.
+`spring-ai-openai` with `spring-ai-autoconfigure-model-openai` (26 modules, D67).
 
 - A model type is a `ModelType` bean: it returns an `EmbeddingModel` and the `ModelInfo` that
   identifies its vectors (file hashes, or the bean name and response model of a `bean` model).
@@ -471,7 +471,5 @@ speed up kNN); not measured.
 - Which model and API the target site provides; whether it has an embedding endpoint (a Spring AI
   `EmbeddingModel` bean as a model type, D11, D43).
 - When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
-- Whether pages are enough for real PDF files or sections by outline are needed (D35), and when
-  Tika or Jsoup is added (D32).
 - When the DocBook reader is written (D17).
 - Legacy HTTP API (D2), if a client needs it.

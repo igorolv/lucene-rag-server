@@ -2,7 +2,7 @@
 
 This project is licensed under the Apache License, Version 2.0. Its dependencies are licensed by
 their respective owners under their own terms. The release jar bundles the runtime dependencies
-below (112 libraries), and each keeps its own license.
+below (156 libraries), and each keeps its own license.
 
 This file is informational, taken from the dependency POMs on 2026-11-15. The dependency POMs and
 upstream license files remain authoritative.
@@ -12,12 +12,19 @@ upstream license files remain authoritative.
 | Component | License |
 |---|---|
 | Spring Boot, Spring Framework, Spring AI | Apache License 2.0 |
-| Apache Lucene, PDFBox, Tomcat (embedded), Commons Codec, Commons Compress, Commons IO, Commons Logging, Log4j API | Apache License 2.0 |
+| Apache Lucene, PDFBox, Tika, POI, XMLBeans, James Mime4j, Tomcat (embedded), Log4j API | Apache License 2.0 |
+| Apache Commons Codec, Collections, Compress, CSV, IO, Lang, Logging, Math | Apache License 2.0 |
+| Jackcess, Jackcess Encrypt, java-libpst, SparseBitSet | Apache License 2.0 |
 | Jackson 2 and 3, Reactor, Micrometer, SnakeYAML, SnakeYAML Engine, ClassMate, ITU, JSpecify, Gson, Error Prone annotations, JetBrains annotations | Apache License 2.0 |
 | victools JSON Schema Generator, networknt JSON Schema Validator, Swagger Annotations | Apache License 2.0 |
 | OpenAI Java SDK, OkHttp, Okio, Kotlin standard library and reflection | Apache License 2.0 |
 | DJL API and Hugging Face tokenizers binding (Deep Java Library) | Apache License 2.0 |
 | ONNX Runtime | MIT License |
+| jsoup | MIT License |
+| Bouncy Castle | Bouncy Castle Licence (an MIT-style license) |
+| CommonMark Java | BSD 2-Clause License |
+| curvesapi | BSD License |
+| Jakarta XML Binding API, JAXB runtime, istack commons, Jakarta Activation API, Angus Activation | Eclipse Distribution License 1.0 |
 | MCP Java SDK, JTokkit | MIT License |
 | SLF4J | MIT License |
 | Reactive Streams | MIT-0 |

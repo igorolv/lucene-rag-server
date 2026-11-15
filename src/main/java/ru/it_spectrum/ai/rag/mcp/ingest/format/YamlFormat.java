@@ -81,6 +81,7 @@ public final class YamlFormat implements Format {
     @Override
     public void check(SplitSettings split) {
         // split.list is this format's setting; the heading settings do not apply to it
+        checkNoOutlineOrSelector(split);
     }
 
     @Override

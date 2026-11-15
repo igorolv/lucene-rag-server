@@ -11,6 +11,8 @@ another machine.
 - [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
 - [Reading SQL](#reading-sql)
 - [Reading PDF](#reading-pdf)
+- [Reading HTML](#reading-html)
+- [Reading Office files](#reading-office-files)
 - [Commands](#commands)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
@@ -61,9 +63,9 @@ Each entry of `sources`:
 | Key | Default | Meaning |
 |---|---|---|
 | `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
-| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
+| `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf`, `**/*.{html,htm}`, `**/*.{docx,doc,xlsx,xls,pptx,ppt,odt,ods,odp,rtf}` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
-| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql` or `pdf`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`); a directory without `include` is read as Markdown |
+| `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` or `office`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`, `.html`, `.htm`, and the Office extensions); a directory without `include` is read as Markdown |
 | `split` | see [Splitting](#splitting) | How a file is cut into units |
 | `map` | see [Mapping](#mapping) | How a unit is laid out as a record |
 | `command` | none | Instead of `path`: a program whose output is the only file of the source, see [Commands](#commands) |
@@ -211,8 +213,9 @@ a header. Read them as a separate source or leave them out with `exclude`.
 
 ## Reading PDF
 
-Every page of a PDF file is one unit. The file is read by the PDF reader of Spring AI
-(`PagePdfDocumentReader`, built on Apache PDFBox).
+Every page of a PDF file is one unit, or with `"split": { "outline": true }` every entry of its
+outline. The file is read by the PDF readers of Spring AI (`PagePdfDocumentReader` and
+`ParagraphPdfDocumentReader`, built on Apache PDFBox).
 
 ```json
 { "path": "C:/projects/billing/manuals", "include": "**/*.pdf",
@@ -223,21 +226,88 @@ Every page of a PDF file is one unit. The file is read by the PDF reader of Spri
 |---|---|---|
 | `{pages}` | The number of pages of the file | everything |
 | `{pdf.title}` | The title in the document information of the file, when it has one | everything |
-| `{page}` | The number of the page, from 1 | `title` and below |
-| `{row}` | The position of the page among the pages that have text, from 1 | `title` and below |
-| `{body}` | The text of the page | `title` and below |
+| `{page}` | The number of the page, from 1; with `outline`, of the page the entry starts on | `title` and below |
+| `{row}` | The position of the unit among the units that have text, from 1 | `title` and below |
+| `{heading}` | `page <n>`; with `outline`, the title of the entry | `title` and below |
+| `{parents}` | Nothing; with `outline`, the titles of the entries above it, joined with ` › ` | `title` and below |
+| `{body}` | The text of the page or the entry | `title` and below |
 
 - The document title is `{pdf.title}`, else the file name without extension.
 - The text keeps the lines of the page; runs of blanks become one blank and runs of empty lines one
   empty line. A page without text, such as a scan without a text layer, gives no record: text is
   not recognized from images.
-- Headings and bookmarks are not read, so a record is a page, not a section. To index a manual by
-  its sections, convert it to Markdown and read that ([Commands](#commands)).
+- **By outline.** A PDF made from a word processor or a typesetting system usually has an outline,
+  the bookmarks a viewer shows beside the pages. With `"split": { "outline": true }` every entry
+  is a unit: the text from where the entry points to where the next entry points, so a section
+  of half a page and one of several pages are each one unit. The heading is the entry's title
+  and the breadcrumb follows the outline: `Manual › Payments › Payment statuses`. Entries are
+  sections of one document, of which search shows the best one by default (`docs/search.md`). A
+  file without an outline is read by pages. An entry without text of its own, such as a chapter
+  whose text begins at its first section, gives no record.
+- Where the outline is poor or missing, convert the manual to Markdown and read that
+  ([Commands](#commands)) to get its headings.
 - The format reads the file itself: a PDF source takes no `convert` steps and has `path`, not
   `command`. A file that is not a readable PDF is an error of the file.
 - A PDF source gives no document fields: name the fields in `map.fields`.
-- Defaults: the document key is `{document.path}`, the title `page {page}`, so the breadcrumb is
-  the document title and `page 3`; the id `{document.key}#page-{page}`, the text `{body}`.
+- Defaults: the document key is `{document.path}`, the title `{heading}`, so the breadcrumb is
+  the document title and `page 3`, or the entries of the outline; the id `{document.key}#{slug}`,
+  that is `manual.pdf#page-3` or `manual.pdf#payment-statuses`, the text `{body}`.
+
+## Reading HTML
+
+The text of an HTML page is read by the Jsoup reader of Spring AI (`JsoupDocumentReader`). The
+body of the page is one unit; with `"split": { "selector": "<CSS selector>" }` every element the
+selector matches is one, in the order of the page.
+
+```json
+{ "path": "C:/projects/billing/help-site", "include": "**/*.html",
+  "split": { "selector": "main section" } }
+```
+
+| Value | What it is | Available in |
+|---|---|---|
+| `{html.title}` | The `<title>` of the page, when it has one | everything |
+| `{html.description}`, `{html.keywords}` | The `description` and `keywords` meta tags, when the page has them | everything |
+| `{row}` | The position of the element among those with text, from 1 | `title` and below |
+| `{body}` | The text of the element, or of the body | `title` and below |
+
+- The document title is `{html.title}`, else the file name without extension.
+- The text of an element is one line: Jsoup joins the text of its descendants with single
+  blanks, so headings, paragraphs, lists and tables are not kept. A selector such as `section`,
+  `article` or `div.topic` cuts a page into its parts; elements without text give no record. To
+  keep the structure of a page, convert it to Markdown and read that ([Commands](#commands)).
+- The format reads text, so the page may also come from a `command` or a `convert` step. A file is
+  read as UTF-8.
+- Defaults: the document key is `{document.path}`, the title the document title, the id
+  `{document.key}#{row}`, the text `{body}`. With a selector, set `map.title` from something that
+  tells the parts apart, since the default title is the same for every element.
+
+## Reading Office files
+
+Word, Excel, PowerPoint, OpenDocument and RTF files (`.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`,
+`.ppt`, `.odt`, `.ods`, `.odp`, `.rtf`) are read by the Tika reader of Spring AI
+(`TikaDocumentReader`) with the Office and OpenDocument parsers of Apache Tika. A file is one unit.
+
+```json
+{ "path": "C:/projects/billing/specifications", "format": "office" }
+```
+
+| Value | What it is | Available in |
+|---|---|---|
+| `{row}` | `1` | `title` and below |
+| `{body}` | The text of the file | `title` and below |
+
+- The text comes in reading order: paragraphs as lines, the cells of a sheet separated by tabs
+  and its rows by line ends, with the sheet name before them, the slides of a presentation one
+  after another. Headings, styles and comments are not kept. A long file is cut by
+  `split.maxChars` into parts, each a record.
+- The document title is the file name without extension.
+- The format reads the file itself: an Office source takes no `convert` steps and has `path`, not
+  `command`. A file Tika cannot read is an error of the file.
+- To keep the headings of a Word document, convert it to Markdown and read that
+  ([Commands](#commands)).
+- Defaults: the document key is `{document.path}`, the title the document title, the id
+  `{document.key}`, the text `{body}`.
 
 ## Commands
 
@@ -312,6 +382,8 @@ The same steps written once as a [named reader](#named-readers):
 | `minChars` | `0` | A shorter unit is joined to the previous one under the same parent heading. `0` joins nothing |
 | `list` | none | YAML only: the top-level key whose list items become units. Without it a YAML file is one unit. Any other format reports it as a configuration error |
 | `tableRows` | `false` | Markdown only: every row of a table in a unit becomes a unit of its own, and the rest of the unit is left out ([Table rows](#table-rows)) |
+| `outline` | `false` | PDF only: every entry of the file's outline becomes a unit instead of every page ([Reading PDF](#reading-pdf)) |
+| `selector` | none | HTML only: a CSS selector whose elements become units instead of the body ([Reading HTML](#reading-html)) |
 
 - Without a pattern, a section above `level` contributes its own text as a unit, and text before
   the first heading is a unit too. A heading without text of its own yields nothing.

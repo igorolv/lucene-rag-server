@@ -56,7 +56,7 @@ public final class SourcePipeline {
      * number of per page; otherwise every record (a row) stands alone.
      */
     public boolean sections() {
-        return format.valueNames().tree() && !source.split().tableRows();
+        return format.valueNames().tree() && !source.split().tableRows() || source.split().outline();
     }
 
     /** Name of the format the source is read with. */

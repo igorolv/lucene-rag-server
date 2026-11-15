@@ -10,6 +10,10 @@ lucene = "10.5.2"
 # Liberica 25.0.2): 1.32 crashes the JVM, 1.21 fails to load. Stay on 1.20 until JDKs catch up (D24).
 onnxruntime = "1.20.0"
 djl-tokenizers = "0.40.0"
+# The parsers the office format needs, of the Tika version Spring AI's reader is built with (D74).
+tika = "4.0.0"
+# The POI of that Tika; Tika excludes the OOXML schemas, without which .docx, .xlsx and .pptx do not read.
+poi = "5.5.1"
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
@@ -27,6 +31,14 @@ spring-ai-model = { module = "org.springframework.ai:spring-ai-model", version.r
 spring-ai-vector-store = { module = "org.springframework.ai:spring-ai-vector-store", version.ref = "spring-ai" }
 # The pdf format wraps Spring AI's PDF reader (docs/decisions.md D32); brings PDFBox.
 spring-ai-pdf-document-reader = { module = "org.springframework.ai:spring-ai-pdf-document-reader", version.ref = "spring-ai" }
+# The html format wraps Spring AI's Jsoup reader (docs/decisions.md D32, D74); brings jsoup.
+spring-ai-jsoup-document-reader = { module = "org.springframework.ai:spring-ai-jsoup-document-reader", version.ref = "spring-ai" }
+# The office format wraps Spring AI's Tika reader (D32, D74) without Tika's standard parser package,
+# which brings parsers of every kind; only the Office and ODF/RTF parsers are added.
+spring-ai-tika-document-reader = { module = "org.springframework.ai:spring-ai-tika-document-reader", version.ref = "spring-ai" }
+tika-parser-microsoft = { module = "org.apache.tika:tika-parser-microsoft-module", version.ref = "tika" }
+tika-parser-miscoffice = { module = "org.apache.tika:tika-parser-miscoffice-module", version.ref = "tika" }
+poi-ooxml-full = { module = "org.apache.poi:poi-ooxml-full", version.ref = "poi" }
 # A remote embedding model of an OpenAI-compatible endpoint as a Spring AI bean (docs/decisions.md
 # D43, D67): the model module and its auto-configuration, not the starter, which brings ChatClient,
 # chat memory and WebClient. Only the embedding model is switched on, and only by the operator.

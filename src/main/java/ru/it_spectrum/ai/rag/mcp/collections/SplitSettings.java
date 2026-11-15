@@ -6,8 +6,9 @@ import java.util.regex.PatternSyntaxException;
 /**
  * How one source is cut into units, before the units are laid out as records
  * ({@link MapSettings}). {@code level}, {@code headingPattern} and {@code minChars} apply to tree
- * formats, {@code list} to the {@code yaml} format, {@code maxChars} to every format; whether a
- * setting fits the format of the source is checked by the format.
+ * formats, {@code list} to the {@code yaml} format, {@code outline} to {@code pdf},
+ * {@code selector} to {@code html}, {@code maxChars} to every format; whether a setting fits the
+ * format of the source is checked by the format.
  *
  * @param level          heading level whose sections become units, 1–6; deeper sections stay
  *                       inside their parent unit. {@link #DOCUMENT} makes the whole file one unit
@@ -23,14 +24,17 @@ import java.util.regex.PatternSyntaxException;
  *                       one unit per file
  * @param tableRows      every row of a Markdown table in a unit becomes a unit of its own, and the
  *                       rest of the unit is left out; tree formats only
+ * @param outline        a PDF file is cut by the entries of its outline instead of by pages
+ * @param selector       a CSS selector whose elements in an HTML file become units, or
+ *                       {@code null} for the body as one unit
  */
 public record SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list,
-                            boolean tableRows) {
+                            boolean tableRows, boolean outline, String selector) {
 
     /** {@link #level()} of a source whose files are not split by headings. */
     public static final int DOCUMENT = 0;
 
-    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0, null, false);
+    public static final SplitSettings DEFAULT = new SplitSettings(2, null, 2500, 0, null, false, false, null);
 
     /** Settings without {@code list}. */
     public SplitSettings(int level, String headingPattern, int maxChars, int minChars) {
@@ -40,6 +44,12 @@ public record SplitSettings(int level, String headingPattern, int maxChars, int 
     /** Settings without {@code tableRows}. */
     public SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list) {
         this(level, headingPattern, maxChars, minChars, list, false);
+    }
+
+    /** Settings without {@code outline} and {@code selector}. */
+    public SplitSettings(int level, String headingPattern, int maxChars, int minChars, String list,
+                         boolean tableRows) {
+        this(level, headingPattern, maxChars, minChars, list, tableRows, false, null);
     }
 
     public SplitSettings {
@@ -54,6 +64,9 @@ public record SplitSettings(int level, String headingPattern, int maxChars, int 
         }
         if (list != null && list.isBlank()) {
             throw new IllegalArgumentException("split.list must name a key");
+        }
+        if (selector != null && selector.isBlank()) {
+            throw new IllegalArgumentException("split.selector must be a CSS selector");
         }
         if (headingPattern != null) {
             if (level == DOCUMENT) {

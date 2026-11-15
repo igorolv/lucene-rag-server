@@ -41,6 +41,19 @@ public interface Format {
         if (split.list() != null) {
             throw new IllegalArgumentException("split.list is not a setting of " + valueNames().label());
         }
+        checkNoOutlineOrSelector(split);
+    }
+
+    /** Rejects the settings of the {@code pdf} and {@code html} formats for any other format. */
+    default void checkNoOutlineOrSelector(SplitSettings split) {
+        if (split.outline()) {
+            throw new IllegalArgumentException("split.outline is not a setting of " + valueNames().label()
+                    + "; it cuts a PDF file by its outline");
+        }
+        if (split.selector() != null) {
+            throw new IllegalArgumentException("split.selector is not a setting of " + valueNames().label()
+                    + "; it chooses the elements of an HTML file");
+        }
     }
 
     /**

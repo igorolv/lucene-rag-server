@@ -5,7 +5,7 @@ Apache Lucene and serves hybrid search over it: BM25 plus dense vectors kept in 
 index. It retrieves; it does not generate answers. User-facing overview: `README.md`.
 
 **Current status:** stages 1 to 3 of `docs/plan.md` section 4 are implemented: Markdown, TSV,
-YAML, JSONL, SQL and PDF collections with configurable `split` and `map`, built by the five-step source
+YAML, JSONL, SQL, PDF (by pages or outline), HTML and Office collections with configurable `split` and `map`, built by the five-step source
 pipeline in `ingest/`, external commands as an origin and as `convert` steps, named readers,
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
 `hybrid` search, the `rag-index`, `rag-search` and `rag-model` commands and the tools `listCollections`,

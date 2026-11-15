@@ -344,7 +344,8 @@ public final class CollectionsLoader {
         return new SplitSettings(level, text(node.get("headingPattern")),
                 number(node.get("maxChars"), "split.maxChars", SplitSettings.DEFAULT.maxChars()),
                 number(node.get("minChars"), "split.minChars", SplitSettings.DEFAULT.minChars()),
-                text(node.get("list")), bool(node.get("tableRows"), "split.tableRows"));
+                text(node.get("list")), bool(node.get("tableRows"), "split.tableRows"),
+                bool(node.get("outline"), "split.outline"), text(node.get("selector")));
     }
 
     private static MapSettings map(JsonNode node) {
