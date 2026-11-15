@@ -15,16 +15,16 @@ jobs:
     name: Build and publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Resolve version from tag
         id: version
@@ -45,7 +45,7 @@ jobs:
           sha256sum lucene-rag-server.jar > lucene-rag-server.jar.sha256
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
           body_path: .github/release-notes/${{ github.ref_name }}.md
@@ -62,7 +62,7 @@ jobs:
     # Pre-release tags such as v0.2.0-rc1 leave the alias on the last full release.
     if: ${{ !contains(github.ref_name, '-') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
 

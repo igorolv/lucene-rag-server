@@ -22,16 +22,16 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # Unit tests use a fake embedding model and stubs on the loopback interface; none needs a
       # network or the real model (tests of the real model run only with RAG_MCP_TEST_MODEL_DIR).
@@ -43,14 +43,14 @@ jobs:
 
       - name: Upload test report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-report-${{ matrix.os }}
           path: build/reports/tests/test
 
       - name: Upload jar
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lucene-rag-server
           path: build/libs/lucene-rag-server.jar
