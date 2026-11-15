@@ -44,3 +44,4 @@ rag-mcp:
     collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
     search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument, resource rag://{collection}/{id}
     lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup
+    admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # rebuildCollection

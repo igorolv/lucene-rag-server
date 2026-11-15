@@ -666,6 +666,14 @@ lost all the same, building it again restores it.
 
 A running server sees a rebuilt collection on its next call; no restart is needed.
 
+A client can rebuild a collection through the server too, with the tool `rebuildCollection` of the
+`admin` group, which `RAG_MCP_TOOLS_ADMIN=false` turns off. The tool takes the name
+of a collection in `collections.json`, which the server then needs, reads the file again and
+builds as `rag-index` does, commands included. It answers when the build is done, with the counts
+`rag-index` prints: files, documents, records, seconds, and for vectors how many were embedded,
+taken from the cache and cut. A second call for a collection already being rebuilt fails. A long
+build may outlast the time a client waits for a tool; `rag-index` has no such limit.
+
 ## What a built collection is
 
 ```

@@ -86,6 +86,7 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 | `search` | `search` | Passages matching a query, filters and a filter expression in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
+| `rebuildCollection` | `admin` | Rebuild a collection of `collections.json` from its sources, as `rag-index` does ([docs/collections.md](docs/collections.md#building)) |
 
 A record is also the MCP resource `rag://{collection}/{id}`, and clients that support completion
 suggest its collection and id ([docs/search.md](docs/search.md#results)).
@@ -99,6 +100,7 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |
+| `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`rebuildCollection`) |
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |
 | `RAG_MCP_SEARCH_MAX_LIMIT` | `50` | The most hits per page a call can get |
 | `RAG_MCP_RESPONSE_MAX_CHARS` | `20000` | Characters of passage text in one response |

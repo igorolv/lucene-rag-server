@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D49, proposals as P1…P26).
+reasons are in `docs/decisions.md` (cited here as D1…D50, proposals as P1…P27).
 
 ## 1. Idea
 
@@ -39,7 +39,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (181 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (186 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -214,7 +214,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (P2):
 | `collections` | `listCollections` | done |
 | `search` | `search`, `getDocument`; the resource `rag://{collection}/{id}` and its completion (D48) | done |
 | `lookup` | `lookup`: exact lookups by the key fields of catalog collections (D23) | done |
-| `admin` | `rebuildCollection` | 5 |
+| `admin` | `rebuildCollection` (D50) | done |
 | `browse` | list by filters, facets, related records | 6 |
 | `debug` | analyzer output, score explanation, mode comparison | 6 |
 
@@ -259,7 +259,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts; `Cli.context` starts the application context without the MCP server (D42) |
-| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`; `RecordResources` (the record resource and its completion, D48) |
+| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`, `AdminTools`; `RecordResources` (the record resource and its completion, D48) |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig`, `TransportSettings` (stdio or HTTP, D45) |
 
@@ -349,7 +349,7 @@ done here. A stage is taken only when the user asks for it.
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Atomic rebuild (done 2026-11-15) and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
+| 5 | Delivery | Atomic rebuild and `rebuildCollection` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
 Stage 4, in progress:
