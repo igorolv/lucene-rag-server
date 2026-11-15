@@ -27,6 +27,8 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.vectorstore.filter.Filter;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
@@ -71,6 +73,8 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public final class SearchService {
+
+    private static final Logger log = LoggerFactory.getLogger(SearchService.class);
 
     public static final int MAX_QUERY_CHARS = 1_000;
 
@@ -144,7 +148,9 @@ public final class SearchService {
      * @param perDocument the most records of one document in the results; {@code null} for
      *                    {@value #DEFAULT_PER_DOCUMENT}
      * @throws IllegalArgumentException  for an unknown collection, an unknown filter field or a bad argument
-     * @throws ModelUnavailableException when the model of a collection is needed and cannot be used
+     * @throws ModelUnavailableException when the call asks for {@code vector} or {@code hybrid} and the
+     *                                   model of a collection cannot be used; without a mode the
+     *                                   search runs lexically and says why in its notice
      */
     public SearchPage search(List<String> collections, String query, Map<String, String> filters,
                              String filterExpression, Integer limit, Integer offset, String mode, Integer perDocument)
@@ -170,7 +176,17 @@ public final class SearchService {
         if (effective == SearchMode.LEXICAL) {
             return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL, perGroup);
         }
-        return fused(manifests, effective, text, builder.build(), filter, textQuery, limit, offset, perGroup);
+        try {
+            return fused(manifests, effective, text, builder.build(), filter, textQuery, limit, offset, perGroup);
+        } catch (ModelUnavailableException e) {
+            if (requested != null) {
+                throw e;
+            }
+            // The call named no mode: words still find what they can (docs/search.md, "Modes").
+            log.info("Searching lexically: {}", e.getMessage());
+            return page(manifests, builder.build(), textQuery, limit, offset, SearchMode.LEXICAL, perGroup)
+                    .withNotice("Searched by words only: " + e.getMessage());
+        }
     }
 
     /**

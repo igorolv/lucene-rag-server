@@ -487,21 +487,43 @@ server switches off that library's usage reporting and its downloads before load
 
 ### Spring AI models
 
-A model of type `bean` is a Spring AI `EmbeddingModel` that the application configures, for
-example a remote endpoint. The key of the model under `models` is the name of the bean; the model
-has no files under `models/`. The prefixes apply as to any model; `maxTokens` does not, and such a
-model reports no records as cut.
+A model of type `bean` is a Spring AI `EmbeddingModel` that the application configures. The key
+of the model under `models` is the name of the bean; the model has no files under `models/`. The
+prefixes apply as to any model; `maxTokens` does not, and such a model reports no records as cut.
+
+**An OpenAI-compatible endpoint** is the one such model the server includes: any service that
+answers `POST <base-url>/embeddings` as the OpenAI API does, for example Ollama, LM Studio,
+llama.cpp, vLLM or a gateway of the site. It is configured by Spring AI's own settings, off until
+they switch it on:
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `SPRING_AI_MODEL_EMBEDDING` | `openai` | Switches the model on; `none` by default |
+| `SPRING_AI_OPENAI_BASE_URL` | `http://models.example.com:11434/v1` | The endpoint, up to `/v1` |
+| `SPRING_AI_OPENAI_API_KEY` | empty | The key; empty for a service without one |
+| `SPRING_AI_OPENAI_EMBEDDING_MODEL` | `bge-m3` | The model name the service knows |
+| `SPRING_AI_OPENAI_EMBEDDING_DIMENSIONS` | | Vector size, for a service that can shorten vectors |
+
+The bean is then named `openAiEmbeddingModel`, and a collection uses it like any model:
 
 ```json
 "models": {
   "openAiEmbeddingModel": { "type": "bean", "queryPrefix": "", "passagePrefix": "" }
+},
+"collections": {
+  "docs@billing": { "vectors": { "model": "openAiEmbeddingModel" }, "sources": [ ... ] }
 }
 ```
 
-- The bean comes from a Spring AI model starter on the class path and its own properties, for
-  example `spring.ai.openai.embedding.*`. The server includes no such starter yet; a site that needs
-  one gets it added to the build (`docs/decisions.md` D43). Records then leave the machine, which
-  is why the model has to be named in `collections.json`.
+- The same settings are needed wherever the collection is searched, since a query is embedded by
+  the same model; `collections.json` is not. Set them for `rag-index`, `rag-search`, `rag-eval` and
+  the server alike.
+- One endpoint and one model per server: the settings are those of the application, not of a
+  model entry. Collections of another remote model need another server.
+- Records and queries are sent to the endpoint. That is why the model is named in
+  `collections.json` and switched on by the operator (`docs/decisions.md` D11).
+- Spring AI's other models (chat, image, audio, moderation) are switched off and stay off; the
+  server never generates text (D1).
 - When the model is loaded it embeds one probe text. Its vector size and the model name its
   response gives are recorded in the manifest with the bean name, and a collection is searched by
   vectors only with a bean that gives the same.
@@ -646,6 +668,7 @@ with `RESULT: OK (...)` or `RESULT: FAILED (...)`.
 Collection docs@billing
   files 3, documents 3, records 12, 4.1 s
   vectors: model e5-small, 384 dimensions, 12 embedded, 0 from cache, 0 cut to 512 tokens
+  model: files in C:/Users/me/.lucene-rag-server/models/e5-small
 RESULT: OK (1 collection built)
 ```
 
@@ -715,8 +738,9 @@ java -jar lucene-rag-server.jar rag-eval docs@billing C:/projects/billing/knowle
 `rag-index` must end with `RESULT: OK`; `rag-eval` or a few `rag-search` queries show that the
 collections answer as expected.
 
-**2. Pack** the collection directories, and `models/<model>/` of every model a collection with
-vectors names (`vectors.model` in its `manifest.json`):
+**2. Pack** the data directory: the collection directories and `models/<model>/` of every model a
+collection with vectors names (`vectors.model` in its `manifest.json`; `rag-index` prints where
+the files were). The data directory is what a serving machine needs, laid out as it is here:
 
 ```bash
 tar -czf billing.tar.gz -C C:/Users/me/.lucene-rag-server docs@billing api@billing models/e5-small
@@ -767,6 +791,10 @@ report the missing model.
 java -jar lucene-rag-server.jar rag-search docs@billing "payment was not matched" --mode hybrid
 ```
 
-Exit code 5 means the model is missing or is not the one the collection was built with. Through
-MCP, `listCollections` shows every collection with `built: true`, its record count and its build
-time.
+Exit code 5 means the model is missing or is not the one the collection was built with; without
+`--mode`, a missing model gives a `NOTE:` line and a search by words. Through MCP,
+`listCollections` shows every collection with `built: true`, its record count, its build time,
+its `model` and, when something is known to be wrong with it, `modelProblem`.
+
+A collection with a remote model needs no files: set the same Spring AI settings on the serving
+machine ([Spring AI models](#spring-ai-models)).

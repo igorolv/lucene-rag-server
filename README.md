@@ -108,6 +108,10 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 | `RAG_MCP_HTTP_ADDRESS` | `127.0.0.1` | Address the `http` transport listens on |
 | `RAG_MCP_HTTP_PORT` | `8080` | Port of the `http` transport |
 
+Embedding models run in the server process from files in `<data-dir>/models/`, or on an
+OpenAI-compatible endpoint configured by Spring AI's `SPRING_AI_OPENAI_*` settings
+([docs/collections.md](docs/collections.md#spring-ai-models)).
+
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).

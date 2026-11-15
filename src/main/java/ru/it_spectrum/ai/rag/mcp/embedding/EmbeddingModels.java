@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -161,6 +162,38 @@ public final class EmbeddingModels implements AutoCloseable {
                     + "model files it was built with there; mode lexical works without the model");
         }
         return model;
+    }
+
+    /**
+     * Why the model of a collection cannot be used, as far as is known without loading it: a type
+     * this installation lacks, or missing files. A model already loaded is checked in full. Empty
+     * when nothing is known to be wrong; a model is loaded only by a search that needs it.
+     */
+    public synchronized Optional<String> problem(String collection, String name, ModelParameters parameters,
+                                                 int dimension, Map<String, String> files) {
+        ModelType loader = loaders.get(parameters.type());
+        if (loader == null) {
+            return Optional.of("model type '" + parameters.type() + "' is not supported here; supported: "
+                    + String.join(", ", types()));
+        }
+        Path dir = directory(name);
+        if (loaded.containsKey(parameters.type() + "|" + parameters.maxTokens() + "|" + dir)) {
+            try {
+                verified(collection, name, parameters, dimension, files);
+                return Optional.empty();
+            } catch (ModelUnavailableException e) {
+                return Optional.of(e.getMessage());
+            }
+        }
+        if (loader.usesFiles()) {
+            List<String> missing = files.keySet().stream().sorted().filter(f -> !Files.isRegularFile(dir.resolve(f)))
+                    .toList();
+            if (!missing.isEmpty()) {
+                return Optional.of("files " + String.join(", ", missing) + " of model '" + name + "' are not in "
+                        + dir);
+            }
+        }
+        return Optional.empty();
     }
 
     private static String describe(int dimension, Map<String, String> files) {

@@ -178,9 +178,28 @@ class VectorSearchTest {
         assertThatThrownBy(() -> withOther.search(List.of(DOCS), "платёж", null, null, null, "vector"))
                 .isInstanceOf(ModelUnavailableException.class)
                 .hasMessageContaining("another version of model 'fake'").hasMessageContaining("lexical");
-        assertThatThrownBy(() -> withOther.search(List.of(DOCS), "платёж", null, null, null))
-                .isInstanceOf(ModelUnavailableException.class);
         assertThat(withOther.search(List.of(DOCS), "платёж", null, null, null, "lexical").hits()).isNotEmpty();
+
+        // Without a mode the search runs by words and says why.
+        SearchPage fallback = withOther.search(List.of(DOCS), "платёж", null, null, null);
+        SearchPage lexical = withOther.search(List.of(DOCS), "платёж", null, null, null, "lexical");
+        assertThat(fallback.mode()).isEqualTo(SearchMode.LEXICAL);
+        assertThat(ids(fallback)).isEqualTo(ids(lexical));
+        assertThat(fallback.notice()).startsWith("Searched by words only: ")
+                .contains("another version of model 'fake'");
+        assertThat(lexical.notice()).isNull();
+
+        // What listCollections reports: nothing known before loading, the mismatch once loaded.
+        Manifest.Vectors vectors = store.manifest(DOCS).orElseThrow().vectors();
+        assertThat(other.problem(DOCS, "fake", vectors.parameters(), vectors.dimension(), vectors.files()))
+                .hasValueSatisfying(p -> assertThat(p).contains("another version of model 'fake'"));
+        var empty = new EmbeddingModels(otherModels.resolve("none"),
+                Map.of(FakeEmbeddingModel.TYPE, FakeEmbeddingModel::load));
+        assertThat(empty.problem(DOCS, "fake", vectors.parameters(), vectors.dimension(), vectors.files()))
+                .hasValueSatisfying(p -> assertThat(p).contains("of model 'fake' are not in"));
+        assertThat(new EmbeddingModels(otherModels.resolve("none"), Map.of()).problem(DOCS, "fake",
+                vectors.parameters(), vectors.dimension(), vectors.files()))
+                .hasValueSatisfying(p -> assertThat(p).contains("is not supported here"));
 
         var missing = new SearchService(store, properties, new EmbeddingModels(otherModels.resolve("none"),
                 Map.of(FakeEmbeddingModel.TYPE, FakeEmbeddingModel::load)));

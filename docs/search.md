@@ -31,10 +31,18 @@ the server bounds what one call returns, and how `rag-eval` measures search on a
   vectors take part through the BM25 list only.
 - `vector` and `hybrid` need a query; a call with filters only lists records as in `lexical`.
 - **The model must be at hand.** The query is embedded by the model the collection was built
-  with, from `<data-dir>/models/<model>/`. When those files are missing or are not the files the
-  collection was built with (their SHA-256 is in the manifest), `vector` and `hybrid` are an error
-  that says so, and `lexical` keeps working. The first such search of a process loads the model,
-  which takes a few seconds; a model whose files are replaced is seen after a restart.
+  with, from `<data-dir>/models/<model>/` or the Spring AI bean it names. When the files are
+  missing or are not the files the collection was built with (their SHA-256 is in the manifest),
+  or the bean cannot embed:
+  - a call without `mode` is searched `lexical`, and the result says why in `notice`
+    (`rag-search` prints it as a `NOTE:` line);
+  - a call that asks for `vector` or `hybrid` is an error that says so.
+
+  `listCollections` shows the model of each collection (`model`) and, in `modelProblem`, why it
+  cannot be used as far as is known without loading it: a type the server lacks or missing files;
+  once loaded, also other files than the collection was built with. The first search that needs
+  the model loads it, which takes a few seconds; a model whose files are replaced is seen after a
+  restart.
 - **Fusion:** a record at rank *r* of a list scores 1 / (60 + *r*) for that list, and the scores
   of the lists add up (`TopDocs.rrf` of Lucene). Collections built with the same model are one
   vector list; collections of different models are separate lists.

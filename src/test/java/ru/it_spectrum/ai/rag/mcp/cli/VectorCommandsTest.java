@@ -50,6 +50,7 @@ class VectorCommandsTest {
 
     @Test
     void indexReportsTheVectors() {
+        assertThat(indexOutput).contains("  model: files in " + dataDir.resolve("models").resolve("fake"));
         assertThat(indexOutput).contains("vectors: model fake, 64 dimensions, ")
                 .contains(" embedded, 0 from cache, 0 cut to 512 tokens")
                 .contains("RESULT: OK (2 collections built)");

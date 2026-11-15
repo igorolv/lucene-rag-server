@@ -27,6 +27,11 @@ spring-ai-model = { module = "org.springframework.ai:spring-ai-model", version.r
 spring-ai-vector-store = { module = "org.springframework.ai:spring-ai-vector-store", version.ref = "spring-ai" }
 # The pdf format wraps Spring AI's PDF reader (docs/decisions.md D32); brings PDFBox.
 spring-ai-pdf-document-reader = { module = "org.springframework.ai:spring-ai-pdf-document-reader", version.ref = "spring-ai" }
+# A remote embedding model of an OpenAI-compatible endpoint as a Spring AI bean (docs/decisions.md
+# D43, D67): the model module and its auto-configuration, not the starter, which brings ChatClient,
+# chat memory and WebClient. Only the embedding model is switched on, and only by the operator.
+spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai", version.ref = "spring-ai" }
+spring-ai-autoconfigure-model-openai = { module = "org.springframework.ai:spring-ai-autoconfigure-model-openai", version.ref = "spring-ai" }
 lucene-core = { module = "org.apache.lucene:lucene-core", version.ref = "lucene" }
 lucene-analysis-common = { module = "org.apache.lucene:lucene-analysis-common", version.ref = "lucene" }
 lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser", version.ref = "lucene" }

@@ -23,6 +23,8 @@ dependencies {
     implementation(libs.spring.ai.model)
     implementation(libs.spring.ai.vector.store)
     implementation(libs.spring.ai.pdf.document.reader)
+    implementation(libs.spring.ai.openai)
+    implementation(libs.spring.ai.autoconfigure.model.openai)
     implementation(libs.lucene.core)
     implementation(libs.lucene.analysis.common)
     implementation(libs.lucene.queryparser)

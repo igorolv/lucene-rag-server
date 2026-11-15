@@ -39,6 +39,13 @@ public record CollectionInfo(
                 "hybrid only when the collection has vectors",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> modes,
+        @Schema(description = "Embedding model of the collection; absent without vectors",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String model,
+        @Schema(description = "Why vector and hybrid search cannot use the model, e.g. its files are missing; " +
+                "absent when nothing is known to be wrong. Search without a mode then runs by words only",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String modelProblem,
         @Schema(description = "Why the collection cannot be built, when its configuration is wrong",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String configError) {

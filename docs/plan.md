@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D66; agent proposals, when there are any, as P27 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D69; agent proposals as P28 onwards).
 
 ## 1. Idea
 
@@ -40,7 +40,7 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (186 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (187 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -293,11 +293,11 @@ D28 with its reason.
 | Area | Spring AI | State |
 |---|---|---|
 | MCP server, tools | `spring-ai-starter-mcp-server`, `@McpTool` | used |
-| Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29) | used; no remote type yet |
+| Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29, D67) | used |
 | Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
-| Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans: the model type `bean` (D43); every command in a Spring context (D42) | used; no provider starter in the build |
+| Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans: the model type `bean` (D43); every command in a Spring context (D42); an OpenAI-compatible endpoint by `spring-ai-autoconfigure-model-openai` (D67) | used; the remote model is off until configured |
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
 | MCP over HTTP | the streamable HTTP transport of the Spring AI MCP server starter (D45), `RAG_MCP_TRANSPORT=http` | used |
@@ -307,7 +307,8 @@ D28 with its reason.
 
 Dependencies these decisions allow: `spring-ai-model`, `spring-ai-vector-store` (brings nothing
 the build did not have), `spring-ai-pdf-document-reader` (PDFBox 3, four modules) and
-`spring-ai-starter-mcp-server-webmvc` (Tomcat and Spring MVC, 18 modules, D45), declared;
+`spring-ai-starter-mcp-server-webmvc` (Tomcat and Spring MVC, 18 modules, D45) and
+`spring-ai-openai` with `spring-ai-autoconfigure-model-openai` (26 modules, D67), declared;
 `spring-ai-jsoup-document-reader` (two modules) and `spring-ai-tika-document-reader` (107 modules)
 each with the format that needs it.
 

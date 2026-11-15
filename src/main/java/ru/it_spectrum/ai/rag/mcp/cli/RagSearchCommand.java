@@ -144,6 +144,9 @@ public final class RagSearchCommand {
             }
             out.println();
         }
+        if (page.notice() != null) {
+            out.println("NOTE: " + page.notice());
+        }
         out.println("RESULT: OK (" + page.total() + " found, " + page.hits().size() + " shown"
                 + (page.mode() == null ? "" : ", " + page.mode().id())
                 + (page.truncated() ? ", cut by the response size cap" : "") + ")");

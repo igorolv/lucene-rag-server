@@ -19,5 +19,9 @@ public record SearchResult(
         boolean truncated,
         @Schema(description = "How the hits were ranked: lexical, vector or hybrid",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String mode) {
+        String mode,
+        @Schema(description = "Why the search ran otherwise than asked, e.g. by words only because the " +
+                "embedding model of a collection is missing; absent when it ran as asked",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String notice) {
 }

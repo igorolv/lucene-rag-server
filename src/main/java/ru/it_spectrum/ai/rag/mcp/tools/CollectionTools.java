@@ -10,6 +10,7 @@ import ru.it_spectrum.ai.rag.mcp.api.ListCollectionsResult;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
+import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
@@ -38,18 +39,23 @@ public class CollectionTools {
     private final CollectionStore store;
     private final RagMcpProperties properties;
     private final StepRegistry registry;
+    private final EmbeddingModels models;
 
-    public CollectionTools(CollectionStore store, RagMcpProperties properties, StepRegistry registry) {
+    public CollectionTools(CollectionStore store, RagMcpProperties properties, StepRegistry registry,
+                           EmbeddingModels models) {
         this.store = store;
         this.properties = properties;
         this.registry = registry;
+        this.models = models;
     }
 
     @McpTool(
             description = "List the collections of this server. Call first when the collection to search " +
                     "is not known yet: name is the value for the collection arguments of other tools, " +
                     "description says what the collection holds, fields are the names search accepts as " +
-                    "filters, keys are the fields lookup finds records by, modes are the search modes it supports. Only collections with built=true can be searched.",
+                    "filters, keys are the fields lookup finds records by, modes are the search modes it supports, " +
+                    "model is its embedding model and modelProblem why that model cannot be used. Only " +
+                    "collections with built=true can be searched.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -61,7 +67,7 @@ public class CollectionTools {
             infos.add(new CollectionInfo(manifest.name(), manifest.description(), true, manifest.records(),
                     manifest.builtAt(), manifest.fields(), manifest.keys().isEmpty() ? null : manifest.keys(),
                     manifest.vectors() == null ? List.of("lexical") : List.of("lexical", "vector", "hybrid"),
-                    null));
+                    manifest.vectors() == null ? null : manifest.vectors().model(), modelProblem(manifest), null));
         }
         Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
         try {
@@ -69,12 +75,21 @@ public class CollectionTools {
                     : registry.checked(CollectionsLoader.load(properties, System::getenv))) {
                 if (!builtNames.contains(definition.name())) {
                     infos.add(new CollectionInfo(definition.name(), definition.description(), false, null,
-                            null, null, null, null, definition.configError()));
+                            null, null, null, null, null, null, definition.configError()));
                 }
             }
         } catch (IllegalStateException e) {
             log.warn("The collections file is ignored: {}", e.getMessage());
         }
         return new ListCollectionsResult(List.copyOf(infos));
+    }
+
+    private String modelProblem(Manifest manifest) {
+        Manifest.Vectors vectors = manifest.vectors();
+        if (vectors == null) {
+            return null;
+        }
+        return models.problem(manifest.name(), vectors.model(), vectors.parameters(), vectors.dimension(),
+                vectors.files()).orElse(null);
     }
 }

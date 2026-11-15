@@ -5,6 +5,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
+import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
@@ -96,6 +97,9 @@ public final class RagIndexCommand {
                             "  vectors: model %s, %d dimensions, %d embedded, %d from cache, %d cut to %d tokens",
                             manifest.vectors().model(), manifest.vectors().dimension(), built.embedded(),
                             built.cached(), manifest.vectors().truncated(), manifest.vectors().maxTokens()));
+                    out.println("  model: " + (BeanModelType.NAME.equals(manifest.vectors().type())
+                            ? "Spring AI bean " + manifest.vectors().model()
+                            : "files in " + models.directory(manifest.vectors().model())));
                 }
             } catch (IllegalArgumentException e) {
                 out.println("RESULT: FAILED (" + e.getMessage() + ")");
