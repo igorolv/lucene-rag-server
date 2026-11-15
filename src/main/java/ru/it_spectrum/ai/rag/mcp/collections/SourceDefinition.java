@@ -19,14 +19,23 @@ import java.util.List;
  * @param command the program whose output is the only item of the source, or {@code null}
  * @param convert the converters every item passes through, in order; empty for none
  * @param where   which records are kept
+ * @param joins   the lookups whose units give values to the units of the source; empty for none
  */
 public record SourceDefinition(Path path, String include, String exclude, String format,
                                SplitSettings split, MapSettings map, CommandSettings command,
-                               List<ConvertStep> convert, WhereSettings where) {
+                               List<ConvertStep> convert, WhereSettings where, List<JoinDefinition> joins) {
 
     public SourceDefinition {
         convert = convert == null ? List.of() : List.copyOf(convert);
         where = where == null ? WhereSettings.ALL : where;
+        joins = joins == null ? List.of() : List.copyOf(joins);
+    }
+
+    /** A source without lookups. */
+    public SourceDefinition(Path path, String include, String exclude, String format, SplitSettings split,
+                            MapSettings map, CommandSettings command, List<ConvertStep> convert,
+                            WhereSettings where) {
+        this(path, include, exclude, format, split, map, command, convert, where, List.of());
     }
 
     /** A source of files without converters. */

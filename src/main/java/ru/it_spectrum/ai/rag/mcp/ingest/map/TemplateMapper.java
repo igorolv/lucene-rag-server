@@ -5,6 +5,8 @@ import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
+import ru.it_spectrum.ai.rag.mcp.ingest.JoinSpec;
+import ru.it_spectrum.ai.rag.mcp.ingest.JoinTable;
 import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
 import ru.it_spectrum.ai.rag.mcp.ingest.Mapper;
 import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;
@@ -24,6 +26,9 @@ import java.util.regex.Pattern;
  * cut" and what is indexed. It knows no format: the values come from the document and the unit,
  * the templates a source leaves out come from the format's {@link MapDefaults}.
  *
+ * <p>The named groups of {@code map.bodyPattern}, searched in the text of a unit, are values of
+ * that unit, and so are the values of the unit of a lookup it names ({@link JoinTable}).
+ *
  * <p>Values are computed in a fixed order, each available to the templates after it: document
  * key, title, slug, breadcrumb, text, id, fields. Whatever the id template gives, ids are made
  * unique inside the document: a repeated id gets {@code -2}, {@code -3}, and the parts of a text
@@ -33,13 +38,18 @@ import java.util.regex.Pattern;
 public final class TemplateMapper implements Mapper {
 
     @Override
-    public void check(MapSettings map, SplitSettings split, Format format) {
-        TemplateCheck.check(map, split, format);
+    public void check(MapSettings map, SplitSettings split, Format format, List<JoinSpec> joins) {
+        TemplateCheck.check(map, split, format, joins);
+    }
+
+    @Override
+    public String key(String template, Map<String, List<String>> values) {
+        return Template.render(template, values::get).strip();
     }
 
     @Override
     public List<ChunkRecord> map(ParsedDocument document, List<Unit> units, MapSettings map, MapDefaults defaults,
-                                 int maxChars) {
+                                 int maxChars, List<JoinTable> joins) {
         Map<String, List<String>> base = new HashMap<>(document.values());
         String[] segments = document.path().split("/");
         for (int i = 0; i < segments.length; i++) {
@@ -73,11 +83,26 @@ public final class TemplateMapper implements Mapper {
         if (textTemplate == null) {
             throw new IllegalArgumentException("map.text is required: the format has no default text");
         }
+        Pattern bodyPattern = map.compiledBodyPattern();
         List<ChunkRecord> records = new ArrayList<>();
         Map<String, Integer> usedIds = new HashMap<>();
         for (Unit unit : units) {
             Map<String, List<String>> values = new HashMap<>(base);
             values.putAll(unit.values());
+            if (bodyPattern != null) {
+                Matcher matcher = bodyPattern.matcher(unit.text());
+                if (matcher.find()) {
+                    for (String group : bodyPattern.namedGroups().keySet()) {
+                        put(values, Unit.BODY_GROUP + group, matcher.group(group));
+                    }
+                }
+            }
+            for (JoinTable join : joins) {
+                Map<String, List<String>> row = join.row(Template.render(join.on(), values::get));
+                if (row != null) {
+                    row.forEach((name, value) -> values.put(join.name() + "." + name, value));
+                }
+            }
 
             String title = Template.render(or(map.title(), defaults.title()), values::get).strip();
             put(values, "title", title);

@@ -16,6 +16,7 @@ import org.springframework.ai.document.DocumentWriter;
 import org.springframework.ai.document.MetadataMode;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.collections.JoinDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.ModelDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.document.RecordContentFormatter;
@@ -204,7 +205,8 @@ public final class CollectionIndexer {
                         source.include(), source.exclude(), pipeline.format(), source.split(), source.map(),
                         source.command() == null ? null : source.command().command(),
                         source.command() == null ? null : source.command().timeoutSeconds(),
-                        source.convert().stream().map(ConvertStep::settings).toList(), source.where()));
+                        source.convert().stream().map(ConvertStep::settings).toList(), source.where(),
+                        source.joins().stream().map(join -> manifestJoin(join, pipeline)).toList()));
                 for (SourceItem item : pipeline.items()) {
                     files++;
                     var read = SourceDocumentReader.of(pipeline, item).get();
@@ -429,5 +431,14 @@ public final class CollectionIndexer {
                 Files.delete(path);
             }
         }
+    }
+
+    private static Manifest.Join manifestJoin(JoinDefinition join, SourcePipeline pipeline) {
+        SourceDefinition read = join.source();
+        return new Manifest.Join(join.name(), read.path() == null ? null : read.path().toString(), read.include(),
+                read.exclude(), pipeline.lookupFormats().get(join.name()), read.split(),
+                read.command() == null ? null : read.command().command(),
+                read.command() == null ? null : read.command().timeoutSeconds(),
+                read.convert().stream().map(ConvertStep::settings).toList(), join.key(), join.on());
     }
 }

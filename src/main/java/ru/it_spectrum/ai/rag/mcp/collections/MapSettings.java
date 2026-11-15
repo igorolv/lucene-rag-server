@@ -21,16 +21,21 @@ import java.util.regex.PatternSyntaxException;
  * @param inheritFields document fields copied to the record as they are; {@code *} for all
  * @param keys          fields whose values the {@code lookup} tool finds the record by; {@code null}
  *                      for none
+ * @param bodyPattern   regular expression searched in the text of a unit; its named groups are
+ *                      available as {@code body.<group>}
  */
 public record MapSettings(String pathPattern, String document, String id, String title,
                           List<String> breadcrumb, String text, Map<String, String> fields,
-                          List<String> inheritFields, List<String> keys) {
+                          List<String> inheritFields, List<String> keys, String bodyPattern) {
 
     public static final String ALL_FIELDS = "*";
 
     public MapSettings {
+        if (bodyPattern != null) {
+            compile("map.bodyPattern", bodyPattern);
+        }
         if (pathPattern != null) {
-            for (String group : compile(pathPattern).namedGroups().keySet()) {
+            for (String group : compile("map.pathPattern", pathPattern).namedGroups().keySet()) {
                 if (group.equals("name") || group.equals("dir")) {
                     throw new IllegalArgumentException("map.pathPattern: the group name \"" + group
                             + "\" is taken by {path." + group + "}");
@@ -39,13 +44,18 @@ public record MapSettings(String pathPattern, String document, String id, String
         }
     }
 
-    private static Pattern compile(String pattern) {
+    private static Pattern compile(String setting, String pattern) {
         try {
             return Pattern.compile(pattern);
         } catch (PatternSyntaxException e) {
-            throw new IllegalArgumentException("map.pathPattern is not a valid regular expression: "
+            throw new IllegalArgumentException(setting + " is not a valid regular expression: "
                     + e.getDescription());
         }
+    }
+
+    /** The compiled {@link #bodyPattern()}, or {@code null}. */
+    public Pattern compiledBodyPattern() {
+        return bodyPattern == null ? null : Pattern.compile(bodyPattern);
     }
 
     /** The compiled {@link #pathPattern()}, or {@code null}. */
@@ -53,11 +63,18 @@ public record MapSettings(String pathPattern, String document, String id, String
         return pathPattern == null ? null : Pattern.compile(pathPattern);
     }
 
-    public static final MapSettings DEFAULT = new MapSettings(null, null, null, null, null, null, null, null, null);
+    public static final MapSettings DEFAULT = new MapSettings(null, null, null, null, null, null, null, null, null,
+            null);
 
-    /** Settings without {@code keys}. */
+    /** Settings without {@code bodyPattern}. */
+    public MapSettings(String pathPattern, String document, String id, String title, List<String> breadcrumb,
+                       String text, Map<String, String> fields, List<String> inheritFields, List<String> keys) {
+        this(pathPattern, document, id, title, breadcrumb, text, fields, inheritFields, keys, null);
+    }
+
+    /** Settings without {@code keys} and {@code bodyPattern}. */
     public MapSettings(String pathPattern, String document, String id, String title, List<String> breadcrumb,
                        String text, Map<String, String> fields, List<String> inheritFields) {
-        this(pathPattern, document, id, title, breadcrumb, text, fields, inheritFields, null);
+        this(pathPattern, document, id, title, breadcrumb, text, fields, inheritFields, null, null);
     }
 }

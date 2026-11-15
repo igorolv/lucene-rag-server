@@ -2,6 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.ingest;
 
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.collections.JoinDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.ingest.convert.CommandConverter;
 import ru.it_spectrum.ai.rag.mcp.ingest.exec.CommandRunner;
@@ -86,7 +87,21 @@ public final class StepRegistry {
      */
     public SourcePipeline pipeline(SourceDefinition source) {
         Origin origin = origin(source);
-        return SourcePipeline.of(source, origin, conversions(source, origin), format(source), splitter, mapper);
+        List<SourcePipeline.Lookup> lookups = new ArrayList<>();
+        for (JoinDefinition join : source.joins()) {
+            try {
+                SourceDefinition read = join.source();
+                Origin lookupOrigin = origin(read);
+                SourcePipeline pipeline = SourcePipeline.lookup(read, lookupOrigin, conversions(read, lookupOrigin),
+                        format(read), splitter, mapper);
+                lookups.add(new SourcePipeline.Lookup(new JoinSpec(join.name(), join.key(), join.on(), read.split(),
+                        pipeline.formatStep()), pipeline));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("join." + join.name() + ": " + e.getMessage(), e);
+            }
+        }
+        return SourcePipeline.of(source, origin, conversions(source, origin), format(source), splitter, mapper,
+                lookups);
     }
 
     /** The {@code convert} steps of a source, each resolved by the key that names its converter. */

@@ -16,6 +16,7 @@ another machine.
 - [Commands](#commands)
 - [Splitting](#splitting)
 - [Mapping](#mapping)
+- [Joining values from another file](#joining-values-from-another-file)
 - [Selecting records](#selecting-records)
 - [Vectors](#vectors)
 - [Examples](#examples)
@@ -71,6 +72,7 @@ Each entry of `sources`:
 | `command` | none | Instead of `path`: a program whose output is the only file of the source, see [Commands](#commands) |
 | `timeoutSeconds` | `60` | How long `command` may run |
 | `convert` | none | Programs every file passes through before it is parsed, see [Commands](#commands) |
+| `join` | none | Lookups: other files whose units give values to the units of this source by a key, see [Joining values from another file](#joining-values-from-another-file) |
 | `where` | none | Which records are kept, see [Selecting records](#selecting-records) |
 | `reader` | none | Name of an entry of the top-level `readers` object whose keys the source takes, see [Named readers](#named-readers) |
 
@@ -434,6 +436,7 @@ symptoms, of error codes or of settings kept as a table in a document.
 | `map` key | Default | Meaning |
 |---|---|---|
 | `pathPattern` | none | Regular expression searched in the file path relative to the source. Its named groups become the values `{path.<group>}` |
+| `bodyPattern` | none | Regular expression searched in the text of a unit, `{body}`. The named groups of its first match become the values `{body.<group>}` of that unit; the text is not changed. For a format whose units have a `{body}`: every format except TSV and JSONL |
 | `document` | `{frontmatter.id\|document.path}` | Document key |
 | `title` | `{heading}` | Record title |
 | `breadcrumb` | document title, parent headings, title | Array of templates; empty parts are dropped and the rest joined with ` › ` |
@@ -456,6 +459,8 @@ values above its own row:
 | `{document.key}` | The result of `document` | `title` and below |
 | `{heading}`, `{heading.<group>}` | The unit's heading; a named group of `split.headingPattern` | `title` and below |
 | `{parents}` | The headings above the unit, joined with ` › ` | `title` and below |
+| `{body.<group>}` | A named group of `bodyPattern` | `title` and below |
+| `{<lookup>.<value>}` | A value of the unit of a lookup the unit names ([Joining values from another file](#joining-values-from-another-file)) | `title` and below |
 | `{title}`, `{slug}` | The result of `title`; the same in lower case with dashes (`intro` for text before the first heading) | `breadcrumb` and below |
 | `{breadcrumb}`, `{body}` | The result of `breadcrumb`; the unit's text | `text`, `id`, `fields` |
 
@@ -469,6 +474,65 @@ broken template are configuration errors of the collection.
 
 Two records with the same id in one collection fail the build: make the document keys or the
 `id` template distinguish them.
+
+## Joining values from another file
+
+What a record needs is sometimes kept in another file: a requirement file is named by a technical
+name, and the menu path of its screen is a row of a table of all screens. `join` reads such a
+file as a lookup and gives its values to the units of the source.
+
+```markdown
+| Capability | SF | Menu | Help |
+|---|---|---|---|
+| `billing-payments` | 2010 | Payments → Incoming payments | payments.html |
+```
+
+```json
+{ "path": "C:/projects/billing/openspec/specs", "include": "**/spec.md",
+  "split": { "level": "h3", "headingPattern": "^Requirement: (?<name>.+)$" },
+  "join": {
+    "cap": { "path": "C:/projects/billing/openspec/catalog.md", "split": { "tableRows": true },
+             "key": "{column.1}", "on": "`{path[0]}`" }
+  },
+  "map": { "document": "{path[0]}", "title": "{heading.name}",
+           "breadcrumb": ["{cap.column.Menu|path[0]}", "{title}"],
+           "fields": { "sf": "{cap.column.SF}", "help": "{cap.column.Help}" } } }
+```
+
+A requirement of `billing-payments/spec.md` gets the breadcrumb
+`Payments → Incoming payments › Columns of the table` instead of
+`billing-payments › Columns of the table`, and the fields `sf=2010` and `help=payments.html`.
+
+`join` is an object of lookups by name. A lookup:
+
+| Key | Meaning |
+|---|---|
+| `path` or `command`, `include`, `exclude`, `timeoutSeconds`, `convert`, `format`, `split` | What the lookup reads and how it is cut into units, as for a source: a TSV file gives a unit per row, a Markdown file with `split.tableRows` a unit per table row, a YAML file with `split.list` a unit per item |
+| `key` | Template over the values of a unit of the lookup: what the unit is found by |
+| `on` | Template over the values of a unit of the source: the key it looks for |
+
+- Where `on` of a unit of the source equals `key` of a unit of the lookup, the values of that
+  unit of the lookup become the values `{<name>.<value>}` of the unit of the source:
+  `{cap.column.3}`, `{cap.heading}`. They are available from `title` on, as the unit's own values.
+- `key` may use the values the format of the lookup gives a unit and its document
+  (`{column.…}`, `{record.…}`, `{item.…}`, `{yaml.…}`, `{frontmatter.…}`, `{heading}`, `{body}`),
+  not the values a `map` adds, such as `{path}`. `on` may use what a title template may, except
+  the values of lookups.
+- Keys are compared as filters compare values: without surrounding blanks and ignoring case.
+  Literal text in a template is part of the key: the cells above hold the name in backticks, so
+  `on` writes them around `{path[0]}`.
+- A unit of the source that names no unit of the lookup has no values of it, so
+  `{cap.column.Menu|path[0]}` falls back. A unit of the lookup with an empty key is left out.
+  Two units of a lookup with one key fail the build: cut the lookup so that a key names one unit,
+  for example with `split.headingPattern`.
+- A table with other columns in the same file gives its own columns: `{cap.column.3}` is the
+  third cell of whichever table the row is in, `{cap.column.Menu}` only the cell of a column so
+  named.
+- A lookup is read once per build of its source and is not indexed. It takes no `map`, `where`,
+  `reader` or `join` of its own. Its name is letters and digits and may not be the first part of
+  a value the source already has (`path`, `body`, `column`, `frontmatter` and so on).
+- No value is computed: there are no expressions beyond `{value}` and `{a|b}`. What a join of one
+  key cannot express is the job of a [command](#commands).
 
 ## Selecting records
 
@@ -685,6 +749,8 @@ Requirement files, one directory per capability, no front matter:
 ## Requirements
 ### Requirement: Create a payment
 The system SHALL create a payment when a bank statement arrives.
+
+**ID:** billing-payments/R01
 ```
 
 ```json
@@ -693,18 +759,24 @@ The system SHALL create a payment when a bank statement arrives.
   "split": { "level": "h3", "headingPattern": "^Requirement: (?<name>.+)$" },
   "map": {
     "pathPattern": "^(?<subsystem>[a-z]+)-",
+    "bodyPattern": "(?m)^\\*\\*ID:\\*\\* (?<id>\\S+)",
     "document": "{path[0]}",
     "title": "{heading.name}",
     "breadcrumb": ["{path[0]}", "{title}"],
-    "fields": { "kind": "spec", "capability": "{path[0]}", "subsystem": "{path.subsystem}" }
+    "id": "spec:{body.id|slug}",
+    "fields": { "kind": "spec", "capability": "{path[0]}", "subsystem": "{path.subsystem}",
+                "requirement": "{body.id}" },
+    "keys": ["requirement"]
   }
 }
 ```
 
-A file `billing-payments/spec.md` gives the record `billing-payments#create-a-payment` with the
+A file `billing-payments/spec.md` gives the record `spec:billing-payments/R01` with the
 breadcrumb `billing-payments › Create a payment` and the fields `kind=spec`,
-`capability=billing-payments`, `subsystem=billing`. Headings that are not requirements are left
-out.
+`capability=billing-payments`, `subsystem=billing`, `requirement=billing-payments/R01`. Headings
+that are not requirements are left out. The identifier is written in the text of a requirement,
+not in its heading, so `bodyPattern` takes it from there; a requirement without the line gets its
+id from the title, and `lookup` finds a requirement by its identifier.
 
 Short notes kept whole, with the directory as a field and only two front matter fields kept:
 
@@ -838,7 +910,7 @@ build may outlast the time a client waits for a tool; `rag-index` has no such li
   cache/                  embedding cache and the tokenizer's native code; derived
   docs@billing/
     manifest.json         name, description, build time, counts, field names,
-                          sources with their command, convert, split and map settings,
+                          sources with their command, convert, split, map and join settings,
                           the model with its parameters and the SHA-256 of its files
     index/                Lucene index, with the vectors
 ```

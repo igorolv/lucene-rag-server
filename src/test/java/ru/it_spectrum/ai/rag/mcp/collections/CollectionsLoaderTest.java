@@ -140,6 +140,16 @@ class CollectionsLoaderTest {
                 .contains("map.pathPattern", "taken by {path.name}");
         assertThat(errorOf("{\"path\": \"a\", \"map\": {\"pathPattern\": \"[\"}}"))
                 .contains("map.pathPattern", "regular expression");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"bodyPattern\": \"[\"}}"))
+                .contains("map.bodyPattern", "regular expression");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"id\": \"{body.code}\"}}"))
+                .contains("map.id", "named group (?<code>", "map.bodyPattern");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"bodyPattern\": \"ID: (?<code>\\\\S+)\","
+                + " \"document\": \"{body.code}\"}}"))
+                .contains("map.document", "{body.code}", "not available here");
+        assertThat(errorOf("{\"path\": \"a\", \"format\": \"tsv\", \"map\": {\"text\": \"{row}\","
+                + " \"bodyPattern\": \"(?<code>x)\"}}"))
+                .contains("map.bodyPattern is not a setting of a TSV source");
         assertThat(errorOf("{\"path\": \"a\", \"map\": {\"fields\": {\"bad name\": \"x\"}}}"))
                 .contains("map.fields", "bad name");
         assertThat(errorOf("{\"path\": \"a\", \"map\": {\"fields\": {\"k\": [1]}}}")).contains("map.fields.k");

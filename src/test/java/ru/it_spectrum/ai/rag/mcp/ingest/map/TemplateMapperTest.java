@@ -156,6 +156,33 @@ class TemplateMapperTest {
     }
 
     @Test
+    void aBodyPatternExtractsValuesFromTheTextOfAUnit() {
+        String spec = """
+                # payments Specification
+                ## Requirements
+                ### Requirement: Create a payment
+                The system SHALL create a payment.
+
+                **ID:** payments/R01
+                **Origin:** approved statement 12
+                ### Requirement: Cancel a payment
+                The system SHALL cancel a payment.
+                """;
+        MapSettings map = new MapSettings(null, "{path[0]}", "spec:{body.id|slug}", "{heading.name}", null, null,
+                Map.of("requirement", "{body.id}", "origin", "{body.origin}"), List.of(), List.of("requirement"),
+                "(?m)^\\*\\*ID:\\*\\* (?<id>\\S+)(?:\\n\\*\\*Origin:\\*\\* (?<origin>.+))?$");
+
+        List<ChunkRecord> records = records("payments/spec.md", spec, REQUIREMENTS, map);
+
+        assertThat(records).extracting(ChunkRecord::id).containsExactly("spec:payments/R01", "spec:cancel-a-payment");
+        assertThat(records.getFirst().fields()).isEqualTo(Map.of("requirement", List.of("payments/R01"),
+                "origin", List.of("approved statement 12")));
+        // The text is not changed by the pattern, and a unit it does not match has no values of it.
+        assertThat(records.getFirst().text()).contains("**ID:** payments/R01");
+        assertThat(records.get(1).fields()).isEmpty();
+    }
+
+    @Test
     void pathValuesNameTheFileAndItsDirectories() {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("area", "{path[0]}");

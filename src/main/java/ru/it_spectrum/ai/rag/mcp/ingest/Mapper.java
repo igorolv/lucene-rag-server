@@ -4,6 +4,7 @@ import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 
 import java.util.List;
+import java.util.Map;
 
 /** Step 5 of a source: how the values of a unit are laid out as records. */
 public interface Mapper {
@@ -14,12 +15,33 @@ public interface Mapper {
      *
      * @throws IllegalArgumentException naming the template and the value that does not fit
      */
-    void check(MapSettings map, SplitSettings split, Format format);
+    default void check(MapSettings map, SplitSettings split, Format format) {
+        check(map, split, format, List.of());
+    }
+
+    /**
+     * The same check for a source with lookups: the {@code key} template of each against the
+     * values of its lookup, its {@code on} template and the values {@code <name>.<value>} against
+     * those of the source.
+     */
+    void check(MapSettings map, SplitSettings split, Format format, List<JoinSpec> joins);
+
+    /** A template over the values of a unit of a lookup, as {@code join.<name>.key} is. */
+    String key(String template, Map<String, List<String>> values);
 
     /**
      * @param maxChars a longer text is split into several records
      * @throws IllegalArgumentException when a document key or a record id comes out empty
      */
+    default List<ChunkRecord> map(ParsedDocument document, List<Unit> units, MapSettings map, MapDefaults defaults,
+                                  int maxChars) {
+        return map(document, units, map, defaults, maxChars, List.of());
+    }
+
+    /**
+     * @param joins the lookups of the source; the unit of a lookup that a unit of the source
+     *              names gives it the values {@code <name>.<value>}
+     */
     List<ChunkRecord> map(ParsedDocument document, List<Unit> units, MapSettings map, MapDefaults defaults,
-                          int maxChars);
+                          int maxChars, List<JoinTable> joins);
 }

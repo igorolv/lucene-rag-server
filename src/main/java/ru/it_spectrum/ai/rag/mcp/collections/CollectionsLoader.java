@@ -48,6 +48,8 @@ public final class CollectionsLoader {
     /** The keys of a source a named reader may hold. */
     static final List<String> READER_KEYS = List.of("convert", "format", "split", "map");
 
+    private static final Pattern JOIN_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9]*");
+
     private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}");
 
     private CollectionsLoader() {
@@ -267,7 +269,49 @@ public final class CollectionsLoader {
         SplitSettings split = split(node.get("split"));
         MapSettings map = map(node.get("map"));
         return new SourceDefinition(path, text(node.get("include")), text(node.get("exclude")), format, split, map,
-                command, convert(node.get("convert"), baseDir), where(node.get("where")));
+                command, convert(node.get("convert"), baseDir), where(node.get("where")),
+                joins(node.get("join"), where, baseDir, env));
+    }
+
+    /** The lookups of a source: each a source of its own, read for its units, with a key and what it is matched on. */
+    private static List<JoinDefinition> joins(JsonNode node, String where, Path baseDir, UnaryOperator<String> env) {
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("\"join\" must be a JSON object of name to lookup");
+        }
+        List<JoinDefinition> joins = new ArrayList<>();
+        for (var entry : node.properties()) {
+            String name = entry.getKey();
+            String label = "join." + name;
+            JsonNode lookup = entry.getValue();
+            if (!JOIN_NAME.matcher(name).matches()) {
+                throw new IllegalArgumentException(label + ": the name of a lookup is letters and digits, starting"
+                        + " with a letter");
+            }
+            if (!lookup.isObject()) {
+                throw new IllegalArgumentException(label + " must be a JSON object");
+            }
+            for (String key : List.of("map", "where", "join", "reader")) {
+                if (lookup.has(key)) {
+                    throw new IllegalArgumentException(label + ": a lookup takes no \"" + key + "\"");
+                }
+            }
+            String key = text(lookup.get("key"));
+            String on = text(lookup.get("on"));
+            if (key == null || key.isBlank() || on == null || on.isBlank()) {
+                throw new IllegalArgumentException(label + ": \"key\" and \"on\" are required templates");
+            }
+            final SourceDefinition source;
+            try {
+                source = source(lookup, where + "." + label, baseDir, env);
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                throw new IllegalArgumentException(label + ": " + e.getMessage(), e);
+            }
+            joins.add(new JoinDefinition(name, source, key, on));
+        }
+        return List.copyOf(joins);
     }
 
     /** {@code "field": value} keeps records with the value, {@code "field": {"not": value}} those without. */
@@ -373,7 +417,8 @@ public final class CollectionsLoader {
         return new MapSettings(text(node.get("pathPattern")), text(node.get("document")), text(node.get("id")), text(node.get("title")),
                 strings(node.get("breadcrumb"), "map.breadcrumb"), text(node.get("text")),
                 fields == null ? null : Collections.unmodifiableMap(fields),
-                strings(node.get("inheritFields"), "map.inheritFields"), strings(node.get("keys"), "map.keys"));
+                strings(node.get("inheritFields"), "map.inheritFields"), strings(node.get("keys"), "map.keys"),
+                text(node.get("bodyPattern")));
     }
 
     private static boolean bool(JsonNode node, String field) {

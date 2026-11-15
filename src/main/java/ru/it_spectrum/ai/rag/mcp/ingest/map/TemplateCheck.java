@@ -3,10 +3,14 @@ package ru.it_spectrum.ai.rag.mcp.ingest.map;
 import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
 import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
+import ru.it_spectrum.ai.rag.mcp.ingest.JoinSpec;
 import ru.it_spectrum.ai.rag.mcp.ingest.Unit;
 import ru.it_spectrum.ai.rag.mcp.ingest.ValueNames;
 
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -23,7 +27,12 @@ final class TemplateCheck {
     private static final Pattern FIELD_NAME = Pattern.compile("[A-Za-z0-9_.-]+");
     private static final Pattern PATH_SEGMENT = Pattern.compile("path\\[\\d+]");
     private static final Pattern HEADING_GROUP = Pattern.compile("heading\\.([A-Za-z][A-Za-z0-9]*)");
+    private static final Pattern BODY_GROUP = Pattern.compile("body\\.([A-Za-z][A-Za-z0-9]*)");
     private static final Pattern PATH_GROUP = Pattern.compile("path\\.([A-Za-z][A-Za-z0-9]*)");
+
+    /** First parts of the names the mapper and the splitter give, which a lookup may not be named as. */
+    private static final Set<String> OWN_ROOTS = Set.of("path", "document", "title", "slug", "breadcrumb",
+            Unit.HEADING, Unit.PARENTS, Unit.BODY, Unit.ROW, "column");
 
     private static final Set<String> DOCUMENT = Set.of("path", "path.name", "path.dir", "document.path",
             "document.title");
@@ -37,11 +46,32 @@ final class TemplateCheck {
     }
 
     /** @throws IllegalArgumentException naming the template and the value that is not available in it */
-    static void check(MapSettings map, SplitSettings split, Format format) {
-        Check check = new Check(format.valueNames(),
-                split.headingPattern() == null ? Set.of() : split.compiledHeadingPattern().namedGroups().keySet(),
-                map.pathPattern() == null ? Set.of() : map.compiledPathPattern().namedGroups().keySet(),
-                split.tableRows());
+    static void check(MapSettings map, SplitSettings split, Format format, List<JoinSpec> joins) {
+        ValueNames names = format.valueNames();
+        if (map.bodyPattern() != null && !names.tree() && !names.unitNames().contains(Unit.BODY)) {
+            throw new IllegalArgumentException("map.bodyPattern is not a setting of " + names.label()
+                    + ": its units have no {body}");
+        }
+        Set<String> headingGroups = headingGroups(split);
+        Set<String> pathGroups = map.pathPattern() == null ? Set.of()
+                : map.compiledPathPattern().namedGroups().keySet();
+        Set<String> bodyGroups = map.bodyPattern() == null ? Set.of()
+                : map.compiledBodyPattern().namedGroups().keySet();
+        Check alone = new Check(names, headingGroups, pathGroups, bodyGroups, split.tableRows(), Map.of());
+        Map<String, Check> lookups = new LinkedHashMap<>();
+        for (JoinSpec join : joins) {
+            String where = "join." + join.name();
+            if (OWN_ROOTS.contains(join.name()) || roots(names).contains(join.name())) {
+                throw new IllegalArgumentException(where + ": the name \"" + join.name()
+                        + "\" is taken by the values {" + join.name() + "…} of the source");
+            }
+            Check lookup = new Check(join.format().valueNames(), headingGroups(join.split()), Set.of(), Set.of(),
+                    join.split().tableRows(), Map.of());
+            lookup.lookupTemplate(where + ".key", join.key());
+            alone.template(where + ".on", join.on(), 1);
+            lookups.put(join.name(), lookup);
+        }
+        Check check = new Check(names, headingGroups, pathGroups, bodyGroups, split.tableRows(), lookups);
         check.template("map.document", map.document(), 0);
         check.template("map.title", map.title(), 1);
         if (map.breadcrumb() != null) {
@@ -79,19 +109,77 @@ final class TemplateCheck {
         }
     }
 
-    private record Check(ValueNames names, Set<String> headingGroups, Set<String> pathGroups, boolean tableRows) {
+    private static Set<String> headingGroups(SplitSettings split) {
+        return split.headingPattern() == null ? Set.of() : split.compiledHeadingPattern().namedGroups().keySet();
+    }
+
+    /** The first parts of the names a format gives: {@code frontmatter} of {@code frontmatter.<key>}. */
+    private static Set<String> roots(ValueNames names) {
+        Set<String> roots = new HashSet<>();
+        for (Set<String> set : List.of(names.documentNames(), names.documentPrefixes(), names.unitNames(),
+                names.unitPrefixes())) {
+            for (String name : set) {
+                int dot = name.indexOf('.');
+                roots.add(dot < 0 ? name : name.substring(0, dot));
+            }
+        }
+        return roots;
+    }
+
+    /**
+     * @param joins the lookups of the source by name, each as the check of the values its units
+     *              have; empty for a lookup itself
+     */
+    private record Check(ValueNames names, Set<String> headingGroups, Set<String> pathGroups,
+                         Set<String> bodyGroups, boolean tableRows, Map<String, Check> joins) {
+
+        private static List<String> names(String where, String template) {
+            try {
+                return Template.names(template);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(where + ": " + e.getMessage());
+            }
+        }
+
+        /** The {@code key} template of a lookup: only the values its format gives a unit. */
+        void lookupTemplate(String where, String template) {
+            for (String name : names(where, template)) {
+                if (!formatValue(name)) {
+                    throw new IllegalArgumentException(where + ": {" + name + "} is not a value of a unit of "
+                            + names.label());
+                }
+            }
+        }
+
+        /** A value the format gives a unit or its document, whatever the mapper adds. */
+        private boolean formatValue(String name) {
+            var group = HEADING_GROUP.matcher(name);
+            if (names.tree() && group.matches()) {
+                return headingGroups.contains(group.group(1));
+            }
+            return names.documentNames().contains(name) || prefixed(names.documentPrefixes(), name)
+                    || (names.tree() ? TREE_TITLE.contains(name) || TREE_TEXT.contains(name)
+                    || tableRows && (Unit.ROW.equals(name) || prefixed(Set.of(Unit.COLUMN), name))
+                    : names.unitNames().contains(name) || prefixed(names.unitPrefixes(), name));
+        }
 
         void template(String where, String template, int stage) {
             if (template == null) {
                 return;
             }
-            final List<String> used;
-            try {
-                used = Template.names(template);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(where + ": " + e.getMessage());
-            }
-            for (String name : used) {
+            for (String name : names(where, template)) {
+                int dot = name.indexOf('.');
+                Check lookup = dot > 0 ? joins.get(name.substring(0, dot)) : null;
+                if (lookup != null) {
+                    if (stage < 1) {
+                        throw new IllegalArgumentException(where + ": {" + name + "} is not available here");
+                    }
+                    if (!lookup.formatValue(name.substring(dot + 1))) {
+                        throw new IllegalArgumentException(where + ": {" + name + "} is not a value of the lookup \""
+                                + name.substring(0, dot) + "\", " + lookup.names.label());
+                    }
+                    continue;
+                }
                 var group = HEADING_GROUP.matcher(name);
                 if (names.tree() && group.matches()) {
                     if (stage < 1) {
@@ -100,6 +188,17 @@ final class TemplateCheck {
                     if (!headingGroups.contains(group.group(1))) {
                         throw new IllegalArgumentException(where + ": {" + name + "} needs a named group (?<"
                                 + group.group(1) + ">…) in split.headingPattern");
+                    }
+                    continue;
+                }
+                var bodyGroup = BODY_GROUP.matcher(name);
+                if (bodyGroup.matches()) {
+                    if (stage < 1) {
+                        throw new IllegalArgumentException(where + ": {" + name + "} is not available here");
+                    }
+                    if (!bodyGroups.contains(bodyGroup.group(1))) {
+                        throw new IllegalArgumentException(where + ": {" + name + "} needs a named group (?<"
+                                + bodyGroup.group(1) + ">…) in map.bodyPattern");
                     }
                     continue;
                 }

@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D75; agent proposals as P29 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D77; agent proposals as P30 onwards).
 
 ## 1. Idea
 
@@ -81,7 +81,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
 | `format` | text → section tree or rows; a binary format reads the file instead (D34) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html`, `office` (Spring AI readers, D32, D74) |
 | `split` | section tree → units | `split` | one: by heading level and pattern, optionally into table rows (D37) |
-| `map` | unit → records | `map` | one: templates (D14) |
+| `map` | unit → records | `map`, `join` | one: templates (D14); a `join` gives a unit the values of a unit of another file with the same key (D77) |
 
 - Three shapes travel between the steps: **text** (with the item's relative path), a **section
   tree** (section, title, text, children, plus document fields such as Markdown front matter) and
@@ -105,7 +105,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
 described in `docs/collections.md`, which owns the format: `models`, `readers`, `description`,
 `vectors` and `sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`,
-`convert`, `format`, `split`, `map`, `where` and `reader`. Everything in the sketch below is
+`convert`, `format`, `split`, `map`, `join`, `where` and `reader`. Everything in the sketch below is
 implemented except `language`, which nothing reads yet:
 
 ```json
@@ -247,8 +247,8 @@ config/  — Spring wiring, properties, MCP customizer
 
 | Package | Responsibility |
 |---|---|
-| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
-| `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
+| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
+| `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); the lookups of a source (`JoinSpec`, what the template check needs, and `JoinTable`, the units of a lookup by key, D77); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |
 | `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, `SqlFormat`, and `PdfFormat` (Spring AI's `PagePdfDocumentReader`, reads the file) |

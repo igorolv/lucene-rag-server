@@ -76,10 +76,28 @@ public record Manifest(int schema, String name, String description, String built
      * @param timeoutSeconds the timeout of {@code command}, or {@code null}
      * @param convert        the {@code convert} steps as written; empty for none
      * @param where          the conditions records were selected by
+     * @param joins          the lookups of the source; empty for none
      */
     public record Source(String path, String include, String exclude, String format,
                          SplitSettings split, MapSettings map, List<String> command, Integer timeoutSeconds,
-                         List<Map<String, Object>> convert, WhereSettings where) { }
+                         List<Map<String, Object>> convert, WhereSettings where, List<Join> joins) {
+
+        public Source {
+            joins = joins == null ? List.of() : List.copyOf(joins);
+        }
+    }
+
+    /**
+     * A lookup of a source as it was built ({@code join} in the collections file).
+     *
+     * @param name   the prefix of the values the lookup gave
+     * @param format name of the format step the lookup was read with
+     * @param key    template of the key of a unit of the lookup
+     * @param on     template of the key a unit of the source looked for
+     */
+    public record Join(String name, String path, String include, String exclude, String format,
+                       SplitSettings split, List<String> command, Integer timeoutSeconds,
+                       List<Map<String, Object>> convert, String key, String on) { }
 
     private static final JsonMapper JSON = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
