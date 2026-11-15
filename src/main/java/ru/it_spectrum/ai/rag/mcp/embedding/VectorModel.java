@@ -77,6 +77,10 @@ public record VectorModel(String name, ModelParameters parameters, EmbeddingMode
 
     /** Identifies the vectors this model gives; part of every cache key. */
     public String fingerprint() {
-        return info.fingerprint(parameters.maxTokens());
+        // Mean pooling keeps the fingerprint it had before pooling was a parameter, so cached
+        // vectors stay valid.
+        String fingerprint = info.fingerprint(parameters.maxTokens());
+        return ModelParameters.MEAN.equals(parameters.pooling()) ? fingerprint
+                : fingerprint + "/pooling=" + parameters.pooling();
     }
 }

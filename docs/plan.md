@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D69; agent proposals as P28 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D71; agent proposals as P28 onwards).
 
 ## 1. Idea
 
@@ -34,13 +34,13 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql` and `pdf`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
-  `rag-index`, `rag-search` and `rag-eval`, each in a Spring context without the MCP server (D42); the tool groups
+  `rag-index`, `rag-search`, `rag-eval` and `rag-model` (D70), each in a Spring context without the MCP server (D42); the tool groups
   `collections` (`listCollections`), `search` (`search`, `getDocument`, the record resource),
   `lookup` (`lookup`) and `admin` (`rebuildCollection`);
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (187 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (198 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with

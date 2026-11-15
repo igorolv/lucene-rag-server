@@ -452,6 +452,7 @@ one of them. Several collections may share a model.
 | `queryPrefix` | empty | Put before a search query. The E5 models expect `query: ` |
 | `passagePrefix` | empty | Put before the text of a record. The E5 models expect `passage: ` |
 | `maxTokens` | 512 | Input limit in tokens; a longer record is cut and its vector covers only its beginning. 512 is the limit of the E5 models |
+| `pooling` | `mean` | How an `onnx` model makes one vector of its token states: `mean` averages them, as E5 and most sentence-transformers models are trained; `cls` takes the state of the first token, as BGE models are trained. A wrong value gives vectors that are not the model's, without an error; `rag-model fetch` says which one a repository uses. Other types ignore it |
 
 The model name is also a directory name: letters, digits, `.`, `_` and `-`, up to 64 characters,
 not starting with a dot. A model that is not defined, or a wrong entry in `models`, is a
@@ -465,22 +466,78 @@ needs two files there:
 
 | File | What it is |
 |---|---|
-| `model.onnx` | The encoder graph. Its output `last_hidden_state` is averaged over the tokens and scaled to unit length, as the E5 models are trained; a graph that outputs `sentence_embedding` is only scaled |
+| `model.onnx` | The encoder graph. Its output `last_hidden_state` is pooled by `pooling` and scaled to unit length; a graph that outputs `sentence_embedding` is only scaled |
 | `tokenizer.json` | The Hugging Face tokenizer that belongs to the graph |
 
-The server never downloads anything. The default model is `intfloat/multilingual-e5-small`
-(384 dimensions); download the two files from the `onnx/` folder of that model on Hugging Face:
+A large export keeps its weights in files beside the graph, for example `model.onnx_data`; ONNX
+Runtime reads them from the same directory. Every file of the directory except `source.json` and
+names starting with a dot is part of the model: its SHA-256 is in the manifest of each collection
+built with it, so a file added or changed later makes the collection's model another one.
+
+The server never downloads anything. The command `rag-model` fetches the files of a model when
+the operator runs it:
 
 ```bash
-curl -L -o model.onnx https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/model.onnx
+java -jar lucene-rag-server.jar rag-model list
 ```
 
 ```bash
-curl -L -o tokenizer.json https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/tokenizer.json
+java -jar lucene-rag-server.jar rag-model fetch e5-small
 ```
 
-`intfloat/multilingual-e5-base` (768 dimensions, about three times slower to embed) has the same
-layout. Its `model_qint8_avx512_vnni.onnx` variant needs a processor with AVX-512 VNNI.
+| Model | Hugging Face repository | Dimensions | Files | License |
+|---|---|---|---|---|
+| `e5-small` | `intfloat/multilingual-e5-small` | 384 | 465 MB | MIT |
+| `e5-base` | `intfloat/multilingual-e5-base` | 768 | 1.05 GB | MIT |
+
+`e5-small` is the default model of this server; `e5-base` is about three times slower to embed.
+
+- `fetch` downloads `onnx/model.onnx` and `onnx/tokenizer.json` of the model, at a fixed revision
+  of its repository, into `<data-dir>/models/<model>/`. Each file goes to a temporary name first
+  and takes its place only when its size and SHA-256 are those Hugging Face publishes; a file
+  already in place with the right hash is not downloaded again. A failed or interrupted download
+  leaves the old files as they were.
+- It writes `source.json` into the directory: the repository, the commit and each file with its
+  size and hash. It ends by printing the entry of the model for `models` in `collections.json`.
+- The JVM's proxy settings apply: `java -Dhttps.proxyHost=proxy.example.com -Dhttps.proxyPort=3128
+  -jar …`. `--from <base-url>` downloads from a mirror that serves the same paths as
+  `https://huggingface.co`.
+- `list` shows each model of the catalog and whether its files are in place, by their sizes.
+- Exit codes: 0 done, 1 unexpected error, 2 wrong usage or an unknown model, 4 a download failed,
+  did not match or could not be written, or the repository has no usable ONNX export.
+
+**Another model** is fetched from its Hugging Face repository under a name of your choice:
+
+```bash
+java -jar lucene-rag-server.jar rag-model fetch minilm --repo sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--repo` | | The repository, `owner/name`. Public repositories only |
+| `--revision` | `main` | A branch, tag or commit; it is resolved to a commit, which `source.json` records |
+| `--file` | `onnx/model.onnx` | The graph in the repository, for example `onnx/model_O4.onnx` of an export with several. It becomes `model.onnx` |
+| `--tokenizer` | next to the graph, else at the root | `tokenizer.json` in the repository |
+| `--from` | `https://huggingface.co` | A mirror |
+
+- Besides the graph and the tokenizer, `fetch` takes the files of the graph's directory that
+  hold its weights: everything but other `.onnx` graphs and the `.json`, `.md`, `.txt` and
+  `.model` files exports carry. Hugging Face publishes the SHA-256 of large files and the git
+  object id of small ones; each download is checked against one of them.
+- A model of `sentence-transformers` says its pooling in `1_Pooling/config.json`; `fetch` reads
+  it and prints the entry with `"pooling": "cls"` when that is it. When the repository does not
+  say, mean is assumed: check the model card. A pooling the server does not support (max, for
+  example) is reported; such a model gives vectors that are not the model's.
+- Prefixes cannot be read from a repository: set `queryPrefix` and `passagePrefix` as the model
+  card says. The E5 models want `query: ` and `passage: `; most others want none.
+- A repository without an ONNX export is reported with the command that converts one
+  (`optimum-cli export onnx --model <repository> <out-dir>`, a Python tool); put the files it
+  writes into `<data-dir>/models/<name>/` by hand. The graph must take `input_ids` and
+  `attention_mask`.
+
+Without internet access, fetch on another machine and deliver the data directory
+([Delivering collections](#delivering-collections)), or copy the files by hand. The
+`model_qint8_avx512_vnni.onnx` variant of `e5-base` needs a processor with AVX-512 VNNI.
 
 On first use the tokenizer library unpacks its native code into `<data-dir>/cache/djl/`. The
 server switches off that library's usage reporting and its downloads before loading it.

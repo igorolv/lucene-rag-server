@@ -121,7 +121,7 @@ public final class EmbeddingModels implements AutoCloseable {
                     + String.join(", ", types()));
         }
         Path dir = directory(name);
-        String key = parameters.type() + "|" + parameters.maxTokens() + "|" + dir;
+        String key = key(parameters, dir);
         Loaded model = loaded.get(key);
         if (model == null) {
             if (loader.usesFiles() && !Files.isDirectory(dir)) {
@@ -177,7 +177,7 @@ public final class EmbeddingModels implements AutoCloseable {
                     + String.join(", ", types()));
         }
         Path dir = directory(name);
-        if (loaded.containsKey(parameters.type() + "|" + parameters.maxTokens() + "|" + dir)) {
+        if (loaded.containsKey(key(parameters, dir))) {
             try {
                 verified(collection, name, parameters, dimension, files);
                 return Optional.empty();
@@ -194,6 +194,10 @@ public final class EmbeddingModels implements AutoCloseable {
             }
         }
         return Optional.empty();
+    }
+
+    private static String key(ModelParameters parameters, Path dir) {
+        return parameters.type() + "|" + parameters.maxTokens() + "|" + parameters.pooling() + "|" + dir;
     }
 
     private static String describe(int dimension, Map<String, String> files) {

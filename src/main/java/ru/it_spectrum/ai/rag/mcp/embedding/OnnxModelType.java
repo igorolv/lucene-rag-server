@@ -26,8 +26,8 @@ public record OnnxModelType(Path nativeCache, ObservationRegistry observations) 
 
     @Override
     public EmbeddingModels.Loaded load(String name, Path dir, ModelParameters parameters) throws IOException {
-        OnnxEmbeddingModel model = OnnxEmbeddingModel.open(dir, parameters.maxTokens(), nativeCache, name,
-                observations);
+        OnnxEmbeddingModel model = OnnxEmbeddingModel.open(dir, parameters.maxTokens(), parameters.pooling(),
+                nativeCache, name, observations);
         return new EmbeddingModels.Loaded(model, model.info());
     }
 }

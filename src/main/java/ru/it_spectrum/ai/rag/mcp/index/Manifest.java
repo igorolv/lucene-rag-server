@@ -41,7 +41,7 @@ public record Manifest(int schema, String name, String description, String built
     }
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 9;
+    public static final int SCHEMA = 10;
 
     /**
      * The embedding model of a collection with vectors: everything search needs to embed a query
@@ -58,10 +58,10 @@ public record Manifest(int schema, String name, String description, String built
      * @param truncated     records longer than {@code maxTokens} whose vector covers only their beginning
      */
     public record Vectors(String model, String type, String queryPrefix, String passagePrefix, int maxTokens,
-                          int dimension, Map<String, String> files, int truncated) {
+                          int dimension, Map<String, String> files, int truncated, String pooling) {
 
         public ModelParameters parameters() {
-            return new ModelParameters(type, queryPrefix, passagePrefix, maxTokens);
+            return new ModelParameters(type, queryPrefix, passagePrefix, maxTokens, pooling);
         }
     }
 

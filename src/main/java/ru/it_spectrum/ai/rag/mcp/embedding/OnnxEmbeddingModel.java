@@ -43,10 +43,13 @@ import java.util.stream.IntStream;
  * {@code model.onnx} and the Hugging Face {@code tokenizer.json} that belongs to it — the layout of
  * the {@code onnx/} folder of the multilingual E5 models (docs/decisions.md D11).
  *
- * <p>A text is tokenized, cut to {@code maxTokens}, run through the graph, and the vector is the
- * mean of the token states under the attention mask, scaled to unit length: the pooling E5 is
- * trained with. A graph that already returns one vector per text ({@code sentence_embedding}) is
- * only normalized.
+ * <p>A text is tokenized, cut to {@code maxTokens}, run through the graph, and the token states
+ * are pooled into one vector scaled to unit length: their mean under the attention mask (pooling
+ * {@code mean}, as E5 is trained) or the state of the first token (pooling {@code cls}, as BGE is
+ * trained). A graph that already returns one vector per text ({@code sentence_embedding}) is only
+ * normalized. Weights a graph keeps in files of their own ({@code model.onnx_data}, as large exports
+ * do) are read by ONNX Runtime from the same directory; every file of the directory but
+ * {@value #SOURCE_FILE} and names starting with a dot is part of the model's identity.
  *
  * <p>DJL's tokenizer library would otherwise probe a cloud metadata address for telemetry and keep
  * its native library under the home directory; both are switched off or redirected before it is
@@ -60,6 +63,8 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
 
     public static final String MODEL_FILE = "model.onnx";
     public static final String TOKENIZER_FILE = "tokenizer.json";
+    /** Where {@code rag-model fetch} records where the files came from; not part of the model. */
+    public static final String SOURCE_FILE = "source.json";
 
     /** Texts per run of the graph; texts of similar length are run together. */
     private static final int BATCH = 16;
@@ -72,13 +77,15 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
     private final ModelInfo info;
     private final String name;
     private final ObservationRegistry observations;
+    private final boolean cls;
 
     private static final DefaultEmbeddingModelObservationConvention CONVENTION =
             new DefaultEmbeddingModelObservationConvention();
 
     private OnnxEmbeddingModel(OrtEnvironment environment, OrtSession session, HuggingFaceTokenizer tokenizer,
-                         String output, Map<String, String> files, String name, ObservationRegistry observations)
-            throws IOException {
+                         String output, Map<String, String> files, String name, ObservationRegistry observations,
+                         boolean cls) throws IOException {
+        this.cls = cls;
         this.name = name;
         this.observations = observations;
         this.environment = environment;
@@ -99,16 +106,24 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
      * @throws IOException when a file is missing or the model cannot be loaded
      */
     public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache) throws IOException {
-        return open(dir, maxTokens, nativeCache, String.valueOf(dir.getFileName()), ObservationRegistry.NOOP);
+        return open(dir, maxTokens, ModelParameters.MEAN, nativeCache, String.valueOf(dir.getFileName()),
+                ObservationRegistry.NOOP);
+    }
+
+    /** A model with mean pooling. */
+    public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache, String name,
+                                          ObservationRegistry observations) throws IOException {
+        return open(dir, maxTokens, ModelParameters.MEAN, nativeCache, name, observations);
     }
 
     /**
+     * @param pooling      {@code mean} or {@code cls} (docs/decisions.md D71)
      * @param name         the model's name under {@code models}, reported as the model of each call
      * @param observations where each call is reported as a Spring AI embedding model operation
      *                     (docs/decisions.md D46); {@link ObservationRegistry#NOOP} for none
      * @throws IOException when a file is missing or the model cannot be loaded
      */
-    public static OnnxEmbeddingModel open(Path dir, int maxTokens, Path nativeCache, String name,
+    public static OnnxEmbeddingModel open(Path dir, int maxTokens, String pooling, Path nativeCache, String name,
                                           ObservationRegistry observations) throws IOException {
         Path model = dir.resolve(MODEL_FILE);
         Path tokenizerFile = dir.resolve(TOKENIZER_FILE);
@@ -120,6 +135,9 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
         Map<String, String> files = new LinkedHashMap<>();
         files.put(MODEL_FILE, sha256(model));
         files.put(TOKENIZER_FILE, sha256(tokenizerFile));
+        for (Path other : otherFiles(dir)) {
+            files.put(other.getFileName().toString(), sha256(other));
+        }
         quietDjl(nativeCache);
         HuggingFaceTokenizer tokenizer = HuggingFaceTokenizer.builder()
                 .optTokenizerPath(tokenizerFile)
@@ -144,7 +162,8 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
                 throw new IOException("The model " + model + " has inputs " + inputs
                         + "; input_ids and attention_mask are required");
             }
-            return new OnnxEmbeddingModel(environment, session, tokenizer, output, files, name, observations);
+            return new OnnxEmbeddingModel(environment, session, tokenizer, output, files, name, observations,
+                    ModelParameters.CLS.equals(pooling));
         } catch (OrtException | IOException | RuntimeException e) {
             tokenizer.close();
             if (session != null) {
@@ -255,7 +274,7 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
                 OnnxValue value = result.get(output).orElseThrow(() -> new IOException("The model gave no " + output));
                 Object raw = value.getValue();
                 if (raw instanceof float[][][] states) {
-                    return pooled(states, mask);
+                    return cls ? first(states) : pooled(states, mask);
                 }
                 if (raw instanceof float[][] pooled) {
                     for (float[] vector : pooled) {
@@ -269,6 +288,31 @@ public final class OnnxEmbeddingModel implements EmbeddingModel, AutoCloseable {
             throw new IOException("The model failed to run: " + e.getMessage(), e);
         } finally {
             feed.values().forEach(OnnxTensor::close);
+        }
+    }
+
+    /** The state of the first token of each text, scaled to unit length. */
+    static float[][] first(float[][][] states) {
+        float[][] result = new float[states.length][];
+        for (int i = 0; i < states.length; i++) {
+            result[i] = states[i][0].clone();
+            normalize(result[i]);
+        }
+        return result;
+    }
+
+    /**
+     * The files of a model directory besides the graph and the tokenizer: weights the graph keeps
+     * outside itself, which ONNX Runtime reads from next to it, or anything else the operator put
+     * there. They are part of the model's identity.
+     */
+    static List<Path> otherFiles(Path dir) throws IOException {
+        try (var files = Files.list(dir)) {
+            return files.filter(f -> {
+                String name = f.getFileName().toString();
+                return Files.isRegularFile(f) && !name.startsWith(".") && !name.equals(MODEL_FILE)
+                        && !name.equals(TOKENIZER_FILE) && !name.equals(SOURCE_FILE);
+            }).sorted().toList();
         }
     }
 

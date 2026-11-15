@@ -248,6 +248,21 @@ class CollectionsLoaderTest {
     }
 
     @Test
+    void aModelNamesItsPooling() throws IOException {
+        List<CollectionDefinition> collections = load("""
+                {"models": {"bge": {"pooling": "cls"}, "odd": {"pooling": "max"}},
+                 "collections": {
+                   "docs@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "bge"}},
+                   "notes@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "odd"}}
+                 }}
+                """, Map.of());
+
+        assertThat(collections.get(0).vectors().pooling()).isEqualTo("cls");
+        assertThat(collections.get(1).usable()).isFalse();
+        assertThat(collections.get(1).configError()).contains("pooling must be mean or cls, not 'max'");
+    }
+
+    @Test
     void aWrongModelBreaksOnlyTheCollectionsThatNameIt() throws IOException {
         List<CollectionDefinition> collections = load("""
                 {"models": {"bad": {"maxTokens": 0}, "../up": {}},

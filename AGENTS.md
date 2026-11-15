@@ -8,7 +8,7 @@ index. It retrieves; it does not generate answers. User-facing overview: `README
 YAML, JSONL, SQL and PDF collections with configurable `split` and `map`, built by the five-step source
 pipeline in `ingest/`, external commands as an origin and as `convert` steps, named readers,
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
-`hybrid` search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
+`hybrid` search, the `rag-index`, `rag-search` and `rag-model` commands and the tools `listCollections`,
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
 `EmbeddingModel`, search filters take Spring AI filter expressions, records reach the index as
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).

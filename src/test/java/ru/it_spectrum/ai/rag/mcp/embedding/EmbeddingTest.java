@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,6 +31,29 @@ class EmbeddingTest {
 
         assertThat(pooled[0][0]).isCloseTo(1f, within(1e-6f));
         assertThat(pooled[0][1]).isCloseTo(0f, within(1e-6f));
+    }
+
+    @Test
+    void clsPoolingTakesTheFirstTokenAndNormalizes() {
+        float[][][] states = {{{3, 4}, {100, 0}}};
+
+        float[][] pooled = OnnxEmbeddingModel.first(states);
+
+        assertThat(pooled[0][0]).isCloseTo(0.6f, within(1e-6f));
+        assertThat(pooled[0][1]).isCloseTo(0.8f, within(1e-6f));
+        assertThat(states[0][0][0]).isEqualTo(3f);
+    }
+
+    @Test
+    void meanPoolingKeepsTheCacheKeyItHadAndClsGetsItsOwn() {
+        ModelInfo info = new ModelInfo("onnx", 384, Map.of("model.onnx", "aa"));
+        String mean = new VectorModel("m", new ModelParameters("onnx", "", "", 512), null, info).fingerprint();
+        String cls = new VectorModel("m", new ModelParameters("onnx", "", "", 512, "cls"), null, info).fingerprint();
+
+        assertThat(mean).isEqualTo(info.fingerprint(512));
+        assertThat(cls).isNotEqualTo(mean).endsWith("/pooling=cls");
+        assertThatThrownBy(() -> new ModelParameters("onnx", "", "", 512, "max"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("mean or cls");
     }
 
     @Test

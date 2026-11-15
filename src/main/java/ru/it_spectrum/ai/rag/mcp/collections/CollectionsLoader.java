@@ -104,6 +104,11 @@ public final class CollectionsLoader {
         return List.copyOf(result);
     }
 
+    /** Whether a name can be the name of a model and of the directory of its files. */
+    public static boolean validModelName(String name) {
+        return name != null && MODEL_NAME.matcher(name).matches();
+    }
+
     /** The entries of {@code models}: a {@link ModelDefinition}, or the message of a wrong entry. */
     private static Map<String, Object> models(JsonNode node) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -126,9 +131,14 @@ public final class CollectionsLoader {
                 if (maxTokens < 1) {
                     throw new IllegalArgumentException("maxTokens must be at least 1");
                 }
+                String pooling = text(model.get("pooling"));
+                if (pooling != null && !pooling.equals("mean") && !pooling.equals("cls")) {
+                    throw new IllegalArgumentException("pooling must be mean or cls, not '" + pooling + "'");
+                }
                 result.put(name, new ModelDefinition(name, type == null ? ModelDefinition.DEFAULT_TYPE : type,
                         prefix(model.get("queryPrefix"), "queryPrefix"),
-                        prefix(model.get("passagePrefix"), "passagePrefix"), maxTokens));
+                        prefix(model.get("passagePrefix"), "passagePrefix"), maxTokens,
+                        pooling == null ? ModelDefinition.DEFAULT_POOLING : pooling));
             } catch (IllegalArgumentException e) {
                 result.put(name, "models." + name + ": " + e.getMessage());
             }

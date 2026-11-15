@@ -114,7 +114,7 @@ public final class CollectionIndexer {
                         + " has vectors, and no embedding models are available");
             }
             model = models.load(vectors.name(), new ModelParameters(vectors.type(), vectors.queryPrefix(),
-                    vectors.passagePrefix(), vectors.maxTokens()));
+                    vectors.passagePrefix(), vectors.maxTokens(), vectors.pooling()));
         }
         Files.createDirectories(dataDir);
         Path target = dataDir.resolve(definition.name());
@@ -223,7 +223,7 @@ public final class CollectionIndexer {
                 ModelParameters parameters = model.parameters();
                 vectors = new Manifest.Vectors(model.name(), parameters.type(), parameters.queryPrefix(),
                         parameters.passagePrefix(), parameters.maxTokens(), info.dimension(), info.files(),
-                        batch.truncated);
+                        batch.truncated, parameters.pooling());
             }
             Manifest manifest = new Manifest(Manifest.SCHEMA, definition.name(), definition.description(),
                     Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
