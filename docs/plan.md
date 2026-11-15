@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D32, proposals as P1…P19).
+reasons are in `docs/decisions.md` (cited here as D1…D35, proposals as P1…P16).
 
 ## 1. Idea
 
@@ -76,7 +76,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 |---|---|---|---|
 | origin | source entry → items | `path`, `include`, `exclude`, or `command` | `files`; `command` (one run, its output is the only item) |
 | `convert` | text → text, a chain, empty by default | `convert` array | `command` (per item) |
-| `format` | text → section tree or rows; a binary format reads the file instead (P18) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf` (Spring AI reader, D32) |
+| `format` | text → section tree or rows; a binary format reads the file instead (D34) | `format`, `split.list` for YAML | tree: `markdown` (`docbook` later, D17); rows: `tsv`, `yaml`, `jsonl`, `sql`, `pdf` (Spring AI reader, D32) |
 | `split` | section tree → units | `split` | one: by heading level and pattern |
 | `map` | unit → records | `map` | one: templates (D14) |
 
@@ -306,7 +306,7 @@ each with the format that needs it.
   a record the same way: its scalar metadata become fields.
 - A Spring AI reader is used inside a format class of `ingest/format/` and gives units, like any
   other library a format uses; the step interfaces and the shapes of `ingest/` name no Spring AI
-  type. A reader of binary files makes its format `readsFile` (P18).
+  type. A reader of binary files makes its format `readsFile` (D34).
 - `CollectionIndexer` reads each item with `SourceDocumentReader` and writes it through its
   `DocumentWriter`, which checks unique ids and collects the field and key names; a reader or a
   writer throws `UncheckedIOException` where the interfaces allow no `IOException`.
@@ -412,7 +412,7 @@ speed up kNN); not measured.
 - Which model and API the target site provides; whether it has an embedding endpoint (a Spring AI
   `EmbeddingModel` registered as a second model type, D11, D29).
 - When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
-- Whether pages are enough for real PDF files or sections by outline are needed (P19), and when
+- Whether pages are enough for real PDF files or sections by outline are needed (D35), and when
   Tika or Jsoup is added (D32).
 - When the DocBook reader is written (D17).
 - The license (P1) and the other proposals in `docs/decisions.md` section 3.
