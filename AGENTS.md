@@ -14,6 +14,7 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
 Measurement (stage 4) is in progress: `rag-eval`, a first tuning pass and one section per
 document in search results are done; results and open proposals are in `docs/plan.md` section 4.
+A second pass of the Spring AI alignment (stage 3b: D42–D46) is decided and not implemented.
 
 ## Repository contents
 

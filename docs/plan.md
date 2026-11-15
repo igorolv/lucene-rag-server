@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D38, proposals as P1…P25).
+reasons are in `docs/decisions.md` (cited here as D1…D46, proposals as P1…P21).
 
 ## 1. Idea
 
@@ -275,7 +275,7 @@ How the pipeline is wired:
   without a context for unit tests, and `StepBeansTest` fails when the two sets differ.
 - `rag-index` starts the application context with `spring.ai.mcp.server.enabled=false` and
   `spring.ai.mcp.server.annotation-scanner.enabled=false`, so the stdio transport is not opened;
-  `rag-search` runs without Spring (D13).
+  `rag-search` runs without Spring (D13; D42 moves it into a context).
 - Adding a format: a class in `ingest/format/` implementing `Format` and annotated `@Component`,
   a line in `StepRegistry.builtIn()`, synthetic files in `testdata/` (D20), the format's section
   in `docs/collections.md`. Nothing else changes.
@@ -293,6 +293,10 @@ D28 with its reason.
 | Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
 | Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | PDF used (`pdf`); Tika and Jsoup not added |
+| Model types as beans configured by Spring AI properties | auto-configured `EmbeddingModel` beans (D43); needs every command in a Spring context (D42) | not implemented |
+| Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter`, `EmbeddingModel.embed(documents, options, BatchingStrategy)` (D44) | not implemented: the indexer assembles the text and batches itself |
+| Embedding observations | the observation conventions of Spring AI embedding models (D46) | not implemented |
+| MCP over HTTP (stage 5) | the streamable HTTP transport of the Spring AI MCP server starter (D45) | stage 5 |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 
@@ -333,8 +337,9 @@ done here. A stage is taken only when the user asks for it.
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
+| 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | ⬜ D44 first |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
+| 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP, Spring AI's (D45); Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |
 
 Stage 4, in progress:
@@ -356,20 +361,21 @@ Stage 4, in progress:
    - `split.maxChars` 1000, 1500 and 2500 for the documents, and 1000, 1500 and 2500 for the table
      descriptions, move hybrid MRR within 0.65–0.67 and recall@10 within 0.66–0.75. Fewer records
      cut at 512 tokens (123 → 40 → 0 for the documents) changes no rank that matters. The default
-     2500 stays (P22).
+     2500 stays (D39).
    - At depth 100 every measured question is found in every mode; the misses at 10 are ranks 11–38.
      They are pushed down by other records of the same documents: several sections of one process
      map fill the top. Keeping only the best record of each document (simulated on the same
      searches) puts all 17 within 10 in hybrid and vector and raises hybrid MRR to 0.69 (now D38).
    - A response of 10 hits carries about 4,300 characters of snippets (median; at most 5,100), 5
      hits about 2,000; a snippet is 380 characters in the median and at most about 600. Settings
-     for a small-context model follow from that (P23, `docs/search.md`).
+     for a small-context model follow from that (D40, `docs/search.md`).
    - Hybrid ranks like lexical here, and vector is weaker (MRR 0.53). 17 questions cannot show a
-     difference of a few hundredths, so a reranker is not decided on them (P25).
+     difference of a few hundredths, so a reranker is not decided on them (D41).
 4. Done 2026-11-15: one section per document (D38). Measured with the server: hybrid 17 of 17
    within 10, MRR 0.69, recall@10 0.76; lexical 16 of 17, 0.69, 0.75; vector 17 of 17, 0.55,
    0.76. A limit of 2 is no better than none (hybrid 15 of 17).
-5. Next: the user's decision on P25; more questions in the set of the first corpus.
+5. Next: more questions in the set of the first corpus (at least 50 measured, D41), then the
+   reranker question again.
 
 Stage 3, done 2026-11-15 (D24–D27):
 
@@ -450,7 +456,7 @@ speed up kNN); not measured.
 
 - How the assistant service connects to this server and to other MCP servers (D1).
 - Which model and API the target site provides; whether it has an embedding endpoint (a Spring AI
-  `EmbeddingModel` registered as a second model type, D11, D29).
+  `EmbeddingModel` bean as a model type, D11, D43).
 - When JDKs ship `msvcp140.dll` 14.40 or later, so that ONNX Runtime can move past 1.20 (D24).
 - Whether pages are enough for real PDF files or sections by outline are needed (D35), and when
   Tika or Jsoup is added (D32).
