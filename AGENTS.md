@@ -10,8 +10,8 @@ pipeline in `ingest/`, external commands as an origin and as `convert` steps, na
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
 `hybrid` search, the `rag-index` and `rag-search` commands and the tools `listCollections`,
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
-`EmbeddingModel` and search filters take Spring AI filter expressions; the rest of the Spring AI
-alignment (`docs/plan.md` section 3.7) and measurement
+`EmbeddingModel`, search filters take Spring AI filter expressions and records reach the index
+as Spring AI documents; Spring AI readers as formats (`docs/plan.md` section 3.7) and measurement
 (stage 4) are next.
 
 ## Repository contents
@@ -114,7 +114,8 @@ then keeps the summary and links to the owner.
   indexer or to the collections loader. The recipe is at the end of `docs/plan.md` section 3.6.
 - A step implementation is a `@Component` and is also listed in `StepRegistry.builtIn()`, which
   the unit tests use; `StepBeansTest` fails when the two differ. Step interfaces and the classes
-  in `ingest/` name no Spring type other than that annotation.
+  in `ingest/` name no Spring or Spring AI type other than that annotation; Spring AI's `Document`
+  meets the pipeline in `document/` (D31).
 - `rag-index` runs inside a Spring context without the MCP server; it must print nothing but its
   report to stdout and nothing to stderr on success.
 - Unit tests never load a real embedding model: they use `FakeEmbeddingModel` (test sources) through

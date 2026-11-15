@@ -26,7 +26,8 @@ external commands as an origin and as `convert` steps; a source may take its rea
 named reader and select its records with `where`; catalog records are found by an exact value of
 their key fields; a collection with `vectors` gets an embedding of every record from an in-process
 ONNX model, used through Spring AI's `EmbeddingModel` (D29); search filters take Spring AI filter
-expressions next to the map of field to value (D30).
+expressions next to the map of field to value (D30); the records of a source reach the index as
+Spring AI documents (D31).
 
 - Implemented: the collections file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
@@ -38,7 +39,7 @@ expressions next to the map of field to value (D30).
   the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
-- Verified by `gradlew build` (137 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (142 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
@@ -231,7 +232,7 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 tools/ ──► search/ ──► index/
   └──────► collections/, ingest/    (listCollections shows collections that are not built)
 cli/ ───► collections/, ingest/, index/, search/, embedding/
-index/ ──► ingest/ ──► collections/           (build: list, convert, parse, split, map, write)
+index/ ──► document/ ──► ingest/ ──► collections/   (build: list, convert, parse, split, map, write)
 search/, index/ ──► embedding/                (embed queries and records; the cache)
 api/     — MCP wire records returned by tools
 config/  — Spring wiring, properties, MCP customizer
@@ -247,7 +248,8 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/split/` | `HeadingSplitter` |
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
-| `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap), `Manifest`, `CollectionStore` (built collections under the data directory) |
+| `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`) |
+| `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `CollectionStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models under `<data-dir>/models/` by type, each type a loader of an `EmbeddingModel` with its `ModelInfo`; loaded once, checked against a manifest), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `EmbeddingCache`, `ModelUnavailableException` |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, dispatched by the main class before the server starts |
@@ -283,7 +285,7 @@ D28 with its reason.
 | MCP server, tools | `spring-ai-starter-mcp-server`, `@McpTool` | used |
 | Embedding models | `EmbeddingModel` of `spring-ai-model`; the ONNX model is an own implementation, a remote endpoint a Spring AI one (D29) | used; no remote type yet |
 | Search filters | `Filter.Expression` and its text parser, `spring-ai-vector-store` (D30); `search/FilterQueries` turns an expression into a Lucene query | used |
-| Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31) | not implemented |
+| Records at the boundaries | `Document`, `DocumentReader`, `DocumentWriter` of `spring-ai-commons` (D31); `document/` maps records and reads sources, the indexer writes through a `DocumentWriter` | used |
 | PDF, Office, HTML sources | the Tika, PDF and Jsoup document readers as formats (D32) | not implemented |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
@@ -298,6 +300,13 @@ the latter brings nothing the build did not have), and, each with the work that 
   type is added.
 - A model reports the inputs it cut under the response metadata key `truncated`
   (`Embeddings.TRUNCATED`); a model that does not is taken to have cut nothing.
+- A record is a `Document` with its id and text; its fields are metadata entries under their own
+  names, each a list of strings, and its other parts are metadata under `rag.document`,
+  `rag.title`, `rag.breadcrumb`, `rag.source` and `rag.ordinal`. A document from elsewhere becomes
+  a record the same way: its scalar metadata become fields.
+- `CollectionIndexer` reads each item with `SourceDocumentReader` and writes it through its
+  `DocumentWriter`, which checks unique ids and collects the field and key names; a reader or a
+  writer throws `UncheckedIOException` where the interfaces allow no `IOException`.
 - The `filters` map of `search` is turned into a Spring AI expression (equality joined by "and")
   and joined to `filterExpression` by "and", so one conversion serves both.
 - `EmbeddingModel.call` throws no checked exception; `VectorModel` turns a failure into the
@@ -314,7 +323,7 @@ done here. A stage is taken only when the user asks for it.
 | 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
-| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29, D30 done 2026-11-15; D31, D32 ⬜ |
+| 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 ⬜ |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | ⬜ |
 | 5 | Delivery | Allowed-collections setting; atomic rebuild and `rebuildCollection`; streamable HTTP transport for MCP; Docker image; delivery procedure for indexes and models | ⬜ |
 | 6 | Convenience and release | `browse` and `debug` groups; CI and release workflow; registry entries; third-party notices | ⬜ |

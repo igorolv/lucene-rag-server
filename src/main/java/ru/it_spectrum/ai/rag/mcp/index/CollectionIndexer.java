@@ -10,10 +10,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
+import org.springframework.ai.document.DocumentWriter;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
 import ru.it_spectrum.ai.rag.mcp.collections.ModelDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.document.RecordDocuments;
+import ru.it_spectrum.ai.rag.mcp.document.SourceDocumentReader;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingCache;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.Embeddings;
@@ -26,6 +29,7 @@ import ru.it_spectrum.ai.rag.mcp.ingest.SourcePipeline;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -41,7 +45,9 @@ import java.util.stream.Stream;
 
 /**
  * Builds one collection from its sources into {@code <data-dir>/<collection>/}. How a source
- * becomes records is the business of its {@link SourcePipeline}; no step is named here.
+ * becomes records is the business of its {@link SourcePipeline}; no step is named here. The
+ * records of an item come as Spring AI documents ({@link SourceDocumentReader}) and are written by
+ * a {@link DocumentWriter} (docs/decisions.md D31).
  *
  * <p>A collection with {@code vectors} gets a vector field per record, embedded in batches by its
  * model; a vector already in the embedding cache is taken from there.
@@ -132,14 +138,11 @@ public final class CollectionIndexer {
                                EmbeddingCache cache, Path dir, String serverVersion) throws IOException {
         int files = 0;
         int documents = 0;
-        int records = 0;
-        var fieldNames = new TreeSet<String>();
-        var keyNames = new TreeSet<String>();
-        Map<String, String> ids = new HashMap<>();
         List<Manifest.Source> sources = new ArrayList<>();
         try (var directory = FSDirectory.open(dir.resolve(Manifest.INDEX_DIR));
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             Batch batch = new Batch(definition.name(), writer, model, cache);
+            Records records = new Records(batch);
             for (SourceDefinition source : definition.sources()) {
                 SourcePipeline pipeline = registry.pipeline(source);
                 List<String> keys = source.map().keys() == null ? List.of() : source.map().keys();
@@ -150,26 +153,12 @@ public final class CollectionIndexer {
                         source.convert().stream().map(ConvertStep::settings).toList(), source.where()));
                 for (SourceItem item : pipeline.items()) {
                     files++;
-                    List<ChunkRecord> chunks = pipeline.records(item);
-                    if (!chunks.isEmpty()) {
+                    var read = SourceDocumentReader.of(pipeline, item).get();
+                    if (!read.isEmpty()) {
                         documents++;
                     }
-                    for (ChunkRecord record : chunks) {
-                        String other = ids.putIfAbsent(record.id(), item.location());
-                        if (other != null) {
-                            throw new IllegalArgumentException("Two records share the id '" + record.id()
-                                    + "': " + other + " and " + item.location()
-                                    + ". Make the document keys or the map.id template distinguish them");
-                        }
-                        fieldNames.addAll(record.fields().keySet());
-                        for (String key : keys) {
-                            if (record.fields().containsKey(key)) {
-                                keyNames.add(key);
-                            }
-                        }
-                        batch.add(record, keys);
-                        records++;
-                    }
+                    records.from(item.location(), keys);
+                    records.write(read);
                 }
             }
             batch.flush();
@@ -184,10 +173,63 @@ public final class CollectionIndexer {
             }
             Manifest manifest = new Manifest(Manifest.SCHEMA, definition.name(), definition.description(),
                     Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
-                    files, documents, records, List.copyOf(fieldNames), List.copyOf(keyNames), List.copyOf(sources),
-                    vectors);
+                    files, documents, records.count, List.copyOf(records.fieldNames), List.copyOf(records.keyNames),
+                    List.copyOf(sources), vectors);
             manifest.write(dir);
             return new Built(manifest, batch.embedded, batch.cached);
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
+     * The records of a collection written as Spring AI documents: checks that ids are unique,
+     * collects the field and key names for the manifest and hands each record to the batch.
+     * {@link #accept} throws {@link UncheckedIOException} when the index cannot be written.
+     */
+    private static final class Records implements DocumentWriter {
+
+        private final Batch batch;
+        private final Map<String, String> ids = new HashMap<>();
+        final TreeSet<String> fieldNames = new TreeSet<>();
+        final TreeSet<String> keyNames = new TreeSet<>();
+        int count;
+        private String location = "";
+        private List<String> keys = List.of();
+
+        Records(Batch batch) {
+            this.batch = batch;
+        }
+
+        /** Where the next documents come from, for messages, and the key fields of their source. */
+        void from(String location, List<String> keys) {
+            this.location = location;
+            this.keys = keys;
+        }
+
+        @Override
+        public void accept(List<org.springframework.ai.document.Document> documents) {
+            for (var document : documents) {
+                ChunkRecord record = RecordDocuments.toRecord(document);
+                String other = ids.putIfAbsent(record.id(), location);
+                if (other != null) {
+                    throw new IllegalArgumentException("Two records share the id '" + record.id()
+                            + "': " + other + " and " + location
+                            + ". Make the document keys or the map.id template distinguish them");
+                }
+                fieldNames.addAll(record.fields().keySet());
+                for (String key : keys) {
+                    if (record.fields().containsKey(key)) {
+                        keyNames.add(key);
+                    }
+                }
+                try {
+                    batch.add(record, keys);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                count++;
+            }
         }
     }
 

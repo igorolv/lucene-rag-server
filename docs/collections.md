@@ -303,7 +303,7 @@ The same steps written once as a [named reader](#named-readers):
 | `breadcrumb` | document title, parent headings, title | Array of templates; empty parts are dropped and the rest joined with ` › ` |
 | `text` | `{body}` | The passage. A unit whose text comes out empty yields no record |
 | `id` | `{document.key}#{slug}` | Record id. Ids are still made unique: a repeated id gets `-2`, `-3`, and the parts of a split text get `~2`, `~3` |
-| `fields` | none | Object of field name to template. A template without placeholders is a constant. A field whose template gives nothing is absent |
+| `fields` | none | Object of field name to template. A template without placeholders is a constant. A field whose template gives nothing is absent. Names starting with `rag.` are reserved: a record with such a field, written or inherited, fails the build |
 | `keys` | none | Field names, from `fields` or inherited, whose values the `lookup` tool finds the record by ([search.md](search.md#exact-lookup)). A listed field a record does not have is skipped |
 | `inheritFields` | `["*"]` | Front matter fields copied to the record as they are: a list of names, `["*"]` for all, `[]` for none. A field of the same name in `fields` replaces the inherited one |
 
