@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D81; agent proposals as P30 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D90; agent proposals as P36 onwards).
 
 ## 1. Idea
 
@@ -356,6 +356,7 @@ done here. A stage is taken only when the user asks for it.
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
 | 5 | Delivery | Atomic rebuild and `rebuildCollection` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/collections.md`, "Delivering collections"); Docker image not needed for now (D51) | done 2026-11-15 |
 | 6 | Convenience and release | `browse` and `debug` groups (D72); CI and release workflow, JBang alias, Glama file, third-party notices (D73); the MCP Registry waits for a Docker image | done 2026-11-15; no release made yet |
+| 7 | Indexes and search without choosing one | A collection is named an index and its name leaves the assistant's tools: one record id (D84); `search`, `lookup` and `explainSearch` over every built index (D82, D86); the field `project` (D83, D85); `fieldValues` over every index (D87); `describeKnowledge` and `listIndexes` instead of `listCollections` (D89); a glossary in the examples (D88). Raises the index schema once | not started |
 
 Stage 4, in progress:
 
