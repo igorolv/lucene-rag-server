@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import tools.jackson.core.JacksonException;
@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * Reads {@code collections.json}: the only place the collections this installation can build are
  * described. A missing or empty file yields no collections; a file that is not valid JSON, or
  * whose top level has the wrong shape, is an error. A single bad entry is reported through
- * {@link CollectionDefinition#configError()} and leaves the others usable.
+ * {@link IndexDefinition#configError()} and leaves the others usable.
  *
  * <p>Only the shape of the file is read here. Whether a source fits its steps — the format
  * exists, the templates of {@code map} use values the format gives — is checked by
@@ -46,14 +46,14 @@ import java.util.regex.Pattern;
  * its relative paths and the working directory of its commands are its own directory, its
  * collections name the models of the main file, and its commands run only when its entry of
  * {@code import} allows them (docs/decisions.md D78). What goes wrong with an import is reported
- * beside the collections ({@link LoadedCollections#importProblems()}).
+ * beside the collections ({@link LoadedIndexes#importProblems()}).
  *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
  *
  * <p>Modeled on jdbc-mcp-server {@code connection/ConnectionsLoader}.
  */
-public final class CollectionsLoader {
+public final class IndexesLoader {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -66,19 +66,19 @@ public final class CollectionsLoader {
 
     private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}");
 
-    private CollectionsLoader() {
+    private IndexesLoader() {
     }
 
-    public static List<CollectionDefinition> load(RagMcpProperties properties, UnaryOperator<String> env) {
+    public static List<IndexDefinition> load(RagMcpProperties properties, UnaryOperator<String> env) {
         return load(properties.resolvedCollectionsFile(), env);
     }
 
     /** The collections of the file and of the files it imports, without the problems of its imports. */
-    public static List<CollectionDefinition> load(Path file, UnaryOperator<String> env) {
-        return read(file, env).collections();
+    public static List<IndexDefinition> load(Path file, UnaryOperator<String> env) {
+        return read(file, env).indexes();
     }
 
-    public static LoadedCollections read(RagMcpProperties properties, UnaryOperator<String> env) {
+    public static LoadedIndexes read(RagMcpProperties properties, UnaryOperator<String> env) {
         return read(properties.resolvedCollectionsFile(), env);
     }
 
@@ -88,18 +88,18 @@ public final class CollectionsLoader {
      *
      * @throws IllegalStateException when the file itself cannot be used
      */
-    public static LoadedCollections read(Path file, UnaryOperator<String> env) {
+    public static LoadedIndexes read(Path file, UnaryOperator<String> env) {
         if (!Files.isRegularFile(file)) {
-            return LoadedCollections.EMPTY;
+            return LoadedIndexes.EMPTY;
         }
-        final List<CollectionDefinition> result;
+        final List<IndexDefinition> result;
         final Map<String, Object> models;
         final String defaultModel;
         final JsonNode root;
         try {
             root = root(file);
             if (root == null) {
-                return LoadedCollections.EMPTY;
+                return LoadedIndexes.EMPTY;
             }
             env = withVars(root.get("vars"), file, env);
             JsonNode modelsNode = root.get("models");
@@ -113,7 +113,7 @@ public final class CollectionsLoader {
             throw new IllegalStateException(e.getMessage(), e);
         }
         Map<String, Path> owners = new LinkedHashMap<>();
-        for (CollectionDefinition definition : result) {
+        for (IndexDefinition definition : result) {
             owners.put(definition.name(), file);
         }
         List<String> problems = new ArrayList<>();
@@ -134,7 +134,7 @@ public final class CollectionsLoader {
                 }
             }
         }
-        return new LoadedCollections(result, problems);
+        return new LoadedIndexes(result, problems);
     }
 
     /**
@@ -202,7 +202,7 @@ public final class CollectionsLoader {
      *
      * @throws IllegalArgumentException when {@code collections} or {@code readers} is not an object
      */
-    private static List<CollectionDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
+    private static List<IndexDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
                                                           String defaultModel, UnaryOperator<String> env) {
         JsonNode collections = root.get("collections");
         if (collections == null || collections.isNull()) {
@@ -218,9 +218,9 @@ public final class CollectionsLoader {
             throw new IllegalArgumentException("\"readers\" in " + file + " must be a JSON object");
         }
         Path baseDir = file.toAbsolutePath().getParent();
-        List<CollectionDefinition> result = new ArrayList<>();
+        List<IndexDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
-            CollectionDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
+            IndexDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
             result.add(definition.usable() ? withVectors(definition, entry.getValue(), models, defaultModel) : definition);
         }
         return result;
@@ -234,7 +234,7 @@ public final class CollectionsLoader {
      * @throws IllegalArgumentException when the entry or its file cannot be used
      */
     private static void imported(JsonNode entry, String where, Path baseDir, Map<String, Object> models,
-                                 String defaultModel, UnaryOperator<String> env, List<CollectionDefinition> result,
+                                 String defaultModel, UnaryOperator<String> env, List<IndexDefinition> result,
                                  Map<String, Path> owners, List<String> problems) {
         JsonNode fileNode = entry.isObject() ? entry.get("file") : entry;
         String raw = fileNode == null || !fileNode.isString() ? null
@@ -262,7 +262,7 @@ public final class CollectionsLoader {
                         + "\"collections\" and \"readers\"");
             }
         }
-        for (CollectionDefinition definition : collections(root, file, models, defaultModel, env)) {
+        for (IndexDefinition definition : collections(root, file, models, defaultModel, env)) {
             Path owner = owners.putIfAbsent(definition.name(), file);
             if (owner != null) {
                 problems.add(where + ": the collection '" + definition.name() + "' of " + file
@@ -274,7 +274,7 @@ public final class CollectionsLoader {
     }
 
     /** The collection of an imported file, broken when a source of it runs a command the import does not allow. */
-    private static CollectionDefinition withoutCommands(CollectionDefinition definition, Path file) {
+    private static IndexDefinition withoutCommands(IndexDefinition definition, Path file) {
         for (int i = 0; i < definition.sources().size(); i++) {
             if (runsCommand(definition.sources().get(i))) {
                 return definition.withError("collections." + definition.name() + ".sources[" + i
@@ -348,7 +348,7 @@ public final class CollectionsLoader {
      * {@code "vectors": true} names the model marked {@code "default": true}; {@code false} or no
      * {@code vectors} leaves the collection lexical.
      */
-    private static CollectionDefinition withVectors(CollectionDefinition definition, JsonNode node,
+    private static IndexDefinition withVectors(IndexDefinition definition, JsonNode node,
                                                     Map<String, Object> models, String defaultModel) {
         JsonNode vectors = node.get("vectors");
         if (vectors == null || vectors.isNull() || vectors.isBoolean() && !vectors.booleanValue()) {
@@ -376,7 +376,7 @@ public final class CollectionsLoader {
         if (entry instanceof String error) {
             return definition.withError(error);
         }
-        return new CollectionDefinition(definition.name(), definition.description(), definition.sources(),
+        return new IndexDefinition(definition.name(), definition.description(), definition.sources(),
                 (ModelDefinition) entry, null);
     }
 
@@ -410,19 +410,19 @@ public final class CollectionsLoader {
         return found;
     }
 
-    private static CollectionDefinition collection(String name, JsonNode node, JsonNode readers, Path baseDir,
+    private static IndexDefinition collection(String name, JsonNode node, JsonNode readers, Path baseDir,
                                                    UnaryOperator<String> env) {
         String description = node.isObject() ? text(node.get("description")) : null;
-        String nameProblem = CollectionNames.problem(name);
+        String nameProblem = IndexNames.problem(name);
         if (nameProblem != null) {
-            return CollectionDefinition.broken(name, description, nameProblem);
+            return IndexDefinition.broken(name, description, nameProblem);
         }
         if (!node.isObject()) {
-            return CollectionDefinition.broken(name, null, "the entry must be a JSON object");
+            return IndexDefinition.broken(name, null, "the entry must be a JSON object");
         }
         JsonNode sources = node.get("sources");
         if (sources == null || !sources.isArray() || sources.isEmpty()) {
-            return CollectionDefinition.broken(name, description, "\"sources\" must be a non-empty array");
+            return IndexDefinition.broken(name, description, "\"sources\" must be a non-empty array");
         }
         List<SourceDefinition> definitions = new ArrayList<>();
         int index = 0;
@@ -431,10 +431,10 @@ public final class CollectionsLoader {
             try {
                 definitions.add(source(withReader(source, readers), where, baseDir, env));
             } catch (IllegalStateException | IllegalArgumentException e) {
-                return CollectionDefinition.broken(name, description, where + ": " + e.getMessage());
+                return IndexDefinition.broken(name, description, where + ": " + e.getMessage());
             }
         }
-        return new CollectionDefinition(name, description, List.copyOf(definitions), null);
+        return new IndexDefinition(name, description, List.copyOf(definitions), null);
     }
 
     /**

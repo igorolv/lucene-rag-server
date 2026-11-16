@@ -2,7 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.index;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionNames;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexNames;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,20 +14,20 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * The built collections under the data directory. A collection is served when its directory has a
+ * The built indexes under the data directory. An index is served when its directory has a
  * readable manifest of the current schema whose name equals the directory name; nothing else is
  * consulted, so a directory copied from another machine is served as it is.
  *
  * <p>Nothing is cached: the directory is listed and an index is opened per call. Indexes are
- * small and a rebuild may replace a collection at any time.
+ * small and a rebuild may replace an index at any time.
  */
-public final class CollectionStore {
+public final class IndexStore {
 
-    private static final Logger log = LoggerFactory.getLogger(CollectionStore.class);
+    private static final Logger log = LoggerFactory.getLogger(IndexStore.class);
 
     private final Path dataDir;
 
-    public CollectionStore(Path dataDir) {
+    public IndexStore(Path dataDir) {
         this.dataDir = dataDir;
     }
 
@@ -40,7 +40,7 @@ public final class CollectionStore {
         try (Stream<Path> children = Files.list(dataDir)) {
             for (Path dir : (Iterable<Path>) children.filter(Files::isDirectory)::iterator) {
                 String name = dir.getFileName().toString();
-                if (CollectionNames.valid(name) && Files.isRegularFile(dir.resolve(Manifest.FILE_NAME))) {
+                if (IndexNames.valid(name) && Files.isRegularFile(dir.resolve(Manifest.FILE_NAME))) {
                     manifest(name).ifPresent(result::add);
                 }
             }
@@ -53,7 +53,7 @@ public final class CollectionStore {
 
     /** The manifest of one built collection, or empty when it is absent or cannot be served. */
     public Optional<Manifest> manifest(String name) {
-        if (!CollectionNames.valid(name)) {
+        if (!IndexNames.valid(name)) {
             return Optional.empty();
         }
         Path dir = dataDir.resolve(name);

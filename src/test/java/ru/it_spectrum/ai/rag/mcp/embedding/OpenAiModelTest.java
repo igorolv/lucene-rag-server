@@ -9,11 +9,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 import ru.it_spectrum.ai.rag.mcp.search.SearchMode;
@@ -148,14 +148,14 @@ class OpenAiModelTest {
                  "collections": {"docs@billing": {"vectors": {"model": "%s"},
                                                   "sources": [{"path": "%s/articles"}]}}}
                 """.formatted(BEAN, BEAN, root), StandardCharsets.UTF_8);
-        CollectionDefinition definition = StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null))
+        IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))
                 .getFirst();
 
         int before = requests.get();
-        CollectionIndexer.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
+        IndexBuilder.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
         assertThat(requests.get()).isGreaterThan(before);
 
-        CollectionStore store = new CollectionStore(dataDir);
+        IndexStore store = new IndexStore(dataDir);
         Manifest.Vectors vectors = store.manifest("docs@billing").orElseThrow().vectors();
         assertThat(vectors.type()).isEqualTo(BeanModelType.NAME);
         assertThat(vectors.dimension()).isEqualTo(DIMENSION);

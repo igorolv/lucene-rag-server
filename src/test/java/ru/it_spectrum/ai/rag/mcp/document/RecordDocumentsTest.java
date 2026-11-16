@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.document.Document;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourcePipeline;
@@ -86,7 +86,7 @@ class RecordDocumentsTest {
     @Test
     void aSourceReadsAsTheDocumentsOfItsRecords() throws IOException {
         Path file = TestKnowledge.writeCollectionsFile(dataDir);
-        CollectionDefinition docs = StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null))
+        IndexDefinition docs = StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null))
                 .stream().filter(d -> d.name().equals(TestKnowledge.DOCS)).findFirst().orElseThrow();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(docs.sources().getFirst());
         List<ChunkRecord> records = new ArrayList<>();

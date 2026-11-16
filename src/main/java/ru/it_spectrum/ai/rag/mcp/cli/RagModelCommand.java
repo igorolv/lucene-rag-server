@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
 import org.springframework.context.ConfigurableApplicationContext;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.HuggingFace;
@@ -121,7 +121,7 @@ public final class RagModelCommand {
     private static int fetch(String name, Map<String, String> options, Path models, PrintStream out) {
         String from = options.getOrDefault("--from", ModelCatalog.HUGGING_FACE);
         String repository = options.get("--repo");
-        if (!CollectionsLoader.validModelName(name)) {
+        if (!IndexesLoader.validModelName(name)) {
             out.println("RESULT: FAILED (model name '" + name + "' must be letters, digits, '.', '_' or '-', up to 64"
                     + " characters, not starting with a dot)");
             return 2;

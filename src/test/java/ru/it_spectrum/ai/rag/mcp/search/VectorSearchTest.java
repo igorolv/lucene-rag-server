@@ -4,14 +4,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -34,25 +34,25 @@ class VectorSearchTest {
     static Path dataDir;
 
     static RagMcpProperties properties;
-    static CollectionStore store;
+    static IndexStore store;
     static EmbeddingModels models;
     static SearchService search;
-    static Map<String, CollectionIndexer.Built> firstBuild = new HashMap<>();
+    static Map<String, IndexBuilder.Built> firstBuild = new HashMap<>();
 
-    static List<CollectionDefinition> definitions() throws IOException {
+    static List<IndexDefinition> definitions() throws IOException {
         Path file = TestKnowledge.writeCollectionsFile(dataDir, true);
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
     @BeforeAll
     static void build() throws IOException {
         models = FakeEmbeddingModel.models(dataDir, "fake");
-        for (CollectionDefinition definition : definitions()) {
+        for (IndexDefinition definition : definitions()) {
             firstBuild.put(definition.name(),
-                    CollectionIndexer.build(definition, StepRegistry.builtIn(), models, dataDir, "test"));
+                    IndexBuilder.build(definition, StepRegistry.builtIn(), models, dataDir, "test"));
         }
         properties = new RagMcpProperties(dataDir.toString(), null);
-        store = new CollectionStore(dataDir);
+        store = new IndexStore(dataDir);
         search = new SearchService(store, properties, models);
     }
 
@@ -76,8 +76,8 @@ class VectorSearchTest {
 
     @Test
     void aRebuildTakesUnchangedVectorsFromTheCache() throws IOException {
-        CollectionDefinition docs = definitions().stream().filter(d -> d.name().equals(DOCS)).findFirst().orElseThrow();
-        CollectionIndexer.Built again = CollectionIndexer.build(docs, StepRegistry.builtIn(), models, dataDir, "test");
+        IndexDefinition docs = definitions().stream().filter(d -> d.name().equals(DOCS)).findFirst().orElseThrow();
+        IndexBuilder.Built again = IndexBuilder.build(docs, StepRegistry.builtIn(), models, dataDir, "test");
 
         assertThat(again.embedded()).isZero();
         assertThat(again.cached()).isEqualTo(again.manifest().records());

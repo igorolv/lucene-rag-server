@@ -8,12 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.rag.mcp.api.RebuildResult;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
-import ru.it_spectrum.ai.rag.mcp.collections.LoadedCollections;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.LoadedIndexes;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -72,19 +72,19 @@ public class AdminTools {
             String collection) {
         log.info("Tool call: rebuildCollection collection={}", collection);
         String name = collection == null ? "" : collection.strip();
-        final List<CollectionDefinition> definitions;
+        final List<IndexDefinition> definitions;
         final List<String> importProblems;
         try {
-            LoadedCollections loaded = CollectionsLoader.read(properties, env);
-            definitions = registry.checked(loaded.collections());
+            LoadedIndexes loaded = IndexesLoader.read(properties, env);
+            definitions = registry.checked(loaded.indexes());
             importProblems = loaded.importProblems();
         } catch (IllegalStateException e) {
             throw new IllegalArgumentException("The collections file cannot be used: " + e.getMessage(), e);
         }
-        CollectionDefinition definition = definitions.stream().filter(d -> d.name().equals(name)).findFirst()
+        IndexDefinition definition = definitions.stream().filter(d -> d.name().equals(name)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Collection '" + name + "' is not in "
                         + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
-                        + String.join(", ", definitions.stream().map(CollectionDefinition::name).toList())
+                        + String.join(", ", definitions.stream().map(IndexDefinition::name).toList())
                         + (importProblems.isEmpty() ? "" : "; " + String.join("; ", importProblems))));
         if (!definition.usable()) {
             throw new IllegalArgumentException("Collection '" + name + "': " + definition.configError());
@@ -95,7 +95,7 @@ public class AdminTools {
         }
         try {
             long start = System.nanoTime();
-            CollectionIndexer.Built built = CollectionIndexer.build(definition, registry, models,
+            IndexBuilder.Built built = IndexBuilder.build(definition, registry, models,
                     properties.resolvedDataDir(), serverVersion());
             Manifest manifest = built.manifest();
             double seconds = Math.round((System.nanoTime() - start) / 1e8) / 10.0;

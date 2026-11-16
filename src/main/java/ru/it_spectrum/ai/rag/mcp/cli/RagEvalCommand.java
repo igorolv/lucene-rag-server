@@ -7,7 +7,7 @@ import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
 import ru.it_spectrum.ai.rag.mcp.eval.Evaluation;
 import ru.it_spectrum.ai.rag.mcp.eval.QuestionSet;
 import ru.it_spectrum.ai.rag.mcp.eval.References;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.search.SearchMode;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 
@@ -127,7 +127,7 @@ public final class RagEvalCommand {
         // Every record of a page is looked at: no response size cap, and the depth as the page size.
         var unbounded = new RagMcpProperties(properties.dataDir(), properties.collectionsFile(),
                 new RagMcpProperties.Search(depth, depth), new RagMcpProperties.Response(Integer.MAX_VALUE));
-        SearchService search = new SearchService(new CollectionStore(properties.resolvedDataDir()), unbounded, models);
+        SearchService search = new SearchService(new IndexStore(properties.resolvedDataDir()), unbounded, models);
         final Evaluation.Report report;
         try {
             if (!Files.isRegularFile(file)) {

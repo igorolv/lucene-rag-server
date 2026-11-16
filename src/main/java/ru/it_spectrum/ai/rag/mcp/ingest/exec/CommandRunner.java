@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.exec;
 
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.CommandSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.CommandSettings;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

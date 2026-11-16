@@ -7,7 +7,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.representer.Representer;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
 import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;

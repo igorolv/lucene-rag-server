@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Collections files written in YAML. */
-class YamlCollectionsTest {
+class YamlIndexesTest {
 
     @TempDir
     Path dir;
@@ -103,21 +103,21 @@ class YamlCollectionsTest {
                 vectors: false
             """;
 
-    private List<CollectionDefinition> load(String main, String project, String extension) throws IOException {
+    private List<IndexDefinition> load(String main, String project, String extension) throws IOException {
         write("p/knowledge/rag-collections." + extension, project);
         Path file = write("data/collections." + extension,
                 main.formatted(dir.toString().replace('\\', '/'), extension));
-        LoadedCollections loaded = CollectionsLoader.read(file, name -> null);
+        LoadedIndexes loaded = IndexesLoader.read(file, name -> null);
         assertThat(loaded.importProblems()).isEmpty();
-        return StepRegistry.builtIn().checked(loaded.collections());
+        return StepRegistry.builtIn().checked(loaded.indexes());
     }
 
     @Test
     void aYamlFileGivesTheCollectionsOfTheSameJsonFile() throws IOException {
-        List<CollectionDefinition> fromJson = load(JSON_MAIN, JSON_PROJECT, "json");
-        List<CollectionDefinition> fromYaml = load(YAML_MAIN, YAML_PROJECT, "yaml");
+        List<IndexDefinition> fromJson = load(JSON_MAIN, JSON_PROJECT, "json");
+        List<IndexDefinition> fromYaml = load(YAML_MAIN, YAML_PROJECT, "yaml");
 
-        assertThat(fromYaml).allMatch(CollectionDefinition::usable);
+        assertThat(fromYaml).allMatch(IndexDefinition::usable);
         assertThat(fromYaml).isEqualTo(fromJson);
         SourceDefinition specs = fromYaml.getFirst().sources().getFirst();
         assertThat(specs.joins().getFirst().on()).isEqualTo("`{path[0]}`");
@@ -138,7 +138,7 @@ class YamlCollectionsTest {
                         map:
                           title: {heading.name}
                 """);
-        assertThatThrownBy(() -> CollectionsLoader.read(template, name -> null))
+        assertThatThrownBy(() -> IndexesLoader.read(template, name -> null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("line 6").hasMessageContaining("put it in quotes");
 
@@ -150,7 +150,7 @@ class YamlCollectionsTest {
                         map:
                           text: {column.text} in {column.file}
                 """);
-        assertThatThrownBy(() -> CollectionsLoader.read(longer, name -> null))
+        assertThatThrownBy(() -> IndexesLoader.read(longer, name -> null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not valid YAML").hasMessageContaining("must be in quotes");
 
@@ -161,7 +161,7 @@ class YamlCollectionsTest {
                       - path: kb
                         include: **/spec.md
                 """);
-        assertThatThrownBy(() -> CollectionsLoader.read(glob, name -> null))
+        assertThatThrownBy(() -> IndexesLoader.read(glob, name -> null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not valid YAML").hasMessageContaining("alias");
     }
@@ -173,14 +173,14 @@ class YamlCollectionsTest {
                   c: { sources: [ { path: a } ] }
                   c: { sources: [ { path: b } ] }
                 """);
-        assertThatThrownBy(() -> CollectionsLoader.read(repeated, name -> null))
+        assertThatThrownBy(() -> IndexesLoader.read(repeated, name -> null))
                 .hasMessageContaining("line 3").hasMessageContaining("\"c\" is repeated");
 
         Path list = write("data/b.yaml", "- a\n- b\n");
-        assertThatThrownBy(() -> CollectionsLoader.read(list, name -> null)).hasMessageContaining("a YAML mapping");
+        assertThatThrownBy(() -> IndexesLoader.read(list, name -> null)).hasMessageContaining("a YAML mapping");
 
         Path empty = write("data/c.yaml", "# nothing yet\n");
-        assertThat(CollectionsLoader.read(empty, name -> null).collections()).isEmpty();
+        assertThat(IndexesLoader.read(empty, name -> null).indexes()).isEmpty();
     }
 
     @Test
@@ -205,7 +205,7 @@ class YamlCollectionsTest {
                       - path: kb
                         map: { fields: { a: on, b: no, c: 'true', d: 0123, e: 42, f: +7 } }
                 """);
-        Map<String, String> fields = CollectionsLoader.load(file, name -> null).getFirst().sources().getFirst()
+        Map<String, String> fields = IndexesLoader.load(file, name -> null).getFirst().sources().getFirst()
                 .map().fields();
 
         assertThat(fields).containsEntry("a", "on").containsEntry("b", "no").containsEntry("c", "true");
@@ -219,7 +219,7 @@ class YamlCollectionsTest {
                       - path: kb
                         map: { fields: { d: ~ } }
                 """);
-        assertThat(CollectionsLoader.load(nullTemplate, name -> null).getFirst().configError())
+        assertThat(IndexesLoader.load(nullTemplate, name -> null).getFirst().configError())
                 .contains("map.fields.d must be a string");
     }
 }

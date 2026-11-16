@@ -38,8 +38,8 @@ import ru.it_spectrum.ai.rag.mcp.embedding.ModelParameters;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
 import ru.it_spectrum.ai.rag.mcp.embedding.VectorModel;
 import ru.it_spectrum.ai.rag.mcp.index.Analyzers;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.IndexFields;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 
@@ -99,13 +99,13 @@ public final class SearchService {
     /** Records of one document a page holds when a call does not say. */
     public static final int DEFAULT_PER_DOCUMENT = 1;
 
-    private final CollectionStore store;
+    private final IndexStore store;
     private final RagMcpProperties properties;
     private final EmbeddingModels models;
     private final Analyzer analyzer = Analyzers.analyzer();
 
     /** A search without models: lexical only. */
-    public SearchService(CollectionStore store, RagMcpProperties properties) {
+    public SearchService(IndexStore store, RagMcpProperties properties) {
         this(store, properties, null);
     }
 
@@ -113,7 +113,7 @@ public final class SearchService {
      * @param models the embedding models queries of vector and hybrid search are embedded with;
      *               {@code null} allows lexical search only
      */
-    public SearchService(CollectionStore store, RagMcpProperties properties, EmbeddingModels models) {
+    public SearchService(IndexStore store, RagMcpProperties properties, EmbeddingModels models) {
         this.store = store;
         this.properties = properties;
         this.models = models;
@@ -488,7 +488,7 @@ public final class SearchService {
             throw new IllegalArgumentException(String.join(", ", manifests.stream().map(Manifest::name).toList())
                     + " has no key fields to look up (map.keys). Collections with keys: " + withKeys());
         }
-        Query query = new TermQuery(new Term(IndexFields.LOOKUP, CollectionIndexer.filterTerm(value)));
+        Query query = new TermQuery(new Term(IndexFields.LOOKUP, IndexBuilder.filterTerm(value)));
         return page(manifests, query, null, limit, offset, null, Integer.MAX_VALUE);
     }
 

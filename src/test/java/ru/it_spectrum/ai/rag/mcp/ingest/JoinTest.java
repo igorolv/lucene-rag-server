@@ -3,8 +3,8 @@ package ru.it_spectrum.ai.rag.mcp.ingest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,14 +68,14 @@ class JoinTest {
         Files.writeString(file, content);
     }
 
-    private CollectionDefinition load(String source) throws IOException {
+    private IndexDefinition load(String source) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}");
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null)).getFirst();
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null)).getFirst();
     }
 
     private List<ChunkRecord> records(String source) throws IOException {
-        CollectionDefinition definition = load(source);
+        IndexDefinition definition = load(source);
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
         List<ChunkRecord> records = new ArrayList<>();
@@ -86,7 +86,7 @@ class JoinTest {
     }
 
     private String errorOf(String source) throws IOException {
-        CollectionDefinition definition = load(source);
+        IndexDefinition definition = load(source);
         assertThat(definition.usable()).isFalse();
         return definition.configError();
     }
@@ -139,7 +139,7 @@ class JoinTest {
                    {"path": "specs", "include": "**/spec.md", "reader": "catalog", %s,
                     "map": {"title": "{heading.name}", "breadcrumb": ["{cap.column.3|path[0]}", "{title}"]}}]}}}"""
                 .formatted(CATALOG, SPLIT));
-        CollectionDefinition definition = StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null))
+        IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))
                 .getFirst();
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
@@ -160,7 +160,7 @@ class JoinTest {
                 | `billing-payments` | Payments |
                 | `billing-payments` | Payments again |
                 """);
-        CollectionDefinition definition = load(specs(CATALOG, "{\"title\": \"{cap.column.2}\"}"));
+        IndexDefinition definition = load(specs(CATALOG, "{\"title\": \"{cap.column.2}\"}"));
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
 
         assertThatThrownBy(() -> pipeline.records(pipeline.items().getFirst()))

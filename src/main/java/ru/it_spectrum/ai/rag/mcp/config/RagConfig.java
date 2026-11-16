@@ -9,7 +9,7 @@ import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelType;
 import ru.it_spectrum.ai.rag.mcp.embedding.OnnxModelType;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.Converter;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.Mapper;
@@ -24,8 +24,8 @@ import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 public class RagConfig {
 
     @Bean
-    CollectionStore collectionStore(RagMcpProperties properties) {
-        return new CollectionStore(properties.resolvedDataDir());
+    IndexStore indexStore(RagMcpProperties properties) {
+        return new IndexStore(properties.resolvedDataDir());
     }
 
     /**
@@ -63,7 +63,7 @@ public class RagConfig {
     }
 
     @Bean
-    SearchService searchService(CollectionStore store, RagMcpProperties properties, EmbeddingModels models) {
+    SearchService searchService(IndexStore store, RagMcpProperties properties, EmbeddingModels models) {
         return new SearchService(store, properties, models);
     }
 

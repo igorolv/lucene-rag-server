@@ -1,6 +1,6 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
-import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.definition.ConvertStep;
 
 import java.io.IOException;
 

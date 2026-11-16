@@ -238,10 +238,10 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 
 ```
 tools/ ──► search/ ──► index/
-  └──────► collections/, ingest/    (listCollections shows collections that are not built)
-cli/ ───► collections/, ingest/, index/, search/, embedding/, eval/
+  └──────► definition/, ingest/     (listCollections shows collections that are not built)
+cli/ ───► definition/, ingest/, index/, search/, embedding/, eval/
 eval/ ──► search/                              (question sets, references, measures)
-index/ ──► document/ ──► ingest/ ──► collections/   (build: list, convert, parse, split, map, write)
+index/ ──► document/ ──► ingest/ ──► definition/   (build: list, convert, parse, split, map, write)
 search/, index/ ──► embedding/                (embed queries and records; the cache)
 api/     — MCP wire records returned by tools
 config/  — Spring wiring, properties, MCP customizer
@@ -249,7 +249,7 @@ config/  — Spring wiring, properties, MCP customizer
 
 | Package | Responsibility |
 |---|---|
-| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader` (with the imports, D78), `YamlTree` (a YAML file as the JSON tree, D81), `LoadedCollections`, `CollectionDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
+| `definition/` | The shape of `collections.json` and nothing about formats: `IndexesLoader` (with the imports, D78), `YamlTree` (a YAML file as the JSON tree, D81), `LoadedIndexes`, `IndexDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); the lookups of a source (`JoinSpec`, what the template check needs, and `JoinTable`, the units of a lookup by key, D77); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |
@@ -258,7 +258,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`), `RecordContentFormatter` (what a model sees of a record, D44) |
-| `index/` | `Analyzers`, `IndexFields`, `CollectionIndexer` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `CollectionStore` (built collections under the data directory) |
+| `index/` | `Analyzers`, `IndexFields`, `IndexBuilder` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `IndexStore` (built collections under the data directory) |
 | `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
@@ -269,10 +269,10 @@ config/  — Spring wiring, properties, MCP customizer
 
 How the pipeline is wired:
 
-- `collections/` reads a source entry into a definition with the raw settings of each step.
+- `definition/` reads a source entry into a definition with the raw settings of each step.
   `StepRegistry.checked` resolves the step names and reports a setting that does not fit as the
-  configuration error of the collection; every caller of `CollectionsLoader.load` applies it.
-- `CollectionIndexer` asks `SourcePipeline` for items and for the records of an item and names no
+  configuration error of the collection; every caller of `IndexesLoader.load` applies it.
+- `IndexBuilder` asks `SourcePipeline` for items and for the records of an item and names no
   step implementation.
 - A step implementation is a `@Component`; the registry is a bean that receives every step bean
   (D19). The step interfaces name no Spring type. `StepRegistry.builtIn()` gives the same steps
@@ -327,7 +327,7 @@ parser modules and `poi-ooxml-full` instead of Tika's standard parser package (4
 - A Spring AI reader is used inside a format class of `ingest/format/` and gives units, like any
   other library a format uses; the step interfaces and the shapes of `ingest/` name no Spring AI
   type. A reader of binary files makes its format `readsFile` (D34).
-- `CollectionIndexer` reads each item with `SourceDocumentReader` and writes it through its
+- `IndexBuilder` reads each item with `SourceDocumentReader` and writes it through its
   `DocumentWriter`, which checks unique ids and collects the field and key names; a reader or a
   writer throws `UncheckedIOException` where the interfaces allow no `IOException`.
 - The `filters` map of `search` is turned into a Spring AI expression (equality joined by "and")
@@ -450,7 +450,7 @@ Stage 2 in more detail:
    Markdown reader, chunker and mapper moved behind the step interfaces and no change of
    behavior. `format` is chosen by name, or by file extension when absent; the format gives the
    default `include`, the default `map` templates and the value names a template may use.
-   Named readers (D18), done 2026-11-15: `CollectionsLoader` reads the top-level `readers`
+   Named readers (D18), done 2026-11-15: `IndexesLoader` reads the top-level `readers`
    object and resolves a source that names a `reader` before `StepRegistry.checked` sees it; a
    key of the source replaces the reader's key whole.
 2. Done 2026-11-15: row formats, no splitter: `tsv` (a row; values `{column.<name>}` from the

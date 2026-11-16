@@ -7,7 +7,7 @@ import ru.it_spectrum.ai.rag.mcp.api.RebuildResult;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ class AdminToolsTest {
         assertThat(result.records()).isPositive();
         assertThat(result.builtAt()).endsWith("Z");
         assertThat(result.embedded()).isNull();
-        assertThat(new CollectionStore(dataDir).manifest(API)).isPresent();
+        assertThat(new IndexStore(dataDir).manifest(API)).isPresent();
     }
 
     @Test

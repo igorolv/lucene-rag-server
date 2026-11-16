@@ -3,8 +3,8 @@ package ru.it_spectrum.ai.rag.mcp.ingest.split;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourcePipeline;
@@ -27,14 +27,14 @@ class TableRowsTest {
     private static final String SYMPTOMS = TestKnowledge.root().resolve("queue/symptoms.md").toString()
             .replace('\\', '/');
 
-    private List<CollectionDefinition> load(String source) throws IOException {
+    private List<IndexDefinition> load(String source) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, "{\"collections\": {\"queue@billing\": {\"sources\": [" + source + "]}}}");
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
     private List<ChunkRecord> records(String source) throws IOException {
-        CollectionDefinition definition = load(source).getFirst();
+        IndexDefinition definition = load(source).getFirst();
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
         List<ChunkRecord> records = new ArrayList<>();

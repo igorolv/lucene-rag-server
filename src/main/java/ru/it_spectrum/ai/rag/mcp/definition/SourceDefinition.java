@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import java.nio.file.Path;
 import java.util.List;

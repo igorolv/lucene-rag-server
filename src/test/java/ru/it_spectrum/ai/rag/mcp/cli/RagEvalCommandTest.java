@@ -4,14 +4,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
 import ru.it_spectrum.ai.rag.mcp.eval.QuestionSet;
 import ru.it_spectrum.ai.rag.mcp.eval.References;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 import ru.it_spectrum.ai.rag.mcp.search.SearchHit;
 
@@ -57,8 +57,8 @@ class RagEvalCommandTest {
                                       "map": {"title": "{column.2}", "fields": {"number": "{column.1}"}}}]}
                  }}
                 """.formatted(DOCS, root, root, DATA, root, QUEUE, root));
-        for (CollectionDefinition definition : StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null))) {
-            CollectionIndexer.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
+        for (IndexDefinition definition : StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))) {
+            IndexBuilder.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
         }
         properties = new RagMcpProperties(dataDir.toString(), null);
         questions = TestKnowledge.root().resolve("eval").resolve("questions.jsonl").toString();

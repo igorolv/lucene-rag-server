@@ -1,9 +1,9 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
 import org.junit.jupiter.api.Test;
-import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.MapSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.MarkdownFormat;
 import ru.it_spectrum.ai.rag.mcp.ingest.map.TemplateMapper;
 import ru.it_spectrum.ai.rag.mcp.ingest.origin.FilesOrigin;

@@ -1,9 +1,9 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
-import ru.it_spectrum.ai.rag.mcp.collections.JoinDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.definition.JoinDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.ingest.convert.CommandConverter;
 import ru.it_spectrum.ai.rag.mcp.ingest.exec.CommandRunner;
 import ru.it_spectrum.ai.rag.mcp.ingest.format.JsonlFormat;
@@ -135,15 +135,15 @@ public final class StepRegistry {
      * The definitions with every source checked against its steps: a collection whose source
      * does not fit becomes a broken entry, as a wrong entry of the collections file does.
      */
-    public List<CollectionDefinition> checked(List<CollectionDefinition> definitions) {
-        List<CollectionDefinition> result = new ArrayList<>();
-        for (CollectionDefinition definition : definitions) {
+    public List<IndexDefinition> checked(List<IndexDefinition> definitions) {
+        List<IndexDefinition> result = new ArrayList<>();
+        for (IndexDefinition definition : definitions) {
             result.add(definition.usable() ? checked(definition) : definition);
         }
         return List.copyOf(result);
     }
 
-    private CollectionDefinition checked(CollectionDefinition definition) {
+    private IndexDefinition checked(IndexDefinition definition) {
         for (int i = 0; i < definition.sources().size(); i++) {
             try {
                 pipeline(definition.sources().get(i));

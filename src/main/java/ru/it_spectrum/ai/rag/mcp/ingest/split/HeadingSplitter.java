@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.split;
 
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.Section;
 import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;

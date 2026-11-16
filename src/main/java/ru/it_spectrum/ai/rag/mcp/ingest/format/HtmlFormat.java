@@ -5,7 +5,7 @@ import org.springframework.ai.reader.jsoup.JsoupDocumentReader;
 import org.springframework.ai.reader.jsoup.config.JsoupDocumentReaderConfig;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
 import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;

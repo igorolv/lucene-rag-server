@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;

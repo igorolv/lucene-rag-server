@@ -11,11 +11,11 @@ import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlin
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourcePipeline;
@@ -98,14 +98,14 @@ class PdfFormatTest {
         return file;
     }
 
-    private List<CollectionDefinition> load(String source) throws IOException {
+    private List<IndexDefinition> load(String source) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, "{\"collections\": {\"manuals@billing\": {\"sources\": [" + source + "]}}}");
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
     private List<ChunkRecord> records(String source) throws IOException {
-        CollectionDefinition definition = load(source).getFirst();
+        IndexDefinition definition = load(source).getFirst();
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
         List<ChunkRecord> records = new ArrayList<>();
@@ -175,11 +175,11 @@ class PdfFormatTest {
                 "Refunds\nA refund is issued for a matched payment.",
                 "Webhooks\nDeliveries are retried with backoff.");
         Path dataDir = dir.resolve("data");
-        CollectionDefinition definition = load("{\"path\": \"manuals\", \"include\": \"**/*.pdf\"}").getFirst();
+        IndexDefinition definition = load("{\"path\": \"manuals\", \"include\": \"**/*.pdf\"}").getFirst();
 
-        CollectionIndexer.build(definition, StepRegistry.builtIn(), dataDir, "test");
+        IndexBuilder.build(definition, StepRegistry.builtIn(), dataDir, "test");
         var properties = new RagMcpProperties(dataDir.toString(), null, null, null);
-        var page = new SearchService(new CollectionStore(dataDir), properties)
+        var page = new SearchService(new IndexStore(dataDir), properties)
                 .search(List.of("manuals@billing"), "retrying deliveries", null, null, null);
 
         assertThat(page.hits()).isNotEmpty();

@@ -8,7 +8,7 @@ import org.springframework.ai.mcp.annotation.McpComplete;
 import org.springframework.ai.mcp.annotation.McpResource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.search.SearchHit;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
@@ -46,9 +46,9 @@ public class RecordResources {
     private static final Logger log = LoggerFactory.getLogger(RecordResources.class);
 
     private final SearchService search;
-    private final CollectionStore store;
+    private final IndexStore store;
 
-    public RecordResources(SearchService search, CollectionStore store) {
+    public RecordResources(SearchService search, IndexStore store) {
         this.search = search;
         this.store = store;
     }

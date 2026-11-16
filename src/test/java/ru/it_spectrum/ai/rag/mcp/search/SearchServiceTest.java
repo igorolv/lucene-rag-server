@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 
 import java.io.IOException;
@@ -27,13 +27,13 @@ class SearchServiceTest {
     static Path dataDir;
 
     static RagMcpProperties properties;
-    static CollectionStore store;
+    static IndexStore store;
     static SearchService search;
 
     @BeforeAll
     static void build() throws IOException {
         properties = TestKnowledge.build(dataDir);
-        store = new CollectionStore(dataDir);
+        store = new IndexStore(dataDir);
         search = new SearchService(store, properties);
     }
 

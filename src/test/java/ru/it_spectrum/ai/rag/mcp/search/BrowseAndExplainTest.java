@@ -4,13 +4,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.FakeEmbeddingModel;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
@@ -50,24 +50,24 @@ class BrowseAndExplainTest {
     @BeforeAll
     static void build() throws IOException {
         RagMcpProperties lexicalProperties = TestKnowledge.build(lexicalDir);
-        lexical = new SearchService(new CollectionStore(lexicalDir), lexicalProperties);
+        lexical = new SearchService(new IndexStore(lexicalDir), lexicalProperties);
         browseLexical = new BrowseService(lexical, lexicalProperties);
 
         EmbeddingModels models = FakeEmbeddingModel.models(vectorDir, "fake");
-        for (CollectionDefinition definition : StepRegistry.builtIn().checked(CollectionsLoader.load(
+        for (IndexDefinition definition : StepRegistry.builtIn().checked(IndexesLoader.load(
                 TestKnowledge.writeCollectionsFile(vectorDir, true), name -> null))) {
-            CollectionIndexer.build(definition, StepRegistry.builtIn(), models, vectorDir, "test");
+            IndexBuilder.build(definition, StepRegistry.builtIn(), models, vectorDir, "test");
         }
         RagMcpProperties vectorProperties = new RagMcpProperties(vectorDir.toString(), null);
-        vectors = new SearchService(new CollectionStore(vectorDir), vectorProperties, models);
+        vectors = new SearchService(new IndexStore(vectorDir), vectorProperties, models);
         browseVectors = new BrowseService(vectors, vectorProperties);
 
-        for (CollectionDefinition definition : StepRegistry.builtIn().checked(CollectionsLoader.load(
+        for (IndexDefinition definition : StepRegistry.builtIn().checked(IndexesLoader.load(
                 LookupTestData.writeCollectionsFile(catalogDir), name -> null))) {
-            CollectionIndexer.build(definition, StepRegistry.builtIn(), catalogDir, "test");
+            IndexBuilder.build(definition, StepRegistry.builtIn(), catalogDir, "test");
         }
         RagMcpProperties catalogProperties = new RagMcpProperties(catalogDir.toString(), null);
-        browseCatalog = new BrowseService(new SearchService(new CollectionStore(catalogDir), catalogProperties),
+        browseCatalog = new BrowseService(new SearchService(new IndexStore(catalogDir), catalogProperties),
                 catalogProperties);
     }
 
@@ -121,7 +121,7 @@ class BrowseAndExplainTest {
     @Test
     void aRowHasNoSectionsAndIsLikeOtherRowsOfItsFile() throws IOException {
         String row = browseCatalog.fieldValues(LookupTestData.CATALOGS, "method", null, 1).values().getFirst().value();
-        SearchHit someRow = new SearchService(new CollectionStore(catalogDir),
+        SearchHit someRow = new SearchService(new IndexStore(catalogDir),
                 new RagMcpProperties(catalogDir.toString(), null))
                 .search(List.of(LookupTestData.CATALOGS), null, Map.of("method", row), 1, null).hits().getFirst();
 

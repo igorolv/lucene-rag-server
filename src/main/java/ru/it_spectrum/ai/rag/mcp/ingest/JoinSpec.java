@@ -1,6 +1,6 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 
 /**
  * What the mapper needs to know about a lookup of a source to check templates before anything is

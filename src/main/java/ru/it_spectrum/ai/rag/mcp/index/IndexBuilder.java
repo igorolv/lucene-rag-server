@@ -14,11 +14,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.DocumentWriter;
 import org.springframework.ai.document.MetadataMode;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
-import ru.it_spectrum.ai.rag.mcp.collections.JoinDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.ModelDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.definition.JoinDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.ModelDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.document.RecordContentFormatter;
 import ru.it_spectrum.ai.rag.mcp.document.RecordDocuments;
 import ru.it_spectrum.ai.rag.mcp.document.SourceDocumentReader;
@@ -49,34 +49,34 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
- * Builds one collection from its sources into {@code <data-dir>/<collection>/}. How a source
+ * Builds one index from its sources into {@code <data-dir>/<index>/}. How a source
  * becomes records is the business of its {@link SourcePipeline}; no step is named here. The
  * records of an item come as Spring AI documents ({@link SourceDocumentReader}) and are written by
  * a {@link DocumentWriter} (docs/decisions.md D31).
  *
- * <p>A collection with {@code vectors} gets a vector field per record, embedded in batches by its
+ * <p>An index with {@code vectors} gets a vector field per record, embedded in batches by its
  * model; a vector already in the embedding cache is taken from there.
  *
  * <p>The index is written into a temporary sibling directory and replaces the previous one only
- * after it is complete, so a failed build leaves the old collection in place. The old directory is
- * renamed aside before the new one is moved in, so a collection is never half deleted; on Windows
+ * after it is complete, so a failed build leaves the old index in place. The old directory is
+ * renamed aside before the new one is moved in, so an index is never half deleted; on Windows
  * the rename fails while another process has a file of the old index open, and the build fails
- * with the old collection intact.
+ * with the old index intact.
  */
-public final class CollectionIndexer {
+public final class IndexBuilder {
 
     private static final String BUILD_PREFIX = ".building-";
     /** A replaced collection directory waiting to be removed; a name with a dot is never served. */
     private static final String OLD_PREFIX = ".old-";
 
-    private static final Logger log = LoggerFactory.getLogger(CollectionIndexer.class);
+    private static final Logger log = LoggerFactory.getLogger(IndexBuilder.class);
 
     /** Directory of derived data shared by collections, under the data directory. */
     public static final String CACHE_DIR = "cache";
     /** The embedding cache, under {@link #CACHE_DIR}. */
     public static final String EMBEDDINGS_DIR = "embeddings";
 
-    private CollectionIndexer() {
+    private IndexBuilder() {
     }
 
     /**
@@ -84,9 +84,9 @@ public final class CollectionIndexer {
      *
      * @throws IllegalArgumentException when the definition is unusable, has vectors or two records
      *                                  share an id
-     * @see #build(CollectionDefinition, StepRegistry, EmbeddingModels, Path, String)
+     * @see #build(IndexDefinition, StepRegistry, EmbeddingModels, Path, String)
      */
-    public static Manifest build(CollectionDefinition definition, StepRegistry registry, Path dataDir,
+    public static Manifest build(IndexDefinition definition, StepRegistry registry, Path dataDir,
                                  String serverVersion) throws IOException {
         return build(definition, registry, null, dataDir, serverVersion).manifest();
     }
@@ -102,7 +102,7 @@ public final class CollectionIndexer {
      *                                  the index cannot be written
      * @throws IllegalArgumentException when the definition is unusable or two records share an id
      */
-    public static Built build(CollectionDefinition definition, StepRegistry registry, EmbeddingModels models,
+    public static Built build(IndexDefinition definition, StepRegistry registry, EmbeddingModels models,
                               Path dataDir, String serverVersion) throws IOException {
         if (!definition.usable()) {
             throw new IllegalArgumentException("Collection " + definition.name() + ": " + definition.configError());
@@ -189,7 +189,7 @@ public final class CollectionIndexer {
     public record Built(Manifest manifest, int embedded, int cached) {
     }
 
-    private static Built write(CollectionDefinition definition, StepRegistry registry, VectorModel model,
+    private static Built write(IndexDefinition definition, StepRegistry registry, VectorModel model,
                                EmbeddingCache cache, Path dir, String serverVersion) throws IOException {
         int files = 0;
         int documents = 0;

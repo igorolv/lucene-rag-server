@@ -10,7 +10,7 @@ import org.springframework.ai.reader.pdf.ParagraphPdfDocumentReader;
 import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.MapDefaults;
 import ru.it_spectrum.ai.rag.mcp.ingest.ParsedDocument;

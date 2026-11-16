@@ -3,10 +3,10 @@ package ru.it_spectrum.ai.rag.mcp.ingest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
-import ru.it_spectrum.ai.rag.mcp.collections.WhereSettings;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.WhereSettings;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 
 import java.io.IOException;
@@ -23,15 +23,15 @@ class WhereTest {
     @TempDir
     Path dir;
 
-    private List<CollectionDefinition> load(String source) throws IOException {
+    private List<IndexDefinition> load(String source) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}");
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
     private List<ChunkRecord> records(String where) throws IOException {
         String articles = TestKnowledge.root().resolve("articles").toString().replace('\\', '/');
-        CollectionDefinition definition = load("{\"path\": \"" + articles + "\", \"where\": " + where + "}")
+        IndexDefinition definition = load("{\"path\": \"" + articles + "\", \"where\": " + where + "}")
                 .getFirst();
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
@@ -63,7 +63,7 @@ class WhereTest {
     @Test
     void whereSeesTheFieldsMadeByMap() throws IOException {
         String articles = TestKnowledge.root().resolve("articles").toString().replace('\\', '/');
-        CollectionDefinition definition = load("{\"path\": \"" + articles + "\", \"map\": {\"inheritFields\": [],"
+        IndexDefinition definition = load("{\"path\": \"" + articles + "\", \"map\": {\"inheritFields\": [],"
                 + " \"fields\": {\"area\": \"{path.name}\"}}, \"where\": {\"area\": \"payments\", \"kind\": {\"not\": \"article\"}}}")
                 .getFirst();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
@@ -93,10 +93,10 @@ class WhereTest {
     @Test
     void theManifestKeepsTheConditionsAndTheCountsLeaveOutWhatWasDropped(@TempDir Path dataDir) throws IOException {
         String articles = TestKnowledge.root().resolve("articles").toString().replace('\\', '/');
-        CollectionDefinition definition = load("{\"path\": \"" + articles
+        IndexDefinition definition = load("{\"path\": \"" + articles
                 + "\", \"where\": {\"tags\": {\"not\": \"refunds\"}}}").getFirst();
 
-        Manifest manifest = CollectionIndexer.build(definition, StepRegistry.builtIn(), dataDir, "test");
+        Manifest manifest = IndexBuilder.build(definition, StepRegistry.builtIn(), dataDir, "test");
 
         assertThat(manifest.files()).isEqualTo(2);
         assertThat(manifest.documents()).isEqualTo(1);

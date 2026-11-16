@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,17 +29,17 @@ class ImportTest {
         return file;
     }
 
-    private LoadedCollections read(String main) throws IOException {
+    private LoadedIndexes read(String main) throws IOException {
         return read(main, Map.of());
     }
 
-    private LoadedCollections read(String main, Map<String, String> env) throws IOException {
+    private LoadedIndexes read(String main, Map<String, String> env) throws IOException {
         Path file = write("data/collections.json", main);
-        return CollectionsLoader.read(file, env::get);
+        return IndexesLoader.read(file, env::get);
     }
 
-    private static CollectionDefinition named(LoadedCollections loaded, String name) {
-        return loaded.collections().stream().filter(c -> c.name().equals(name)).findFirst().orElseThrow();
+    private static IndexDefinition named(LoadedIndexes loaded, String name) {
+        return loaded.indexes().stream().filter(c -> c.name().equals(name)).findFirst().orElseThrow();
     }
 
     @Test
@@ -54,25 +54,25 @@ class ImportTest {
         write("billing/openspec/rag-collections.json", """
                 {"collections": {"specs@billing": {"sources": [{"path": "specs"}]}}}""");
 
-        LoadedCollections loaded = read("{" + MODELS + """
+        LoadedIndexes loaded = read("{" + MODELS + """
                 , "import": ["../billing/knowledge/rag-collections.json",
                              {"file": "${PROJECTS}/billing/openspec/rag-collections.json"}],
                  "collections": {"notes@home": {"sources": [{"path": "notes"}]}}}""",
                 Map.of("PROJECTS", dir.toString()));
 
         assertThat(loaded.importProblems()).isEmpty();
-        assertThat(loaded.collections()).extracting(CollectionDefinition::name)
+        assertThat(loaded.indexes()).extracting(IndexDefinition::name)
                 .containsExactly("notes@home", "docs@billing", "catalogs@billing", "specs@billing");
         assertThat(named(loaded, "notes@home").sources().getFirst().path()).isEqualTo(dir.resolve("data/notes"));
-        CollectionDefinition docs = named(loaded, "docs@billing");
+        IndexDefinition docs = named(loaded, "docs@billing");
         assertThat(docs.sources().getFirst().path()).isEqualTo(dir.resolve("billing/knowledge/articles"));
         assertThat(docs.sources().getFirst().split().level()).isEqualTo(3);
         assertThat(docs.vectors().name()).isEqualTo("e5-small");
         assertThat(named(loaded, "specs@billing").sources().getFirst().path())
                 .isEqualTo(dir.resolve("billing/openspec/specs"));
-        assertThat(StepRegistry.builtIn().checked(loaded.collections())).allMatch(CollectionDefinition::usable);
+        assertThat(StepRegistry.builtIn().checked(loaded.indexes())).allMatch(IndexDefinition::usable);
         // load gives the same collections without the problems.
-        assertThat(CollectionsLoader.load(dir.resolve("data/collections.json"), name -> dir.toString()))
+        assertThat(IndexesLoader.load(dir.resolve("data/collections.json"), name -> dir.toString()))
                 .hasSize(4);
     }
 
@@ -83,12 +83,12 @@ class ImportTest {
         write("nested/rag-collections.json", "{\"import\": [\"x.json\"]}");
         write("good/rag-collections.json", "{\"collections\": {\"good@p\": {\"sources\": [{\"path\": \"a\"}]}}}");
 
-        LoadedCollections loaded = read("""
+        LoadedIndexes loaded = read("""
                 {"import": ["../absent/rag-collections.json", "../broken/rag-collections.json",
                             "../withmodels/rag-collections.json", "../nested/rag-collections.json",
                             42, {"commands": true}, "../good/rag-collections.json"]}""");
 
-        assertThat(loaded.collections()).extracting(CollectionDefinition::name).containsExactly("good@p");
+        assertThat(loaded.indexes()).extracting(IndexDefinition::name).containsExactly("good@p");
         assertThat(loaded.importProblems()).hasSize(6);
         assertThat(loaded.importProblems().get(0)).startsWith("import[0]: ").contains("does not exist");
         assertThat(loaded.importProblems().get(1)).startsWith("import[1]: ").contains("not valid JSON");
@@ -104,11 +104,11 @@ class ImportTest {
                 + " \"only-a@p\": {\"sources\": [{\"path\": \"x\"}]}}}");
         write("b/rag-collections.json", "{\"collections\": {\"docs@p\": {\"sources\": [{\"path\": \"from-b\"}]}}}");
 
-        LoadedCollections loaded = read("""
+        LoadedIndexes loaded = read("""
                 {"import": ["../a/rag-collections.json", "../b/rag-collections.json"],
                  "collections": {"only-a@p": {"sources": [{"path": "main"}]}}}""");
 
-        assertThat(loaded.collections()).extracting(CollectionDefinition::name).containsExactly("only-a@p", "docs@p");
+        assertThat(loaded.indexes()).extracting(IndexDefinition::name).containsExactly("only-a@p", "docs@p");
         assertThat(named(loaded, "only-a@p").sources().getFirst().path()).isEqualTo(dir.resolve("data/main"));
         assertThat(named(loaded, "docs@p").sources().getFirst().path()).isEqualTo(dir.resolve("a/from-a"));
         assertThat(loaded.importProblems()).hasSize(2);
@@ -128,7 +128,7 @@ class ImportTest {
                               "format": "tsv", "key": "{column.1}", "on": "{path[0]}"}}}]},
                   "files@p": {"sources": [{"path": "docs"}]}}}""");
 
-        LoadedCollections denied = read("{\"import\": [\"../p/rag-collections.json\"]}");
+        LoadedIndexes denied = read("{\"import\": [\"../p/rag-collections.json\"]}");
 
         assertThat(named(denied, "files@p").usable()).isTrue();
         for (String name : List.of("origin@p", "convert@p", "join@p")) {
@@ -136,9 +136,9 @@ class ImportTest {
         }
         assertThat(denied.importProblems()).isEmpty();
 
-        LoadedCollections allowed = read("{\"import\": [{\"file\": \"../p/rag-collections.json\", \"commands\": true}]}");
+        LoadedIndexes allowed = read("{\"import\": [{\"file\": \"../p/rag-collections.json\", \"commands\": true}]}");
 
-        assertThat(allowed.collections()).allMatch(CollectionDefinition::usable);
+        assertThat(allowed.indexes()).allMatch(IndexDefinition::usable);
         CommandSettings command = named(allowed, "origin@p").sources().getFirst().command();
         assertThat(command.directory()).isEqualTo(dir.resolve("p"));
     }
@@ -149,7 +149,7 @@ class ImportTest {
                 {"collections": {"docs@billing": {"sources": [{"path": "articles"},
                                                               {"path": "${shared}/glossary"}]}}}""");
 
-        LoadedCollections loaded = read("""
+        LoadedIndexes loaded = read("""
                 {"vars": {"projects": "${ROOT}/projects", "shared": "${projects}-not-a-var", "HOME": "overridden"},
                  "import": ["${projects}/billing/knowledge/rag-collections.json"],
                  "collections": {"notes@home": {"sources": [{"path": "${HOME}/notes"}]}}}""",
@@ -168,11 +168,11 @@ class ImportTest {
         for (String vars : List.of("\"vars\": [\"a\"]", "\"vars\": {\"1a\": \"x\"}", "\"vars\": {\"a\": 1}",
                 "\"vars\": {\"a\": \"${UNSET}\"}")) {
             Path file = write("data/collections.json", "{" + vars + "}");
-            assertThatThrownBy(() -> CollectionsLoader.read(file, name -> null))
+            assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                     .as(vars).isInstanceOf(IllegalStateException.class).hasMessageContaining("vars");
         }
         Path file = write("data/collections.json", "{\"collections\": {\"c\": {\"sources\": [{\"path\": \"${nope}\"}]}}}");
-        assertThat(CollectionsLoader.read(file, name -> null).collections().getFirst().configError())
+        assertThat(IndexesLoader.read(file, name -> null).indexes().getFirst().configError())
                 .contains("'nope'", "neither in \"vars\" nor in the environment");
 
         write("p/rag-collections.json", "{\"vars\": {\"a\": \"b\"}, \"collections\": {}}");
@@ -189,7 +189,7 @@ class ImportTest {
                   "lexical@p": {"vectors": false, "sources": [{"path": "a"}]},
                   "wrong@p": {"vectors": "e5-small", "sources": [{"path": "a"}]}}}""");
 
-        LoadedCollections loaded = read("""
+        LoadedIndexes loaded = read("""
                 {"models": {"e5-small": {"queryPrefix": "query: ", "default": true}, "e5-base": {}},
                  "import": ["../p/rag-collections.json"]}""");
 
@@ -200,7 +200,7 @@ class ImportTest {
         assertThat(named(loaded, "lexical@p").usable()).isTrue();
         assertThat(named(loaded, "wrong@p").configError()).contains("must be true, false or an object");
 
-        LoadedCollections noDefault = read("""
+        LoadedIndexes noDefault = read("""
                 {"models": {"e5-small": {}}, "import": ["../p/rag-collections.json"]}""");
 
         assertThat(named(noDefault, "docs@p").configError())
@@ -213,7 +213,7 @@ class ImportTest {
         for (String models : List.of("{\"a\": {\"default\": true}, \"b\": {\"default\": true}}",
                 "{\"a\": {\"default\": \"yes\"}}")) {
             Path file = write("data/collections.json", "{\"models\": " + models + "}");
-            assertThatThrownBy(() -> CollectionsLoader.read(file, name -> null))
+            assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                     .as(models).isInstanceOf(IllegalStateException.class).hasMessageContaining("default");
         }
     }
@@ -222,7 +222,7 @@ class ImportTest {
     void aWrongImportKeyOfTheMainFileFailsTheWholeFile() throws IOException {
         Path file = write("data/collections.json", "{\"import\": \"one.json\"}");
 
-        assertThatThrownBy(() -> CollectionsLoader.read(file, name -> null))
+        assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"import\"", "array");
     }
 }

@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 /**
  * One entry of a source's {@code join}: a lookup whose units give values to the units of the

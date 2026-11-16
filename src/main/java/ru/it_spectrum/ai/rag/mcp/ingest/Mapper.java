@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
-import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.MapSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 
 import java.util.List;
 import java.util.Map;

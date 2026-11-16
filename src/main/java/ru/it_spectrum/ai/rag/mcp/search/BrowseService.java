@@ -23,7 +23,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.index.Analyzers;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.IndexFields;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 
@@ -98,7 +98,7 @@ public final class BrowseService {
                     + "'; its fields: " + String.join(", ", manifest.fields()));
         }
         String name = field.strip();
-        String start = prefix == null ? "" : CollectionIndexer.filterTerm(prefix);
+        String start = prefix == null ? "" : IndexBuilder.filterTerm(prefix);
         int size = limit == null ? DEFAULT_VALUES : Math.min(MAX_VALUES, Math.max(1, limit));
         try (SearchService.Opened opened = search.open(List.of(manifest))) {
             IndexSearcher searcher = new IndexSearcher(opened.reader);
@@ -130,7 +130,7 @@ public final class BrowseService {
         }
         Document doc = searcher.storedFields().document(top.scoreDocs[0].doc);
         for (String value : doc.getValues(IndexFields.VALUE_PREFIX + field)) {
-            if (CollectionIndexer.filterTerm(value).equals(term)) {
+            if (IndexBuilder.filterTerm(value).equals(term)) {
                 return value.strip();
             }
         }

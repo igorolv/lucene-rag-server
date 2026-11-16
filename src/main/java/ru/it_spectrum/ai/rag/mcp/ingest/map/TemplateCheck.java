@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.map;
 
-import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.MapSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.Format;
 import ru.it_spectrum.ai.rag.mcp.ingest.JoinSpec;
 import ru.it_spectrum.ai.rag.mcp.ingest.Unit;

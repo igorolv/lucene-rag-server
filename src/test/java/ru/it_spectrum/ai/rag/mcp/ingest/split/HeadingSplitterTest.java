@@ -2,8 +2,8 @@ package ru.it_spectrum.ai.rag.mcp.ingest.split;
 
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
-import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.MapSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SectionTree;
 import ru.it_spectrum.ai.rag.mcp.ingest.Unit;

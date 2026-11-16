@@ -1,8 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.convert;
 
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.CommandSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.ConvertStep;
+import ru.it_spectrum.ai.rag.mcp.definition.CommandSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.ConvertStep;
 import ru.it_spectrum.ai.rag.mcp.ingest.Converter;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceText;

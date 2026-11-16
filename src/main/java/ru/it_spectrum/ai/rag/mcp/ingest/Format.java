@@ -3,7 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.ingest;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
 
 import java.util.List;
 

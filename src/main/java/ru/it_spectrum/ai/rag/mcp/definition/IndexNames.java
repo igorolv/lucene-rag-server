@@ -1,15 +1,15 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Rules for a collection name. The name is also a directory under the data directory and the
+ * Rules for an index name. The name is also a directory under the data directory and the
  * value tools take as {@code collection}, so it is restricted to characters that are safe in a
  * path on every platform. The optional {@code @} separates the part from the project:
  * {@code docs@billing}. Same rules as connection names in jdbc-mcp-server.
  */
-public final class CollectionNames {
+public final class IndexNames {
 
     public static final int MAX_LENGTH = 64;
 
@@ -18,7 +18,7 @@ public final class CollectionNames {
     /** Directories the server keeps next to the collections. */
     private static final Set<String> RESERVED = Set.of("logs", "models", "cache");
 
-    private CollectionNames() {
+    private IndexNames() {
     }
 
     /** @return {@code null} when the name is valid, otherwise what is wrong with it */

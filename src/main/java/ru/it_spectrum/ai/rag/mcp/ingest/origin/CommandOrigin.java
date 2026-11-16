@@ -1,7 +1,7 @@
 package ru.it_spectrum.ai.rag.mcp.ingest.origin;
 
 import org.springframework.stereotype.Component;
-import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.SourceDefinition;
 import ru.it_spectrum.ai.rag.mcp.ingest.Origin;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
 import ru.it_spectrum.ai.rag.mcp.ingest.exec.CommandRunner;

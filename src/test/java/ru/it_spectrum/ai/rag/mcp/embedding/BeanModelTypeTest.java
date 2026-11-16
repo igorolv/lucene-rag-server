@@ -5,11 +5,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 import ru.it_spectrum.ai.rag.mcp.search.SearchPage;
@@ -71,11 +71,11 @@ class BeanModelTypeTest {
                  "collections": {"docs@billing": {"vectors": {"model": "remoteEmbedding"},
                                                   "sources": [{"path": "%s/articles"}]}}}
                 """.formatted(root));
-        CollectionDefinition definition = StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null)).getFirst();
+        IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null)).getFirst();
         assertThat(definition.configError()).isNull();
 
-        CollectionIndexer.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
-        CollectionStore store = new CollectionStore(dataDir);
+        IndexBuilder.build(definition, StepRegistry.builtIn(), models, dataDir, "test");
+        IndexStore store = new IndexStore(dataDir);
         Manifest.Vectors vectors = store.manifest("docs@billing").orElseThrow().vectors();
         SearchPage page = new SearchService(store, new RagMcpProperties(dataDir.toString(), null), models)
                 .search(List.of("docs@billing"), "отмена платежа", null, null, null, "vector");

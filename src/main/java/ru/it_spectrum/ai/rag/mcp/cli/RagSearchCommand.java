@@ -4,7 +4,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelUnavailableException;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.search.SearchHit;
 import ru.it_spectrum.ai.rag.mcp.search.SearchPage;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
@@ -118,7 +118,7 @@ public final class RagSearchCommand {
         String query = String.join(" ", positional.subList(1, positional.size()));
         final SearchPage page;
         try {
-            SearchService service = new SearchService(new CollectionStore(properties.resolvedDataDir()), properties,
+            SearchService service = new SearchService(new IndexStore(properties.resolvedDataDir()), properties,
                     models);
             page = byLookup ? service.lookup(collections, lookup, limit, null)
                     : service.search(collections, query, filters, expression, limit, null, mode, perDocument);

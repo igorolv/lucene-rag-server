@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -49,11 +49,11 @@ class CommandsTest {
 
         assertThat(index(DOCS)).isZero();
         assertThat(output()).contains("Collection " + DOCS, "files 3, documents 3", "RESULT: OK (1 collection built)");
-        assertThat(new CollectionStore(dataDir).built()).extracting(Manifest::name).containsExactly(DOCS);
+        assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(DOCS);
 
         assertThat(index("--all")).isZero();
         assertThat(output()).contains("RESULT: OK (2 collections built)");
-        assertThat(new CollectionStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
+        assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
     }
 
     @Test
@@ -67,7 +67,7 @@ class CommandsTest {
 
         assertThat(index("--all")).isEqualTo(2);
         assertThat(output()).contains("RESULT: FAILED (2 collections built; 1 import problem)");
-        assertThat(new CollectionStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
+        assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
     }
 
     @Test

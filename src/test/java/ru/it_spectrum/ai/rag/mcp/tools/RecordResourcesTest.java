@@ -8,7 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ class RecordResourcesTest {
     @BeforeAll
     static void build() throws IOException {
         var properties = TestKnowledge.build(dataDir);
-        var store = new CollectionStore(dataDir);
+        var store = new IndexStore(dataDir);
         search = new SearchService(store, properties);
         resources = new RecordResources(search, store);
     }

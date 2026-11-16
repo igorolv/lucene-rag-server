@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 /**
  * One entry of the top-level {@code models} object of {@code collections.json}: an embedding model

@@ -9,7 +9,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionTextParser;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.IndexFields;
 
 import java.util.ArrayList;
@@ -134,7 +134,7 @@ public final class FilterQueries {
     }
 
     private static Query term(String field, String value) {
-        return new TermQuery(new Term(field, CollectionIndexer.filterTerm(value)));
+        return new TermQuery(new Term(field, IndexBuilder.filterTerm(value)));
     }
 
     private static Query anyOf(String field, List<String> values) {
@@ -158,7 +158,7 @@ public final class FilterQueries {
                     + " " + raw + " — values are compared as text, so write the value in quotes, of the same"
                     + " width as the field's values ('2026-01-01', '007')");
         }
-        String bound = CollectionIndexer.filterTerm(text);
+        String bound = IndexBuilder.filterTerm(text);
         return upper ? TermRangeQuery.newStringRange(field, null, bound, true, inclusive)
                 : TermRangeQuery.newStringRange(field, bound, null, inclusive, true);
     }

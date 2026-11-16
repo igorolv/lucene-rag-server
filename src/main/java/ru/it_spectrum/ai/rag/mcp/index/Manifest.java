@@ -1,8 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.index;
 
-import ru.it_spectrum.ai.rag.mcp.collections.MapSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.SplitSettings;
-import ru.it_spectrum.ai.rag.mcp.collections.WhereSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.MapSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.SplitSettings;
+import ru.it_spectrum.ai.rag.mcp.definition.WhereSettings;
 import ru.it_spectrum.ai.rag.mcp.embedding.ModelParameters;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.SerializationFeature;

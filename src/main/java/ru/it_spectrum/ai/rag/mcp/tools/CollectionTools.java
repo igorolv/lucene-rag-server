@@ -7,12 +7,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.rag.mcp.api.CollectionInfo;
 import ru.it_spectrum.ai.rag.mcp.api.ListCollectionsResult;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
-import ru.it_spectrum.ai.rag.mcp.collections.LoadedCollections;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.LoadedIndexes;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -37,12 +37,12 @@ public class CollectionTools {
 
     private static final Logger log = LoggerFactory.getLogger(CollectionTools.class);
 
-    private final CollectionStore store;
+    private final IndexStore store;
     private final RagMcpProperties properties;
     private final StepRegistry registry;
     private final EmbeddingModels models;
 
-    public CollectionTools(CollectionStore store, RagMcpProperties properties, StepRegistry registry,
+    public CollectionTools(IndexStore store, RagMcpProperties properties, StepRegistry registry,
                            EmbeddingModels models) {
         this.store = store;
         this.properties = properties;
@@ -74,11 +74,11 @@ public class CollectionTools {
         Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
         List<String> importProblems = null;
         try {
-            LoadedCollections loaded = CollectionsLoader.read(properties, System::getenv);
+            LoadedIndexes loaded = IndexesLoader.read(properties, System::getenv);
             if (!loaded.importProblems().isEmpty()) {
                 importProblems = loaded.importProblems();
             }
-            for (CollectionDefinition definition : registry.checked(loaded.collections())) {
+            for (IndexDefinition definition : registry.checked(loaded.indexes())) {
                 if (!builtNames.contains(definition.name())) {
                     infos.add(new CollectionInfo(definition.name(), definition.description(), false, null,
                             null, null, null, null, null, null, definition.configError()));

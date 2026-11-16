@@ -1,9 +1,9 @@
 package ru.it_spectrum.ai.rag.mcp;
 
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
@@ -64,9 +64,9 @@ public final class TestKnowledge {
     /** Builds both collections and returns settings pointing at {@code dataDir}. */
     public static RagMcpProperties build(Path dataDir) throws IOException {
         Path file = writeCollectionsFile(dataDir);
-        List<CollectionDefinition> definitions = CollectionsLoader.load(file, name -> null);
-        for (CollectionDefinition definition : definitions) {
-            CollectionIndexer.build(definition, StepRegistry.builtIn(), dataDir, "test");
+        List<IndexDefinition> definitions = IndexesLoader.load(file, name -> null);
+        for (IndexDefinition definition : definitions) {
+            IndexBuilder.build(definition, StepRegistry.builtIn(), dataDir, "test");
         }
         return new RagMcpProperties(dataDir.toString(), null);
     }

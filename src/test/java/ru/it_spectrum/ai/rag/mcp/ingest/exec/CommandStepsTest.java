@@ -3,9 +3,9 @@ package ru.it_spectrum.ai.rag.mcp.ingest.exec;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.ChunkRecord;
 import ru.it_spectrum.ai.rag.mcp.ingest.SourceItem;
@@ -82,14 +82,14 @@ class CommandStepsTest {
         return json.append(']').toString();
     }
 
-    private static List<CollectionDefinition> load(String sources) throws IOException {
+    private static List<IndexDefinition> load(String sources) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [" + sources + "]}}}");
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, name -> null));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
     private static List<ChunkRecord> records(String source) throws IOException {
-        CollectionDefinition definition = load(source).getFirst();
+        IndexDefinition definition = load(source).getFirst();
         assertThat(definition.configError()).isNull();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
         List<ChunkRecord> records = new ArrayList<>();
@@ -100,7 +100,7 @@ class CommandStepsTest {
     }
 
     private static String error(String source) throws IOException {
-        CollectionDefinition definition = load(source).getFirst();
+        IndexDefinition definition = load(source).getFirst();
         assertThat(definition.usable()).isFalse();
         return definition.configError();
     }
@@ -179,7 +179,7 @@ class CommandStepsTest {
                 + tool("describe", "{file}") + "}]}},"
                 + " \"collections\": {\"c\": {\"sources\": [{\"path\": \"files\", \"include\": \"**/*.bin\","
                 + " \"reader\": \"described\"}]}}}");
-        CollectionDefinition definition = StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null))
+        IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))
                 .getFirst();
 
         assertThat(definition.sources().getFirst().convert()).hasSize(1);
@@ -190,10 +190,10 @@ class CommandStepsTest {
 
     @Test
     void theManifestKeepsTheCommandAndTheConvertSteps(@TempDir Path dataDir) throws IOException {
-        CollectionDefinition definition = load("{\"command\": " + tool("jsonl") + ", \"timeoutSeconds\": 120,"
+        IndexDefinition definition = load("{\"command\": " + tool("jsonl") + ", \"timeoutSeconds\": 120,"
                 + " \"format\": \"jsonl\", \"map\": {\"document\": \"help\", \"text\": \"{record.text}\"}}").getFirst();
 
-        Manifest manifest = CollectionIndexer.build(definition, StepRegistry.builtIn(), dataDir, "test");
+        Manifest manifest = IndexBuilder.build(definition, StepRegistry.builtIn(), dataDir, "test");
 
         assertThat(manifest.files()).isEqualTo(1);
         assertThat(manifest.records()).isEqualTo(2);

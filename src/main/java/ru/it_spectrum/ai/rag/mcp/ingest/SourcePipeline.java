@@ -1,6 +1,6 @@
 package ru.it_spectrum.ai.rag.mcp.ingest;
 
-import ru.it_spectrum.ai.rag.mcp.collections.SourceDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.SourceDefinition;
 
 import java.io.IOException;
 import java.util.ArrayList;

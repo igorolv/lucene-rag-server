@@ -3,11 +3,11 @@ package ru.it_spectrum.ai.rag.mcp.search;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionStore;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -28,18 +28,18 @@ class LookupTest {
     @TempDir
     static Path dataDir;
 
-    static CollectionStore store;
+    static IndexStore store;
     static SearchService search;
 
     @BeforeAll
     static void build() throws IOException {
         Path file = LookupTestData.writeCollectionsFile(dataDir);
         StepRegistry registry = StepRegistry.builtIn();
-        for (CollectionDefinition definition : registry.checked(CollectionsLoader.load(file, name -> null))) {
+        for (IndexDefinition definition : registry.checked(IndexesLoader.load(file, name -> null))) {
             assertThat(definition.configError()).isNull();
-            CollectionIndexer.build(definition, registry, dataDir, "test");
+            IndexBuilder.build(definition, registry, dataDir, "test");
         }
-        store = new CollectionStore(dataDir);
+        store = new IndexStore(dataDir);
         search = new SearchService(store, new RagMcpProperties(dataDir.toString(), null));
     }
 
@@ -110,7 +110,7 @@ class LookupTest {
         Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [{\"path\": \"a\","
                 + " \"map\": {\"keys\": [\"bad name\"]}}]}}}");
 
-        assertThat(StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null)).getFirst().configError())
+        assertThat(StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null)).getFirst().configError())
                 .contains("map.keys", "\"bad name\" is not a field name");
     }
 }

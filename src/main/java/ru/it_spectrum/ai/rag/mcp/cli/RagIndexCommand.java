@@ -1,13 +1,13 @@
 package ru.it_spectrum.ai.rag.mcp.cli;
 
 import org.springframework.context.ConfigurableApplicationContext;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
-import ru.it_spectrum.ai.rag.mcp.collections.LoadedCollections;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.LoadedIndexes;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
-import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
+import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
@@ -53,18 +53,18 @@ public final class RagIndexCommand {
             out.println("Builds collections from their sources as described in collections.json.");
             return args.length == 1 ? 0 : 2;
         }
-        final List<CollectionDefinition> definitions;
+        final List<IndexDefinition> definitions;
         final List<String> importProblems;
         try {
-            LoadedCollections loaded = CollectionsLoader.read(properties, env);
-            definitions = registry.checked(loaded.collections());
+            LoadedIndexes loaded = IndexesLoader.read(properties, env);
+            definitions = registry.checked(loaded.indexes());
             importProblems = loaded.importProblems();
         } catch (IllegalStateException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 2;
         }
         final boolean all = "--all".equals(args[0]);
-        final List<CollectionDefinition> selected;
+        final List<IndexDefinition> selected;
         if (all) {
             selected = definitions;
             if (selected.isEmpty()) {
@@ -78,22 +78,22 @@ public final class RagIndexCommand {
                 importProblems.forEach(problem -> out.println("IMPORT: " + problem));
                 out.println("RESULT: FAILED (collection '" + args[0] + "' is not in "
                         + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
-                        + String.join(", ", definitions.stream().map(CollectionDefinition::name).toList()) + ")");
+                        + String.join(", ", definitions.stream().map(IndexDefinition::name).toList()) + ")");
                 return 2;
             }
         }
-        for (CollectionDefinition definition : selected) {
+        for (IndexDefinition definition : selected) {
             if (!definition.usable()) {
                 out.println("RESULT: FAILED (collection '" + definition.name() + "': "
                         + definition.configError() + ")");
                 return 2;
             }
         }
-        for (CollectionDefinition definition : selected) {
+        for (IndexDefinition definition : selected) {
             out.println("Collection " + definition.name());
             long start = System.nanoTime();
             try {
-                CollectionIndexer.Built built = CollectionIndexer.build(definition, registry, models,
+                IndexBuilder.Built built = IndexBuilder.build(definition, registry, models,
                         properties.resolvedDataDir(), serverVersion);
                 Manifest manifest = built.manifest();
                 out.println(String.format(Locale.ROOT, "  files %d, documents %d, records %d, %.1f s",

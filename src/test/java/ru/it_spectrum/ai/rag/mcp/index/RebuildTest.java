@@ -5,8 +5,8 @@ import org.apache.lucene.store.FSDirectory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
-import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
+import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
@@ -24,14 +24,14 @@ class RebuildTest {
     @TempDir
     Path dataDir;
 
-    private CollectionDefinition docs() throws IOException {
-        List<CollectionDefinition> all = CollectionsLoader.load(TestKnowledge.writeCollectionsFile(dataDir),
+    private IndexDefinition docs() throws IOException {
+        List<IndexDefinition> all = IndexesLoader.load(TestKnowledge.writeCollectionsFile(dataDir),
                 name -> null);
         return all.stream().filter(d -> d.name().equals(DOCS)).findFirst().orElseThrow();
     }
 
     private Manifest build() throws IOException {
-        return CollectionIndexer.build(docs(), StepRegistry.builtIn(), dataDir, "test");
+        return IndexBuilder.build(docs(), StepRegistry.builtIn(), dataDir, "test");
     }
 
     private List<String> hidden() throws IOException {
@@ -45,7 +45,7 @@ class RebuildTest {
         Manifest first = build();
         Manifest second = build();
 
-        assertThat(new CollectionStore(dataDir).manifest(DOCS)).contains(second);
+        assertThat(new IndexStore(dataDir).manifest(DOCS)).contains(second);
         assertThat(second.records()).isEqualTo(first.records());
         assertThat(hidden()).isEmpty();
     }
@@ -63,7 +63,7 @@ class RebuildTest {
     @Test
     void aRebuildWhileTheIndexIsOpenEitherReplacesItOrKeepsItWhole() throws IOException {
         Manifest first = build();
-        CollectionStore store = new CollectionStore(dataDir);
+        IndexStore store = new IndexStore(dataDir);
         try (var directory = FSDirectory.open(store.indexDir(DOCS));
              var reader = DirectoryReader.open(directory)) {
             try {

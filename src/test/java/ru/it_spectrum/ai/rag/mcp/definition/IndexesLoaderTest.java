@@ -1,4 +1,4 @@
-package ru.it_spectrum.ai.rag.mcp.collections;
+package ru.it_spectrum.ai.rag.mcp.definition;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -13,27 +13,27 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class CollectionsLoaderTest {
+class IndexesLoaderTest {
 
     @TempDir
     Path dir;
 
-    private List<CollectionDefinition> load(String json, Map<String, String> env) throws IOException {
+    private List<IndexDefinition> load(String json, Map<String, String> env) throws IOException {
         Path file = dir.resolve("collections.json");
         Files.writeString(file, json);
-        return StepRegistry.builtIn().checked(CollectionsLoader.load(file, env::get));
+        return StepRegistry.builtIn().checked(IndexesLoader.load(file, env::get));
     }
 
     @Test
     void missingOrEmptyFileMeansNoCollections() throws IOException {
-        assertThat(CollectionsLoader.load(dir.resolve("absent.json"), k -> null)).isEmpty();
+        assertThat(IndexesLoader.load(dir.resolve("absent.json"), k -> null)).isEmpty();
         assertThat(load("  ", Map.of())).isEmpty();
         assertThat(load("{}", Map.of())).isEmpty();
     }
 
     @Test
     void readsSourcesWithDefaultsAndResolvesPathsAgainstTheFile() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {
                   "models": {"ignored": {}},
                   "collections": {
@@ -60,7 +60,7 @@ class CollectionsLoaderTest {
                 """, Map.of("KB", dir.resolve("kb").toString()));
 
         assertThat(collections).hasSize(1);
-        CollectionDefinition docs = collections.getFirst();
+        IndexDefinition docs = collections.getFirst();
         assertThat(docs.usable()).isTrue();
         assertThat(docs.name()).isEqualTo("docs@billing");
         assertThat(docs.description()).isEqualTo("Billing articles");
@@ -87,7 +87,7 @@ class CollectionsLoaderTest {
 
     @Test
     void aBrokenEntryIsReportedAndLeavesTheOthersUsable() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {"collections": {
                   "bad name": {"sources": [{"path": "a"}]},
                   "logs": {"sources": [{"path": "a"}]},
@@ -99,7 +99,7 @@ class CollectionsLoaderTest {
                 }}
                 """, Map.of());
 
-        assertThat(collections).extracting(CollectionDefinition::name, CollectionDefinition::usable).containsExactly(
+        assertThat(collections).extracting(IndexDefinition::name, IndexDefinition::usable).containsExactly(
                 org.assertj.core.groups.Tuple.tuple("bad name", false),
                 org.assertj.core.groups.Tuple.tuple("logs", false),
                 org.assertj.core.groups.Tuple.tuple("no-sources", false),
@@ -114,7 +114,7 @@ class CollectionsLoaderTest {
     }
 
     private String errorOf(String source) throws IOException {
-        List<CollectionDefinition> collections = load(
+        List<IndexDefinition> collections = load(
                 "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}", Map.of());
         assertThat(collections.getFirst().usable()).isFalse();
         return collections.getFirst().configError();
@@ -159,7 +159,7 @@ class CollectionsLoaderTest {
 
     @Test
     void aSourceTakesTheKeysOfItsReaderAndReplacesTheOnesItSets() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {
                   "readers": {
                     "notes": {"format": "markdown",
@@ -177,7 +177,7 @@ class CollectionsLoaderTest {
                 }
                 """, Map.of());
 
-        CollectionDefinition a = collections.getFirst();
+        IndexDefinition a = collections.getFirst();
         assertThat(a.usable()).isTrue();
         SourceDefinition plain = a.sources().get(0);
         assertThat(plain.path()).isEqualTo(dir.resolve("notes"));
@@ -197,7 +197,7 @@ class CollectionsLoaderTest {
 
     @Test
     void aReaderThatIsMissingOrWrongBreaksOnlyTheCollectionsThatNameIt() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {
                   "readers": {"broken": "markdown", "deep": {"split": {"level": "h9"}},
                               "rows": {"format": "docbook"}},
@@ -212,7 +212,7 @@ class CollectionsLoaderTest {
                 }
                 """, Map.of());
 
-        assertThat(collections).extracting(CollectionDefinition::usable)
+        assertThat(collections).extracting(IndexDefinition::usable)
                 .containsExactly(false, false, false, false, false, true);
         assertThat(collections.get(0).configError()).contains("sources[0]", "reader \"nothing\"", "not defined");
         assertThat(collections.get(1).configError()).contains("readers.broken", "JSON object");
@@ -239,7 +239,7 @@ class CollectionsLoaderTest {
 
     @Test
     void aCollectionNamesItsModelInVectors() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {"models": {"e5-small": {"type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
                                          "maxTokens": 256},
                             "plain": {}},
@@ -254,12 +254,12 @@ class CollectionsLoaderTest {
                 .isEqualTo(new ModelDefinition("e5-small", "onnx", "query: ", "passage: ", 256));
         assertThat(collections.get(1).vectors()).isEqualTo(new ModelDefinition("plain", "onnx", "", "", 512));
         assertThat(collections.get(2).vectors()).isNull();
-        assertThat(collections).allMatch(CollectionDefinition::usable);
+        assertThat(collections).allMatch(IndexDefinition::usable);
     }
 
     @Test
     void aModelNamesItsPooling() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {"models": {"bge": {"pooling": "cls"}, "odd": {"pooling": "max"}},
                  "collections": {
                    "docs@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "bge"}},
@@ -274,7 +274,7 @@ class CollectionsLoaderTest {
 
     @Test
     void aWrongModelBreaksOnlyTheCollectionsThatNameIt() throws IOException {
-        List<CollectionDefinition> collections = load("""
+        List<IndexDefinition> collections = load("""
                 {"models": {"bad": {"maxTokens": 0}, "../up": {}},
                  "collections": {
                    "a@x": {"sources": [{"path": "kb"}], "vectors": {"model": "absent"}},
