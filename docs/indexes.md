@@ -11,6 +11,7 @@ another machine.
 - [Named readers](#named-readers)
 - [From a file to records](#from-a-file-to-records)
 - [Reading Markdown](#reading-markdown)
+- [Writing Markdown for the defaults](#writing-markdown-for-the-defaults)
 - [Reading TSV, YAML and JSONL](#reading-tsv-yaml-and-jsonl)
 - [Reading SQL](#reading-sql)
 - [Reading PDF](#reading-pdf)
@@ -300,6 +301,69 @@ file, and a PDF source one record per page. A TSV, YAML or JSONL source has no d
 - Headings `#` … `######` outside fenced code blocks make the section tree. Underlined (Setext)
   headings are not recognized.
 - The document title is the `title` field, else the first `#` heading, else the file name.
+
+## Writing Markdown for the defaults
+
+A Markdown source with no `split` and no `map` works well when its files follow one profile. It
+is the usual shape of docs-as-code: YAML front matter as static site generators read it, one
+topic per file, a `#` title and `##` sections. Knowledge written this way needs only a `path` in
+the indexes file; anything else needs `split` and `map`.
+
+```markdown
+---
+id: article.billing.payments
+kind: article
+subsystem: billing
+tags: [payments, invoices]
+tables: [PAYMENT, INVOICE]
+---
+
+# Платежи
+
+Раздел описывает, как система принимает и учитывает платежи клиентов.
+
+## Как создаётся платёж
+
+Платёж создаётся автоматически, когда банк присылает выписку. …
+
+## Привязка к счёту
+
+Система ищет счёт по номеру договора из назначения платежа. …
+```
+
+| Part of the file | What the defaults make of it |
+|---|---|
+| `id` in front matter | The document key, and with it the start of every record id: `article.billing.payments#как-создаётся-платёж`. Without it the key is the file path, which changes when the file moves |
+| `title` in front matter, else the `#` heading | The document title: the first part of every breadcrumb |
+| Other front matter keys | Fields of every record of the file, for filters and `fieldValues`; a list is a field with several values. `kind` is the usual name for the type of a document |
+| Text between the `#` heading and the first `##` | A record of its own, titled by the `#` heading |
+| Text before any heading | A record of its own, with the id suffix `#intro` |
+| Each `##` section | One record: its heading is the title, `document › section` the breadcrumb, its text the passage. The heading line itself is not in the text; the breadcrumb carries it |
+| `###` and deeper | Stay inside their `##` record, with their headings |
+| Tables, lists, code blocks | Kept as text in their section |
+
+What makes such files search well:
+
+- **One subject per `##` section, named by its heading.** The breadcrumb is searched with twice
+  the weight of the text, so a heading that says what the section answers ("How a payment is
+  created") is what most queries match. A heading such as "Details" or "Notes" matches nothing.
+- **A section that fits the model.** A record longer than the model's input limit has a vector of
+  its beginning only ([What is embedded](#what-is-embedded)). The default `split.maxChars` of
+  2500 can be more than the 512 tokens of the E5 models: keep a section under about
+  1,500–2,000 characters, or set `split.maxChars` to that and let a long section become several
+  records (`~2`, `~3`) that share its title and breadcrumb.
+- **A section that reads on its own.** A record is returned without the rest of the file: name the
+  screen, table or process in the section instead of writing "see above".
+- **Stable `id`s.** Records are addressed as `<index>/<record id>`; an `id` in front matter keeps
+  them when files are renamed or moved.
+- **Front matter values that are values.** Keys of letters, digits, `.`, `_`, `-`, values that are
+  scalars or lists of scalars; nested mappings are skipped. Use the same key and the same spelling
+  of a value across files, so one filter finds them all.
+
+The defaults do not recognize any front matter key except `id` and `title`. A draft is indexed
+like any other file: leave drafts out with [`where`](#selecting-records), for example
+`"where": { "status": { "not": "draft" } }`, or with `exclude`. Links between files, in the text
+or as front matter lists, are kept as text and fields; they are not followed.
 
 ## Reading TSV, YAML and JSONL
 
