@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D79; agent proposals as P30 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D80; agent proposals as P30 onwards).
 
 ## 1. Idea
 
@@ -150,7 +150,8 @@ implemented except `language`, which nothing reads yet:
 - A top-level `readers` object holds named sets of `convert`, `format`, `split` and `map`; a
   source names one with `reader` and may override single keys (D18).
 - `where` selects records by field values.
-- A collection without `vectors` is lexical only (catalogs of codes and names). The files of a
+- A collection without `vectors` is lexical only (catalogs of codes and names); `"vectors": true`
+  takes the model marked `"default": true` (D80). The files of a
   model are in `<data-dir>/models/<name>/` on every machine (D26).
 - Relative paths resolve against the directory of `collections.json`, or of the imported file.
   `path` and `import` entries may reference `${name}`: the top-level `vars`, then the environment

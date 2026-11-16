@@ -96,7 +96,8 @@ changes with it.
 {
   "vars": { "projects": "C:/projects" },
   "models": {
-    "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: " }
+    "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
+                  "default": true }
   },
   "import": [
     "${projects}/billing/knowledge/rag-collections.json",
@@ -113,7 +114,7 @@ changes with it.
   "collections": {
     "docs@billing": {
       "description": "Billing: articles and troubleshooting playbooks",
-      "vectors": { "model": "e5-small" },
+      "vectors": true,
       "sources": [ { "path": "articles" }, { "path": "playbooks" } ]
     }
   }
@@ -127,8 +128,10 @@ changes with it.
   whole file a problem of its import. Its relative paths and the working directory of its
   commands are its own directory, so the file works in any checkout of the project. Its `readers`
   are its own: neither file sees the readers of the other.
-- Its collections name the models of the collections file by name; a model that is not there is a
-  configuration error of the collection, as in one file.
+- Its collections take the models of the collections file. `"vectors": true` takes the model
+  marked as the [default](#vectors), so a project says whether a collection has vectors and the
+  machine says which model computes them; a collection that names a model, `{ "model": "…" }`,
+  needs that model in the collections file.
 - **Commands.** A source of an imported file that runs a program (`command`, a `convert` step, a
   `join` with a command) is a configuration error of its collection unless the entry of the import
   says `"commands": true`. A change of a project, such as a pull, cannot make the build run a
@@ -672,12 +675,33 @@ suits catalogs of codes and names.
 The top-level `models` object names the embedding models; `vectors.model` of a collection names
 one of them. Several collections may share a model.
 
+`"vectors": true` takes the model marked `"default": true`, so a collection says that it has
+vectors without naming a model, and the model is chosen where the collections are built. This is
+the way for the collections file of a project ([Importing](#importing-the-collections-of-projects)).
+
+```json
+"models": { "e5-small": { "queryPrefix": "query: ", "passagePrefix": "passage: ", "default": true } },
+"collections": { "docs@billing": { "vectors": true, "sources": [ ... ] } }
+```
+
+- `"vectors": false`, like no `vectors`, keeps a collection lexical.
+- `"vectors": true` without a default model is a configuration error of the collection, listing
+  the models there are. Two models marked as the default, or a `default` that is not `true` or
+  `false`, make the whole file unusable.
+- A collection records the model it was built with in its manifest. Marking another model as the
+  default changes nothing until the collection is rebuilt; until then it is searched by words only
+  if the old model is gone ([What a built collection is](#what-a-built-collection-is)).
+- The records of a collection are cut to the input limit of the model (`maxTokens`). `split.maxChars`
+  of a source chosen for one model may be too long for another: after a change of the default,
+  check what `rag-index` reports as cut.
+
 | Key of a model | Default | Meaning |
 |---|---|---|
 | `type` | `onnx` | How the model runs. `onnx`: in the server process, by ONNX Runtime, from its files; the text never leaves the machine. `bean`: a Spring AI embedding model of the application, named as this model ([Spring AI models](#spring-ai-models)) |
 | `queryPrefix` | empty | Put before a search query. The E5 models expect `query: ` |
 | `passagePrefix` | empty | Put before the text of a record. The E5 models expect `passage: ` |
 | `maxTokens` | 512 | Input limit in tokens; a longer record is cut and its vector covers only its beginning. 512 is the limit of the E5 models |
+| `default` | `false` | The model of collections with `"vectors": true`; at most one model is the default |
 | `pooling` | `mean` | How an `onnx` model makes one vector of its token states: `mean` averages them, as E5 and most sentence-transformers models are trained; `cls` takes the state of the first token, as BGE models are trained. A wrong value gives vectors that are not the model's, without an error; `rag-model fetch` says which one a repository uses. Other types ignore it |
 
 The model name is also a directory name: letters, digits, `.`, `_` and `-`, up to 64 characters,

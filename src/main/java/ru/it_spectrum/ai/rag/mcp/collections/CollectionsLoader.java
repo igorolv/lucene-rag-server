@@ -33,8 +33,9 @@ import java.util.regex.Pattern;
  * before the steps are checked, so the rest of the server sees only complete sources.
  *
  * <p>A top-level {@code models} object names the embedding models; a collection with
- * {@code "vectors": {"model": "<name>"}} is embedded with one of them, a collection without
- * {@code vectors} is searched lexically only.
+ * {@code "vectors": {"model": "<name>"}} is embedded with one of them, one with
+ * {@code "vectors": true} with the model marked {@code "default": true} (docs/decisions.md D80),
+ * and a collection without {@code vectors} is searched lexically only.
  *
  * <p>A top-level {@code vars} object names values for the {@code ${name}} placeholders of the
  * file and of the files it imports; they are looked up before the environment
@@ -93,6 +94,7 @@ public final class CollectionsLoader {
         }
         final List<CollectionDefinition> result;
         final Map<String, Object> models;
+        final String defaultModel;
         final JsonNode root;
         try {
             root = root(file);
@@ -105,7 +107,8 @@ public final class CollectionsLoader {
                 throw new IllegalArgumentException("\"models\" in " + file + " must be a JSON object");
             }
             models = models(modelsNode);
-            result = new ArrayList<>(collections(root, file, models, env));
+            defaultModel = defaultModel(modelsNode, file);
+            result = new ArrayList<>(collections(root, file, models, defaultModel, env));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(e.getMessage(), e);
         }
@@ -125,7 +128,7 @@ public final class CollectionsLoader {
             for (JsonNode entry : imports) {
                 String where = "import[" + index++ + "]";
                 try {
-                    imported(entry, where, baseDir, models, lookup, result, owners, problems);
+                    imported(entry, where, baseDir, models, defaultModel, lookup, result, owners, problems);
                 } catch (IllegalStateException | IllegalArgumentException e) {
                     problems.add(where + ": " + e.getMessage());
                 }
@@ -195,7 +198,7 @@ public final class CollectionsLoader {
      * @throws IllegalArgumentException when {@code collections} or {@code readers} is not an object
      */
     private static List<CollectionDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
-                                                          UnaryOperator<String> env) {
+                                                          String defaultModel, UnaryOperator<String> env) {
         JsonNode collections = root.get("collections");
         if (collections == null || collections.isNull()) {
             return List.of();
@@ -213,7 +216,7 @@ public final class CollectionsLoader {
         List<CollectionDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
             CollectionDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
-            result.add(definition.usable() ? withVectors(definition, entry.getValue(), models) : definition);
+            result.add(definition.usable() ? withVectors(definition, entry.getValue(), models, defaultModel) : definition);
         }
         return result;
     }
@@ -226,7 +229,7 @@ public final class CollectionsLoader {
      * @throws IllegalArgumentException when the entry or its file cannot be used
      */
     private static void imported(JsonNode entry, String where, Path baseDir, Map<String, Object> models,
-                                 UnaryOperator<String> env, List<CollectionDefinition> result,
+                                 String defaultModel, UnaryOperator<String> env, List<CollectionDefinition> result,
                                  Map<String, Path> owners, List<String> problems) {
         JsonNode fileNode = entry.isObject() ? entry.get("file") : entry;
         String raw = fileNode == null || !fileNode.isString() ? null
@@ -254,7 +257,7 @@ public final class CollectionsLoader {
                         + "\"collections\" and \"readers\"");
             }
         }
-        for (CollectionDefinition definition : collections(root, file, models, env)) {
+        for (CollectionDefinition definition : collections(root, file, models, defaultModel, env)) {
             Path owner = owners.putIfAbsent(definition.name(), file);
             if (owner != null) {
                 problems.add(where + ": the collection '" + definition.name() + "' of " + file
@@ -335,16 +338,30 @@ public final class CollectionsLoader {
         return node.asString();
     }
 
-    /** The collection with the model its {@code vectors} names, or broken when that is wrong. */
+    /**
+     * The collection with the model its {@code vectors} names, or broken when that is wrong.
+     * {@code "vectors": true} names the model marked {@code "default": true}; {@code false} or no
+     * {@code vectors} leaves the collection lexical.
+     */
     private static CollectionDefinition withVectors(CollectionDefinition definition, JsonNode node,
-                                                    Map<String, Object> models) {
+                                                    Map<String, Object> models, String defaultModel) {
         JsonNode vectors = node.get("vectors");
-        if (vectors == null || vectors.isNull()) {
+        if (vectors == null || vectors.isNull() || vectors.isBoolean() && !vectors.booleanValue()) {
             return definition;
         }
-        String model = vectors.isObject() ? text(vectors.get("model")) : null;
-        if (model == null) {
-            return definition.withError("\"vectors\" must be an object naming a model: {\"model\": \"<name>\"}");
+        final String model;
+        if (vectors.isBoolean()) {
+            if (defaultModel == null) {
+                return definition.withError("\"vectors\": true needs a model marked \"default\": true in "
+                        + "\"models\"; defined: " + (models.isEmpty() ? "none" : String.join(", ", models.keySet())));
+            }
+            model = defaultModel;
+        } else {
+            model = vectors.isObject() ? text(vectors.get("model")) : null;
+            if (model == null) {
+                return definition.withError("\"vectors\" must be true, false or an object naming a model: "
+                        + "{\"model\": \"<name>\"}");
+            }
         }
         Object entry = models.get(model);
         if (entry == null) {
@@ -356,6 +373,36 @@ public final class CollectionsLoader {
         }
         return new CollectionDefinition(definition.name(), definition.description(), definition.sources(),
                 (ModelDefinition) entry, null);
+    }
+
+    /**
+     * The name of the model marked {@code "default": true}, or {@code null}.
+     *
+     * @throws IllegalArgumentException when {@code default} is not a boolean or two models have it
+     */
+    private static String defaultModel(JsonNode models, Path file) {
+        if (models == null || models.isNull()) {
+            return null;
+        }
+        String found = null;
+        for (var entry : models.properties()) {
+            JsonNode flag = entry.getValue().isObject() ? entry.getValue().get("default") : null;
+            if (flag == null || flag.isNull()) {
+                continue;
+            }
+            if (!flag.isBoolean()) {
+                throw new IllegalArgumentException("models." + entry.getKey() + ".default in " + file
+                        + " must be true or false");
+            }
+            if (flag.booleanValue()) {
+                if (found != null) {
+                    throw new IllegalArgumentException("models " + found + " and " + entry.getKey() + " in " + file
+                            + " are both marked \"default\": true; one model is the default");
+                }
+                found = entry.getKey();
+            }
+        }
+        return found;
     }
 
     private static CollectionDefinition collection(String name, JsonNode node, JsonNode readers, Path baseDir,

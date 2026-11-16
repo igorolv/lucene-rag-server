@@ -181,6 +181,44 @@ class ImportTest {
     }
 
     @Test
+    void vectorsTrueTakesTheDefaultModelOfTheMainFile() throws IOException {
+        write("p/rag-collections.json", """
+                {"collections": {
+                  "docs@p": {"vectors": true, "sources": [{"path": "a"}]},
+                  "named@p": {"vectors": {"model": "e5-base"}, "sources": [{"path": "a"}]},
+                  "lexical@p": {"vectors": false, "sources": [{"path": "a"}]},
+                  "wrong@p": {"vectors": "e5-small", "sources": [{"path": "a"}]}}}""");
+
+        LoadedCollections loaded = read("""
+                {"models": {"e5-small": {"queryPrefix": "query: ", "default": true}, "e5-base": {}},
+                 "import": ["../p/rag-collections.json"]}""");
+
+        assertThat(named(loaded, "docs@p").vectors().name()).isEqualTo("e5-small");
+        assertThat(named(loaded, "docs@p").vectors().queryPrefix()).isEqualTo("query: ");
+        assertThat(named(loaded, "named@p").vectors().name()).isEqualTo("e5-base");
+        assertThat(named(loaded, "lexical@p").vectors()).isNull();
+        assertThat(named(loaded, "lexical@p").usable()).isTrue();
+        assertThat(named(loaded, "wrong@p").configError()).contains("must be true, false or an object");
+
+        LoadedCollections noDefault = read("""
+                {"models": {"e5-small": {}}, "import": ["../p/rag-collections.json"]}""");
+
+        assertThat(named(noDefault, "docs@p").configError())
+                .contains("\"vectors\": true needs a model marked \"default\": true", "defined: e5-small");
+        assertThat(named(noDefault, "named@p").configError()).contains("\"e5-base\" is not defined");
+    }
+
+    @Test
+    void twoDefaultModelsOrAWrongFlagFailTheFile() throws IOException {
+        for (String models : List.of("{\"a\": {\"default\": true}, \"b\": {\"default\": true}}",
+                "{\"a\": {\"default\": \"yes\"}}")) {
+            Path file = write("data/collections.json", "{\"models\": " + models + "}");
+            assertThatThrownBy(() -> CollectionsLoader.read(file, name -> null))
+                    .as(models).isInstanceOf(IllegalStateException.class).hasMessageContaining("default");
+        }
+    }
+
+    @Test
     void aWrongImportKeyOfTheMainFileFailsTheWholeFile() throws IOException {
         Path file = write("data/collections.json", "{\"import\": \"one.json\"}");
 

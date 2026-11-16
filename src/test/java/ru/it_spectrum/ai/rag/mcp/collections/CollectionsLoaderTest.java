@@ -289,7 +289,7 @@ class CollectionsLoaderTest {
                 .contains("bad");
         assertThat(collections.get(1).configError()).contains("models.bad: maxTokens must be at least 1");
         assertThat(collections.get(2).configError()).contains("directory of the model files");
-        assertThat(collections.get(3).configError()).contains("\"vectors\" must be an object");
+        assertThat(collections.get(3).configError()).contains("\"vectors\" must be true, false or an object");
         assertThat(collections.get(4).usable()).isTrue();
         assertThatThrownBy(() -> load("{\"models\": [], \"collections\": {}}", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"models\"");
