@@ -87,7 +87,7 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 
 | Tool | Group | What it does |
 |---|---|---|
-| `listCollections` | `collections` | Collections of this server, their descriptions and filter fields |
+| `listCollections` | `collections` | Collections of this server, their descriptions and filter fields, and problems of imported collections files |
 | `search` | `search` | Passages matching a query, filters and a filter expression in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
@@ -104,7 +104,7 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 | Variable | Default | Meaning |
 |---|---|---|
 | `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per collection, plus `models/` (embedding model files, [docs/collections.md](docs/collections.md#vectors)), `cache/` and `logs/` |
-| `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json` | Collection definitions; needed to build, not to serve |
+| `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json` | Collection definitions, which may import the collections files of projects; needed to build, not to serve |
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |

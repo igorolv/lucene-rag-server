@@ -4,6 +4,7 @@ How to describe collections in `collections.json`, build them and move a built c
 another machine.
 
 - [The collections file](#the-collections-file)
+- [Importing the collections of projects](#importing-the-collections-of-projects)
 - [Sources](#sources)
 - [Named readers](#named-readers)
 - [From a file to records](#from-a-file-to-records)
@@ -57,13 +58,70 @@ A collection is a named, indexed set of sources. Collections are described in on
 - The file is needed only to build. A [built collection](#what-a-built-collection-is) is served
   without it.
 
+## Importing the collections of projects
+
+When knowledge lives in several projects, each project can describe its own collections in a file
+kept with its sources, and the collections file imports them. The models stay in the collections
+file, which belongs to the machine; how the files of a project are read belongs to the project and
+changes with it.
+
+```json
+{
+  "models": {
+    "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: " }
+  },
+  "import": [
+    "C:/projects/billing/knowledge/rag-collections.json",
+    "C:/projects/billing/openspec/rag-collections.json",
+    { "file": "C:/projects/crm/knowledge/rag-collections.json", "commands": true }
+  ]
+}
+```
+
+`C:/projects/billing/knowledge/rag-collections.json`:
+
+```json
+{
+  "collections": {
+    "docs@billing": {
+      "description": "Billing: articles and troubleshooting playbooks",
+      "vectors": { "model": "e5-small" },
+      "sources": [ { "path": "articles" }, { "path": "playbooks" } ]
+    }
+  }
+}
+```
+
+- An entry of `import` is a path, or an object with `file` and `commands`. A relative path is
+  resolved against the directory of the collections file; `~` and `${VAR}` work as in `path`.
+- An imported file holds `collections` and `readers` only; `models` or `import` in it makes the
+  whole file a problem of its import. Its relative paths and the working directory of its
+  commands are its own directory, so the file works in any checkout of the project. Its `readers`
+  are its own: neither file sees the readers of the other.
+- Its collections name the models of the collections file by name; a model that is not there is a
+  configuration error of the collection, as in one file.
+- **Commands.** A source of an imported file that runs a program (`command`, a `convert` step, a
+  `join` with a command) is a configuration error of its collection unless the entry of the import
+  says `"commands": true`. A change of a project, such as a pull, cannot make the build run a
+  program the operator has not allowed.
+- **Names** are shared by all files. A name already taken, by the collections file or an earlier
+  import, leaves the later collection out.
+- **Problems.** A file that does not exist, cannot be read or is not valid JSON gives no
+  collections; it, and a collection left out, is a problem of the import and not of a collection.
+  The other collections load. `rag-index` prints each problem as an `IMPORT:` line, and
+  `listCollections` returns them as `importProblems`. A wrong `import` key of the collections file
+  itself, not an array, fails the whole file.
+- Imports are not nested. The name `rag-collections.json` is a convention; any file name works.
+- One project may have several files, for example one in each directory that holds sources, so
+  that the paths in each are short. A collection is described in one file.
+
 ## Sources
 
 Each entry of `sources`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
+| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`, or of the [imported file](#importing-the-collections-of-projects) the source is in; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
 | `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf`, `**/*.{html,htm}`, `**/*.{docx,doc,xlsx,xls,pptx,ppt,odt,ods,odp,rtf}` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
 | `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` or `office`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`, `.html`, `.htm`, and the Office extensions); a directory without `include` is read as Markdown |
@@ -103,9 +161,11 @@ object and name it in each source with `reader`:
 }
 ```
 
-- A reader holds the reading keys of a source: `convert`, `format`, `split` and `map`. Other
-  keys in a reader are ignored; `path`, `command`, `include` and `exclude` always belong to the
-  source.
+- A reader holds the reading keys of a source: `convert`, `format`, `split`, `map` and
+  [`join`](#joining-values-from-another-file). Other keys in a reader are ignored; `path`,
+  `command`, `include` and `exclude` always belong to the source. Lookups shared by several
+  sources are written once in a reader that holds only `join`; each source sets its own `split`
+  and `map`.
 - A key the source sets itself replaces the reader's key whole. The second source above sets
   `map`, so none of the reader's `map` is used: `split` and `map` are not merged key by key.
 - A reader is used only through the sources that name it: a mistake in a reader is reported as
@@ -319,13 +379,14 @@ answers, and only as `collections.json` writes it.
 
 - A command is an array: the program and its arguments, run without a shell, so there are no
   pipes, redirections or wildcards; write a script for those. The program is found on `PATH` or
-  by its path; the working directory is the directory of `collections.json`, so relative paths
-  in arguments resolve against it.
+  by its path; the working directory is the directory of `collections.json`, or of the imported
+  file the source is in, so relative paths in arguments resolve against it.
 - What the program prints on standard output is read as UTF-8. A program that exits with a code
   other than 0, or does not finish within `timeoutSeconds` (default 60), fails the build with
   exit code 4 and the end of its error output in the message.
 - A collections file with commands runs programs on the machine that builds: do not build from a
-  collections file of an untrusted origin.
+  collections file of an untrusted origin. The commands of an imported file run only when its
+  import allows them ([Importing](#importing-the-collections-of-projects)).
 
 **A command as the origin.** A source with `command` instead of `path` runs the program once;
 its output is the source's only file. `include` and `exclude` do not apply, and the path the
@@ -865,7 +926,11 @@ java -jar lucene-rag-server.jar rag-index --all
 The command prints the number of files, documents and records per collection; for a collection
 with vectors also the model, the vector size, how many records were embedded, how many vectors
 came from the [cache](#the-embedding-cache) and how many records were cut to `maxTokens`. It ends
-with `RESULT: OK (...)` or `RESULT: FAILED (...)`.
+with `RESULT: OK (...)` or `RESULT: FAILED (...)`. A problem of an
+[import](#importing-the-collections-of-projects) is printed as an `IMPORT:` line before the
+result; it fails `--all`, which then builds the collections that could be read and ends with
+`RESULT: FAILED (2 collections built; 1 import problem)` and exit code 2. A build of one named
+collection prints the problems and is not failed by them.
 
 ```
 Collection docs@billing
@@ -879,7 +944,7 @@ RESULT: OK (1 collection built)
 |---|---|
 | 0 | built |
 | 1 | unexpected error |
-| 2 | wrong usage, unknown collection or wrong configuration |
+| 2 | wrong usage, unknown collection, wrong configuration, or with `--all` a problem of an import |
 | 4 | a source could not be read, a command failed, the model could not be loaded or the index could not be written |
 
 A build always reads every source again and replaces the whole collection. The new index is

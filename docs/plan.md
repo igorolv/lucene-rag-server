@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D77; agent proposals as P30 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D78; agent proposals as P30 onwards).
 
 ## 1. Idea
 
@@ -103,7 +103,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 ### 3.2 Collections file
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
-described in `docs/collections.md`, which owns the format: `models`, `readers`, `description`,
+described in `docs/collections.md`, which owns the format: `models`, `import` (the collections files of projects, D78), `readers`, `description`,
 `vectors` and `sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`,
 `convert`, `format`, `split`, `map`, `join`, `where` and `reader`. Everything in the sketch below is
 implemented except `language`, which nothing reads yet:
@@ -247,7 +247,7 @@ config/  — Spring wiring, properties, MCP customizer
 
 | Package | Responsibility |
 |---|---|
-| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader`, `CollectionDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
+| `collections/` | The shape of `collections.json` and nothing about formats: `CollectionsLoader` (with the imports, D78), `LoadedCollections`, `CollectionDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
 | `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); the lookups of a source (`JoinSpec`, what the template check needs, and `JoinTable`, the units of a lookup by key, D77); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |

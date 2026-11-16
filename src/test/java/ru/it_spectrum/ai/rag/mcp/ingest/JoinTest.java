@@ -131,6 +131,28 @@ class JoinTest {
     }
 
     @Test
+    void aReaderMayHoldTheJoinOfSeveralSources() throws IOException {
+        Path file = dir.resolve("collections.json");
+        Files.writeString(file, """
+                {"readers": {"catalog": {"join": %s}},
+                 "collections": {"c": {"sources": [
+                   {"path": "specs", "include": "**/spec.md", "reader": "catalog", %s,
+                    "map": {"title": "{heading.name}", "breadcrumb": ["{cap.column.3|path[0]}", "{title}"]}}]}}}"""
+                .formatted(CATALOG, SPLIT));
+        CollectionDefinition definition = StepRegistry.builtIn().checked(CollectionsLoader.load(file, n -> null))
+                .getFirst();
+        assertThat(definition.configError()).isNull();
+        SourcePipeline pipeline = StepRegistry.builtIn().pipeline(definition.sources().getFirst());
+        List<ChunkRecord> records = new ArrayList<>();
+        for (SourceItem item : pipeline.items()) {
+            records.addAll(pipeline.records(item));
+        }
+
+        assertThat(records).extracting(ChunkRecord::breadcrumb)
+                .contains("Payments → Incoming payments › Columns of the table");
+    }
+
+    @Test
     void twoUnitsOfALookupWithOneKeyFailTheBuild() throws IOException {
         write("catalog.md", """
                 | Capability | Menu |

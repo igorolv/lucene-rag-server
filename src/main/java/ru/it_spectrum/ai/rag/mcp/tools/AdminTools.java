@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.rag.mcp.api.RebuildResult;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.collections.LoadedCollections;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.index.CollectionIndexer;
@@ -72,15 +73,19 @@ public class AdminTools {
         log.info("Tool call: rebuildCollection collection={}", collection);
         String name = collection == null ? "" : collection.strip();
         final List<CollectionDefinition> definitions;
+        final List<String> importProblems;
         try {
-            definitions = registry.checked(CollectionsLoader.load(properties, env));
+            LoadedCollections loaded = CollectionsLoader.read(properties, env);
+            definitions = registry.checked(loaded.collections());
+            importProblems = loaded.importProblems();
         } catch (IllegalStateException e) {
             throw new IllegalArgumentException("The collections file cannot be used: " + e.getMessage(), e);
         }
         CollectionDefinition definition = definitions.stream().filter(d -> d.name().equals(name)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Collection '" + name + "' is not in "
-                        + properties.resolvedCollectionsFile() + "; defined: "
-                        + String.join(", ", definitions.stream().map(CollectionDefinition::name).toList())));
+                        + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
+                        + String.join(", ", definitions.stream().map(CollectionDefinition::name).toList())
+                        + (importProblems.isEmpty() ? "" : "; " + String.join("; ", importProblems))));
         if (!definition.usable()) {
             throw new IllegalArgumentException("Collection '" + name + "': " + definition.configError());
         }

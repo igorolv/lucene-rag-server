@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.cli;
 import org.springframework.context.ConfigurableApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionDefinition;
 import ru.it_spectrum.ai.rag.mcp.collections.CollectionsLoader;
+import ru.it_spectrum.ai.rag.mcp.collections.LoadedCollections;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.embedding.BeanModelType;
@@ -53,24 +54,30 @@ public final class RagIndexCommand {
             return args.length == 1 ? 0 : 2;
         }
         final List<CollectionDefinition> definitions;
+        final List<String> importProblems;
         try {
-            definitions = registry.checked(CollectionsLoader.load(properties, env));
+            LoadedCollections loaded = CollectionsLoader.read(properties, env);
+            definitions = registry.checked(loaded.collections());
+            importProblems = loaded.importProblems();
         } catch (IllegalStateException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 2;
         }
+        final boolean all = "--all".equals(args[0]);
         final List<CollectionDefinition> selected;
-        if ("--all".equals(args[0])) {
+        if (all) {
             selected = definitions;
             if (selected.isEmpty()) {
+                importProblems.forEach(problem -> out.println("IMPORT: " + problem));
                 out.println("RESULT: FAILED (no collections in " + properties.resolvedCollectionsFile() + ")");
                 return 2;
             }
         } else {
             selected = definitions.stream().filter(d -> d.name().equals(args[0])).toList();
             if (selected.isEmpty()) {
+                importProblems.forEach(problem -> out.println("IMPORT: " + problem));
                 out.println("RESULT: FAILED (collection '" + args[0] + "' is not in "
-                        + properties.resolvedCollectionsFile() + "; defined: "
+                        + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
                         + String.join(", ", definitions.stream().map(CollectionDefinition::name).toList()) + ")");
                 return 2;
             }
@@ -109,8 +116,15 @@ public final class RagIndexCommand {
                 return 4;
             }
         }
-        out.println("RESULT: OK (" + selected.size() + (selected.size() == 1 ? " collection" : " collections")
-                + " built)");
+        String built = selected.size() + (selected.size() == 1 ? " collection" : " collections") + " built";
+        importProblems.forEach(problem -> out.println("IMPORT: " + problem));
+        if (all && !importProblems.isEmpty()) {
+            // Everything was asked for and a part of it could not even be read.
+            out.println("RESULT: FAILED (" + built + "; " + importProblems.size()
+                    + (importProblems.size() == 1 ? " import problem" : " import problems") + ")");
+            return 2;
+        }
+        out.println("RESULT: OK (" + built + ")");
         return 0;
     }
 }

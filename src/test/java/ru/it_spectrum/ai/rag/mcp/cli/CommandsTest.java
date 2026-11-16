@@ -57,6 +57,20 @@ class CommandsTest {
     }
 
     @Test
+    void anImportProblemIsReportedAndFailsABuildOfAll() throws IOException {
+        Path file = TestKnowledge.writeCollectionsFile(dataDir);
+        String json = Files.readString(file);
+        Files.writeString(file, json.replaceFirst("\\{", "{\"import\": [\"absent/rag-collections.json\"],"));
+
+        assertThat(index(DOCS)).isZero();
+        assertThat(output()).contains("IMPORT: import[0]: ", "does not exist", "RESULT: OK (1 collection built)");
+
+        assertThat(index("--all")).isEqualTo(2);
+        assertThat(output()).contains("RESULT: FAILED (2 collections built; 1 import problem)");
+        assertThat(new CollectionStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
+    }
+
+    @Test
     void rebuildingReplacesTheCollectionAndLeavesNoBuildDirectory() throws IOException {
         TestKnowledge.writeCollectionsFile(dataDir);
         assertThat(index(DOCS)).isZero();

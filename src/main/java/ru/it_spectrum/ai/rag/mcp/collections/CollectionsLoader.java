@@ -36,6 +36,13 @@ import java.util.regex.Pattern;
  * {@code "vectors": {"model": "<name>"}} is embedded with one of them, a collection without
  * {@code vectors} is searched lexically only.
  *
+ * <p>A top-level {@code import} array names other collections files, usually kept with the
+ * sources they describe. An imported file holds {@code collections} and {@code readers} only;
+ * its relative paths and the working directory of its commands are its own directory, its
+ * collections name the models of the main file, and its commands run only when its entry of
+ * {@code import} allows them (docs/decisions.md D78). What goes wrong with an import is reported
+ * beside the collections ({@link LoadedCollections#importProblems()}).
+ *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
  *
@@ -46,7 +53,7 @@ public final class CollectionsLoader {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     /** The keys of a source a named reader may hold. */
-    static final List<String> READER_KEYS = List.of("convert", "format", "split", "map");
+    static final List<String> READER_KEYS = List.of("convert", "format", "split", "map", "join");
 
     private static final Pattern JOIN_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9]*");
 
@@ -59,51 +66,184 @@ public final class CollectionsLoader {
         return load(properties.resolvedCollectionsFile(), env);
     }
 
+    /** The collections of the file and of the files it imports, without the problems of its imports. */
     public static List<CollectionDefinition> load(Path file, UnaryOperator<String> env) {
+        return read(file, env).collections();
+    }
+
+    public static LoadedCollections read(RagMcpProperties properties, UnaryOperator<String> env) {
+        return read(properties.resolvedCollectionsFile(), env);
+    }
+
+    /**
+     * The collections of the file and of the files its {@code import} names, with what went wrong
+     * with an import.
+     *
+     * @throws IllegalStateException when the file itself cannot be used
+     */
+    public static LoadedCollections read(Path file, UnaryOperator<String> env) {
         if (!Files.isRegularFile(file)) {
-            return List.of();
+            return LoadedCollections.EMPTY;
         }
+        final List<CollectionDefinition> result;
+        final Map<String, Object> models;
+        final JsonNode root;
+        try {
+            root = root(file);
+            if (root == null) {
+                return LoadedCollections.EMPTY;
+            }
+            JsonNode modelsNode = root.get("models");
+            if (modelsNode != null && !modelsNode.isNull() && !modelsNode.isObject()) {
+                throw new IllegalArgumentException("\"models\" in " + file + " must be a JSON object");
+            }
+            models = models(modelsNode);
+            result = new ArrayList<>(collections(root, file, models, env));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+        Map<String, Path> owners = new LinkedHashMap<>();
+        for (CollectionDefinition definition : result) {
+            owners.put(definition.name(), file);
+        }
+        List<String> problems = new ArrayList<>();
+        JsonNode imports = root.get("import");
+        if (imports != null && !imports.isNull()) {
+            if (!imports.isArray()) {
+                throw new IllegalStateException("\"import\" in " + file + " must be an array of files");
+            }
+            Path baseDir = file.toAbsolutePath().getParent();
+            int index = 0;
+            for (JsonNode entry : imports) {
+                String where = "import[" + index++ + "]";
+                try {
+                    imported(entry, where, baseDir, models, env, result, owners, problems);
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    problems.add(where + ": " + e.getMessage());
+                }
+            }
+        }
+        return new LoadedCollections(result, problems);
+    }
+
+    /**
+     * The JSON object a collections file holds, or {@code null} for an empty file.
+     *
+     * @throws IllegalArgumentException when the file cannot be read or is not a JSON object
+     */
+    private static JsonNode root(Path file) {
         final JsonNode root;
         try {
             String text = Files.readString(file);
             if (text.isBlank()) {
-                return List.of();
+                return null;
             }
             root = JSON.readTree(text);
         } catch (IOException e) {
-            throw new IllegalStateException("Cannot read the collections file " + file + ": " + e.getMessage(), e);
+            throw new IllegalArgumentException("Cannot read the collections file " + file + ": " + e.getMessage(), e);
         } catch (JacksonException e) {
-            throw new IllegalStateException("The collections file " + file + " is not valid JSON: "
+            throw new IllegalArgumentException("The collections file " + file + " is not valid JSON: "
                     + e.getOriginalMessage(), e);
         }
         if (root == null || !root.isObject()) {
-            throw new IllegalStateException("The collections file " + file + " must be a JSON object");
+            throw new IllegalArgumentException("The collections file " + file + " must be a JSON object");
         }
+        return root;
+    }
+
+    /**
+     * The collections one file describes, with its own {@code readers}; relative paths and the
+     * working directory of commands are the directory of that file.
+     *
+     * @throws IllegalArgumentException when {@code collections} or {@code readers} is not an object
+     */
+    private static List<CollectionDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
+                                                          UnaryOperator<String> env) {
         JsonNode collections = root.get("collections");
         if (collections == null || collections.isNull()) {
             return List.of();
         }
         if (!collections.isObject()) {
-            throw new IllegalStateException("\"collections\" in " + file + " must be a JSON object");
+            throw new IllegalArgumentException("\"collections\" in " + file + " must be a JSON object");
         }
         JsonNode readers = root.get("readers");
         if (readers == null || readers.isNull()) {
             readers = JSON.createObjectNode();
         } else if (!readers.isObject()) {
-            throw new IllegalStateException("\"readers\" in " + file + " must be a JSON object");
+            throw new IllegalArgumentException("\"readers\" in " + file + " must be a JSON object");
         }
-        JsonNode modelsNode = root.get("models");
-        if (modelsNode != null && !modelsNode.isNull() && !modelsNode.isObject()) {
-            throw new IllegalStateException("\"models\" in " + file + " must be a JSON object");
-        }
-        Map<String, Object> models = models(modelsNode);
         Path baseDir = file.toAbsolutePath().getParent();
         List<CollectionDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
             CollectionDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
             result.add(definition.usable() ? withVectors(definition, entry.getValue(), models) : definition);
         }
-        return List.copyOf(result);
+        return result;
+    }
+
+    /**
+     * Adds the collections of one entry of {@code import}: a file path, or an object with
+     * {@code file} and {@code commands}. An imported file holds {@code collections} and
+     * {@code readers}; its collections name the models of the main file.
+     *
+     * @throws IllegalArgumentException when the entry or its file cannot be used
+     */
+    private static void imported(JsonNode entry, String where, Path baseDir, Map<String, Object> models,
+                                 UnaryOperator<String> env, List<CollectionDefinition> result,
+                                 Map<String, Path> owners, List<String> problems) {
+        JsonNode fileNode = entry.isObject() ? entry.get("file") : entry;
+        String raw = fileNode == null || !fileNode.isString() ? null
+                : EnvironmentPlaceholders.resolve(text(fileNode), where, env);
+        if (raw == null) {
+            throw new IllegalArgumentException("an import is a file path or {\"file\": \"<path>\", "
+                    + "\"commands\": true}");
+        }
+        boolean commands = entry.isObject() && bool(entry.get("commands"), "commands");
+        raw = raw.trim();
+        if (raw.startsWith("~")) {
+            raw = System.getProperty("user.home", ".") + raw.substring(1);
+        }
+        Path file = baseDir.resolve(raw).normalize();
+        if (!Files.isRegularFile(file)) {
+            throw new IllegalArgumentException("the file " + file + " does not exist");
+        }
+        JsonNode root = root(file);
+        if (root == null) {
+            return;
+        }
+        for (String key : List.of("models", "import")) {
+            if (root.has(key) && !root.get(key).isNull()) {
+                throw new IllegalArgumentException(file + " has \"" + key + "\"; an imported file holds only "
+                        + "\"collections\" and \"readers\"");
+            }
+        }
+        for (CollectionDefinition definition : collections(root, file, models, env)) {
+            Path owner = owners.putIfAbsent(definition.name(), file);
+            if (owner != null) {
+                problems.add(where + ": the collection '" + definition.name() + "' of " + file
+                        + " is left out, the name is taken by a collection of " + owner);
+                continue;
+            }
+            result.add(commands || !definition.usable() ? definition : withoutCommands(definition, file));
+        }
+    }
+
+    /** The collection of an imported file, broken when a source of it runs a command the import does not allow. */
+    private static CollectionDefinition withoutCommands(CollectionDefinition definition, Path file) {
+        for (int i = 0; i < definition.sources().size(); i++) {
+            if (runsCommand(definition.sources().get(i))) {
+                return definition.withError("collections." + definition.name() + ".sources[" + i
+                        + "] runs a command, which the import of " + file + " does not allow; set "
+                        + "\"commands\": true in its entry of \"import\" to allow the commands of that file");
+            }
+        }
+        return definition;
+    }
+
+    private static boolean runsCommand(SourceDefinition source) {
+        return source.command() != null
+                || source.convert().stream().anyMatch(step -> step.settings().containsKey("command"))
+                || source.joins().stream().anyMatch(join -> runsCommand(join.source()));
     }
 
     /** Whether a name can be the name of a model and of the directory of its files. */
