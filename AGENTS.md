@@ -34,6 +34,7 @@ been made yet.
 | `docs/plan.md` | Idea and status, architecture and data flow, configuration, the stages of work, open questions |
 | `docs/decisions.md` | The user's decisions with reasons, what no change may add without one, unconfirmed agent proposals |
 | `docs/indexes.md`, `docs/search.md` | User documents: the indexes file, sources, chunking, building and moving an index; query syntax, filters, limits, the `rag-search` and `rag-eval` commands |
+| `docs/setup-agent.md` | User document whose reader is an agent in another project: the order of work for writing that project's `rag-indexes.yaml`, building it and checking search |
 | `testdata/` | Synthetic knowledge of an invented billing system for the tests; described in `testdata/README.md` |
 | `src/main/java/ru/it_spectrum/ai/rag/mcp/` | Server source; packages in `docs/plan.md` section 3.6 |
 | `src/test/` | Unit tests; none needs a network |
@@ -53,9 +54,11 @@ Read this file first. Then read only the documents whose `When` matches the task
 | `docs/decisions.md` | any design question; before adding a dependency, a tool, a format or a setting; recording a user decision | decisions with reasons, what not to add without the user, unconfirmed proposals |
 | `docs/indexes.md` | changing the indexes file format, a reader, `split`, `map`, the values a template may use, record ids, `rag-index` output or exit codes, the index directory layout | the user-facing description; the single source for formats, output and exit codes |
 | `docs/search.md` | changing query analysis, ranking, filters, snippets, response limits, a search tool's arguments, `rag-search` or `rag-eval` | the user-facing description of search behavior and limits |
+| `docs/setup-agent.md` | the user asks you to set up or change the indexes of a project; changing a default, a reader, `split`, `map`, `rag-index` output or a pitfall it names | the procedure an agent follows to configure a project: survey, choice of indexes and sources, build, check, hand-over. It links to `docs/indexes.md` and `docs/search.md` and repeats no reference |
 
 User documents describe what a user sees and does; a change of user-visible behavior updates
-them in the same change. Name new engineering documents `docs/<topic>-agent.md`, write them in
+them in the same change, `docs/setup-agent.md` included when the change alters a step or a
+pitfall it describes. Name new engineering documents `docs/<topic>-agent.md`, write them in
 English, and register each one in this table. Split a topic out of `docs/plan.md` when its stage is implemented: the plan
 then keeps the summary and links to the owner.
 

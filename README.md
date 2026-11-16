@@ -83,6 +83,15 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
    java -jar build/libs/lucene-rag-server.jar rag-eval docs@billing C:/projects/billing/knowledge/eval/questions.jsonl
    ```
 
+### Setting up a project with an agent
+
+A coding agent can write the indexes file of a project for you. Point it at
+[docs/setup-agent.md](docs/setup-agent.md), the order of work written for agents: survey the
+files, choose indexes and sources, build, check search, report. For example, in the project:
+
+> Read https://github.com/igorolv/lucene-rag-server/blob/main/docs/setup-agent.md and set up
+> lucene-rag-server indexes for this project's knowledge in `knowledge/`.
+
 ## Tools
 
 | Tool | Group | What it does |
