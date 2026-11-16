@@ -7,8 +7,8 @@ spring:
     # Spring AI model auto-configuration. The server never uses a chat, image, audio or moderation
     # model (docs/decisions.md D1). An OpenAI-compatible embedding model is the operator's choice:
     # SPRING_AI_MODEL_EMBEDDING=openai with SPRING_AI_OPENAI_BASE_URL, SPRING_AI_OPENAI_API_KEY
-    # (empty for none) and SPRING_AI_OPENAI_EMBEDDING_MODEL; a collection then names the bean
-    # openAiEmbeddingModel as a model of type bean (docs/collections.md, "Spring AI models").
+    # (empty for none) and SPRING_AI_OPENAI_EMBEDDING_MODEL; an index then names the bean
+    # openAiEmbeddingModel as a model of type bean (docs/indexes.md, "Spring AI models").
     model:
       chat: none
       embedding: none
@@ -31,17 +31,18 @@ server:
   address: ${RAG_MCP_HTTP_ADDRESS:127.0.0.1}
   port: ${RAG_MCP_HTTP_PORT:8080}
 
-# Top-level server data directory — all local storage is rooted here. Each collection gets its own
-# directory <data-dir>/<collection>/ holding its Lucene index and manifest; the shared log is
+# Top-level server data directory — all local storage is rooted here. Each index gets its own
+# directory <data-dir>/<index>/ holding its Lucene files and manifest; the shared log is
 # written under <data-dir>/logs/.
 rag-mcp:
   # MCP transport: stdio (default) for a client that starts the server, http for the streamable
   # HTTP transport at http://<address>:<port>/mcp (docs/decisions.md D45).
   transport: ${RAG_MCP_TRANSPORT:stdio}
   data-dir: ${RAG_MCP_DATA_DIR:${user.home}/.lucene-rag-server}
-  # JSON file describing the named collections this server can build. Defaults to
-  # <data-dir>/collections.json. Serving an already built index does not need it.
-  collections-file: ${RAG_MCP_COLLECTIONS_FILE:}
+  # JSON or YAML file describing the named indexes this server can build. Defaults to
+  # <data-dir>/indexes.json, or indexes.yaml or indexes.yml there. Serving an already built index
+  # does not need it.
+  indexes-file: ${RAG_MCP_INDEXES_FILE:}
   # Bounds on what one call returns, whatever the call asks for: lower them for a small-context
   # model. default-limit applies when a call names no limit; max-chars caps the passage text of
   # one response.
@@ -57,6 +58,6 @@ rag-mcp:
     collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
     search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument, resource rag://{collection}/{id}
     lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup
-    admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # rebuildCollection
+    admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # rebuildIndex
     browse: ${RAG_MCP_TOOLS_BROWSE:true}                 # fieldValues, relatedRecords
     debug: ${RAG_MCP_TOOLS_DEBUG:true}                   # explainSearch

@@ -66,14 +66,14 @@ class RecordResourcesTest {
     }
 
     @Test
-    void collectionsCompleteByPrefixIgnoringCase() {
+    void indexesCompleteByPrefixIgnoringCase() {
         assertThat(complete("collection", "", null).values()).containsExactly(API, DOCS);
         assertThat(complete("collection", DOCS.substring(0, 2).toUpperCase(), null).values()).containsExactly(DOCS);
         assertThat(complete("collection", "zzz", null).values()).isEmpty();
     }
 
     @Test
-    void idsCompleteWithinTheChosenCollection() {
+    void idsCompleteWithinTheChosenIndex() {
         CompleteCompletion ids = complete("id", "article.billing.refunds#", Map.of("collection", encoded(DOCS)));
 
         assertThat(ids.values()).isNotEmpty().allMatch(id -> id.startsWith("article.billing.refunds#"))
@@ -82,7 +82,7 @@ class RecordResourcesTest {
     }
 
     @Test
-    void idsNeedAKnownCollection() {
+    void idsNeedAKnownIndex() {
         assertThat(complete("id", "article", null).values()).isEmpty();
         assertThat(complete("id", "article", Map.of("collection", "no-such")).values()).isEmpty();
     }

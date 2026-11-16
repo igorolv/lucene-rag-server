@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.API;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.DOCS;
 
-/** Builds the synthetic collections once and searches them. */
+/** Builds the synthetic indexes once and searches them. */
 class SearchServiceTest {
 
     @TempDir
@@ -216,14 +216,14 @@ class SearchServiceTest {
     }
 
     @Test
-    void severalCollectionsAreSearchedTogether() throws IOException {
+    void severalIndexesAreSearchedTogether() throws IOException {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null);
 
         assertThat(page.hits()).extracting(SearchHit::collection).contains(DOCS, API);
     }
 
     @Test
-    void anUnknownCollectionNamesTheBuiltOnes() {
+    void anUnknownIndexNamesTheBuiltOnes() {
         assertThatThrownBy(() -> search.search(List.of("nope"), "x", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("nope").hasMessageContaining(API).hasMessageContaining(DOCS);

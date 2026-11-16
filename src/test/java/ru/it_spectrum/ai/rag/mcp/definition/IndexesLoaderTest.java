@@ -19,13 +19,13 @@ class IndexesLoaderTest {
     Path dir;
 
     private List<IndexDefinition> load(String json, Map<String, String> env) throws IOException {
-        Path file = dir.resolve("collections.json");
+        Path file = dir.resolve("indexes.json");
         Files.writeString(file, json);
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, env::get));
     }
 
     @Test
-    void missingOrEmptyFileMeansNoCollections() throws IOException {
+    void missingOrEmptyFileMeansNoIndexes() throws IOException {
         assertThat(IndexesLoader.load(dir.resolve("absent.json"), k -> null)).isEmpty();
         assertThat(load("  ", Map.of())).isEmpty();
         assertThat(load("{}", Map.of())).isEmpty();
@@ -36,7 +36,7 @@ class IndexesLoaderTest {
         List<IndexDefinition> collections = load("""
                 {
                   "models": {"ignored": {}},
-                  "collections": {
+                  "indexes": {
                     "docs@billing": {
                       "description": "Billing articles",
                       "sources": [
@@ -88,7 +88,7 @@ class IndexesLoaderTest {
     @Test
     void aBrokenEntryIsReportedAndLeavesTheOthersUsable() throws IOException {
         List<IndexDefinition> collections = load("""
-                {"collections": {
+                {"indexes": {
                   "bad name": {"sources": [{"path": "a"}]},
                   "logs": {"sources": [{"path": "a"}]},
                   "no-sources": {"description": "d"},
@@ -115,7 +115,7 @@ class IndexesLoaderTest {
 
     private String errorOf(String source) throws IOException {
         List<IndexDefinition> collections = load(
-                "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}", Map.of());
+                "{\"indexes\": {\"c\": {\"sources\": [" + source + "]}}}", Map.of());
         assertThat(collections.getFirst().usable()).isFalse();
         return collections.getFirst().configError();
     }
@@ -167,7 +167,7 @@ class IndexesLoaderTest {
                               "map": {"title": "{document.title}", "fields": {"kind": "note"}},
                               "path": "ignored", "include": "**/*.txt"}
                   },
-                  "collections": {
+                  "indexes": {
                     "a": {"sources": [
                       {"path": "notes", "reader": "notes"},
                       {"path": "more", "reader": "notes", "split": {"level": "h3"},
@@ -196,12 +196,12 @@ class IndexesLoaderTest {
     }
 
     @Test
-    void aReaderThatIsMissingOrWrongBreaksOnlyTheCollectionsThatNameIt() throws IOException {
+    void aReaderThatIsMissingOrWrongBreaksOnlyTheIndexesThatNameIt() throws IOException {
         List<IndexDefinition> collections = load("""
                 {
                   "readers": {"broken": "markdown", "deep": {"split": {"level": "h9"}},
                               "rows": {"format": "docbook"}},
-                  "collections": {
+                  "indexes": {
                     "unknown": {"sources": [{"path": "a", "reader": "nothing"}]},
                     "not-object": {"sources": [{"path": "a", "reader": "broken"}]},
                     "bad-split": {"sources": [{"path": "a", "reader": "deep"}]},
@@ -223,7 +223,7 @@ class IndexesLoaderTest {
 
     @Test
     void readersThatAreNotAnObjectAreAnErrorOfTheFile() {
-        assertThatThrownBy(() -> load("{\"readers\": [], \"collections\": {}}", Map.of()))
+        assertThatThrownBy(() -> load("{\"readers\": [], \"indexes\": {}}", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"readers\"");
     }
 
@@ -233,17 +233,17 @@ class IndexesLoaderTest {
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not valid JSON");
         assertThatThrownBy(() -> load("[]", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("must be a JSON object");
-        assertThatThrownBy(() -> load("{\"collections\": []}", Map.of()))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"collections\"");
+        assertThatThrownBy(() -> load("{\"indexes\": []}", Map.of()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"indexes\"");
     }
 
     @Test
-    void aCollectionNamesItsModelInVectors() throws IOException {
+    void anIndexNamesItsModelInVectors() throws IOException {
         List<IndexDefinition> collections = load("""
                 {"models": {"e5-small": {"type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
                                          "maxTokens": 256},
                             "plain": {}},
-                 "collections": {
+                 "indexes": {
                    "docs@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "e5-small"}},
                    "notes@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "plain"}},
                    "catalogs@billing": {"sources": [{"path": "kb"}]}
@@ -261,7 +261,7 @@ class IndexesLoaderTest {
     void aModelNamesItsPooling() throws IOException {
         List<IndexDefinition> collections = load("""
                 {"models": {"bge": {"pooling": "cls"}, "odd": {"pooling": "max"}},
-                 "collections": {
+                 "indexes": {
                    "docs@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "bge"}},
                    "notes@billing": {"sources": [{"path": "kb"}], "vectors": {"model": "odd"}}
                  }}
@@ -273,10 +273,10 @@ class IndexesLoaderTest {
     }
 
     @Test
-    void aWrongModelBreaksOnlyTheCollectionsThatNameIt() throws IOException {
+    void aWrongModelBreaksOnlyTheIndexesThatNameIt() throws IOException {
         List<IndexDefinition> collections = load("""
                 {"models": {"bad": {"maxTokens": 0}, "../up": {}},
-                 "collections": {
+                 "indexes": {
                    "a@x": {"sources": [{"path": "kb"}], "vectors": {"model": "absent"}},
                    "b@x": {"sources": [{"path": "kb"}], "vectors": {"model": "bad"}},
                    "c@x": {"sources": [{"path": "kb"}], "vectors": {"model": "../up"}},
@@ -291,7 +291,7 @@ class IndexesLoaderTest {
         assertThat(collections.get(2).configError()).contains("directory of the model files");
         assertThat(collections.get(3).configError()).contains("\"vectors\" must be true, false or an object");
         assertThat(collections.get(4).usable()).isTrue();
-        assertThatThrownBy(() -> load("{\"models\": [], \"collections\": {}}", Map.of()))
+        assertThatThrownBy(() -> load("{\"models\": [], \"indexes\": {}}", Map.of()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"models\"");
     }
 }

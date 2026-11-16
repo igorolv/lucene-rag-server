@@ -9,8 +9,8 @@ Project knowledge — requirements, articles, troubleshooting playbooks, user ma
 error messages and parameters, descriptions of tables — lives in directories next to the code.
 This server makes it searchable for AI agents and for people:
 
-- the operator describes **collections** in `collections.json`;
-- a command builds each collection into a Lucene index that holds both the text and the vectors;
+- the operator describes **indexes** in `indexes.json`;
+- a command builds each index into a Lucene index that holds both the text and the vectors;
 - the server answers search requests over MCP with passages and their sources.
 
 It retrieves and never generates (D1). The same server runs where a strong large-context model
@@ -18,41 +18,41 @@ reads the results and where a weak local model does; the difference is configura
 
 ## 2. Status
 
-Stages 1 to 3, 2026-11-15: collections described in `collections.json` are
+Stages 1 to 3, 2026-11-15: indexes described in `indexes.json` are
 built into one Lucene index each and searched lexically, by vectors or by both fused; every source
 configures how it is cut (`split`) and how a unit becomes a record (`map`), and a source is built
 by the five-step pipeline of section 3.1, with Markdown, TSV, YAML, JSONL, SQL and PDF as formats and
 external commands as an origin and as `convert` steps; a source may take its reading keys from a
 named reader and select its records with `where`; catalog records are found by an exact value of
-their key fields; a collection with `vectors` gets an embedding of every record from an in-process
+their key fields; an index with `vectors` gets an embedding of every record from an in-process
 ONNX model, used through Spring AI's `EmbeddingModel` (D29); search filters take Spring AI filter
 expressions next to the map of field to value (D30); the records of a source reach the index as
 Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
 
-- Implemented: the collections file loader with named readers; the step interfaces, the
+- Implemented: the indexes file loader with named readers; the step interfaces, the
   registry and `SourcePipeline` in `ingest/`; the origins `files` and `command`, the `command`
   converter, the formats `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` and `office`, the heading splitter and
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index`, `rag-search`, `rag-eval` and `rag-model` (D70), each in a Spring context without the MCP server (D42); the tool groups
   `collections` (`listCollections`), `search` (`search`, `getDocument`, the record resource),
-  `lookup` (`lookup`), `admin` (`rebuildCollection`), `browse` (`fieldValues`, `relatedRecords`) and
+  `lookup` (`lookup`), `admin` (`rebuildIndex`), `browse` (`fieldValues`, `relatedRecords`) and
   `debug` (`explainSearch`);
-  the `models` object and `vectors` per collection, the ONNX embedding model, the vector field, the
+  the `models` object and `vectors` per index, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
-  manifest and the embedding cache. User documents: `docs/collections.md`, `docs/search.md`.
+  manifest and the embedding cache. User documents: `docs/indexes.md`, `docs/search.md`.
 - Verified by `gradlew build` (214 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
   the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
   `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where`, `lookup` and the vectors were checked by
-  building collections from the first real corpus (numbers in section 4, stages 2 and 3). Requirement files without front matter (stage 1: 141 files, 601 records) have not
+  building indexes from the first real corpus (numbers in section 4, stages 2 and 3). Requirement files without front matter (stage 1: 141 files, 601 records) have not
   been rebuilt on the pipeline.
 - Measured: one question set of the first corpus with `rag-eval` (stage 4, section 4); tuning is
   not done.
 
 In section 3, the tool groups after `lookup`, a provider starter for a remote embedding endpoint, the allowed
-collections and the rows of section 3.7 marked "not implemented" are the target design.
+indexes and the rows of section 3.7 marked "not implemented" are the target design.
 
 ## 3. Architecture
 
@@ -61,8 +61,8 @@ collections and the rows of section 3.7 marked "not implemented" are the target 
 ```
 build (our side)                                   serve (any site)
 
-collections.json ─┐
-source dirs ──────┼─► rag-index ─► <data-dir>/<collection>/ ─► MCP server ─► MCP client
+indexes.json ─────┐
+source dirs ──────┼─► rag-index ─► <data-dir>/<index>/ ─► MCP server ─► MCP client
 model files ──────┘                 index + manifest             ▲            (assistant, agent)
                                                                  └─ rag-search (command line)
 ```
@@ -94,16 +94,16 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
   format.
 - A command is never a format (D10). As the origin it replaces `path`; in `convert` it runs for
   every item, receives the file path or the previous step's text, and prints text. Both are an
-  argument array without a shell, with a timeout, in the directory of `collections.json`.
+  argument array without a shell, with a timeout, in the directory of `indexes.json`.
 - origin, `convert` and `format` have named implementations found through one registry; `split`
   and `map` are interfaces with one implementation each until a second one is needed.
 - `mail-mcp-server` reads attachments the same way: Pandoc turns many formats into Markdown. Here
   Pandoc is an example of a `convert` command and not a dependency (D17).
 
-### 3.2 Collections file
+### 3.2 Indexes file
 
-`<data-dir>/collections.json` (or `.yaml`, D81), overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
-described in `docs/collections.md`, which owns the format: `vars` (D79), `models`, `import` (the collections files of projects, D78), `readers`, `description`,
+`<data-dir>/indexes.json` (or `.yaml`, D81), overridden by `RAG_MCP_INDEXES_FILE`. What is implemented is
+described in `docs/indexes.md`, which owns the format: `vars` (D79), `models`, `import` (the indexes files of projects, D78), `readers`, `description`,
 `vectors` and `sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`,
 `convert`, `format`, `split`, `map`, `join`, `where` and `reader`. Everything in the sketch below is
 implemented except `language`, which nothing reads yet:
@@ -114,7 +114,7 @@ implemented except `language`, which nothing reads yet:
     "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
                   "maxTokens": 512 }
   },
-  "collections": {
+  "indexes": {
     "docs@billing": {
       "description": "Billing: requirements, glossary, articles, troubleshooting playbooks",
       "sources": [
@@ -141,7 +141,7 @@ implemented except `language`, which nothing reads yet:
 }
 ```
 
-- The key is the collection name, the directory name under the data directory and the value
+- The key is the index name, the directory name under the data directory and the value
   tools take as `collection`. Form `<part>@<project>`; the same character rules as connection
   names in `jdbc-mcp-server`.
 - A source has either `path` (files) or `command` (one run) as its origin.
@@ -150,52 +150,52 @@ implemented except `language`, which nothing reads yet:
 - A top-level `readers` object holds named sets of `convert`, `format`, `split` and `map`; a
   source names one with `reader` and may override single keys (D18).
 - `where` selects records by field values.
-- A collection without `vectors` is lexical only (catalogs of codes and names); `"vectors": true`
+- An index without `vectors` is lexical only (catalogs of codes and names); `"vectors": true`
   takes the model marked `"default": true` (D80). The files of a
   model are in `<data-dir>/models/<name>/` on every machine (D26).
-- Relative paths resolve against the directory of `collections.json`, or of the imported file.
+- Relative paths resolve against the directory of `indexes.json`, or of the imported file.
   `path` and `import` entries may reference `${name}`: the top-level `vars`, then the environment
   (D79).
 - A file with commands is executable configuration: do not use one from an untrusted
   origin.
 
-### 3.3 Collection directory and manifest
+### 3.3 Index directory and manifest
 
 ```
 <data-dir>/
-  collections.json            build side only
+  indexes.json                build side only
   models/<model>/             model.onnx and tokenizer.json (D25)
   cache/embeddings/           vectors by hash of model and text, a Lucene index (D27)
   cache/djl/                  native code of the tokenizer library
   logs/
-  <collection>/
+  <index>/
     manifest.json             name, description, field schema, analyzer, model id and its
                               parameters, chunking parameters, source revision, build time, counts
     index/                    Lucene index
 ```
 
-Implemented: `<collection>/manifest.json` (schema, name, description, build time, server version,
-counts, field names, key fields, sources with their chunking parameters, and for a collection with
+Implemented: `<index>/manifest.json` (schema, name, description, build time, server version,
+counts, field names, key fields, sources with their chunking parameters, and for an index with
 vectors the model name, parameters, vector size, file hashes and the number of records cut to the
-input limit) and `<collection>/index/`. The analyzer description and the source revision are not
+input limit) and `<index>/index/`. The analyzer description and the source revision are not
 in the manifest.
 
-- The server serves every collection directory it finds (D49). It reads the manifest, not
-  `collections.json` (D7).
+- The server serves every index directory it finds (D49). It reads the manifest, not
+  `indexes.json` (D7).
 - Nothing is cached between calls: the data directory is listed and an index is opened per call,
-  so a rebuilt collection is seen at once.
-- A build writes a temporary sibling directory and replaces the collection only when complete.
+  so a rebuilt index is seen at once.
+- A build writes a temporary sibling directory and replaces the index only when complete.
   The replacement is a delete and a move, not atomic: a call in flight on Windows makes it fail,
-  and a call between the two steps sees no collection. Stage 5 makes it atomic.
+  and a call between the two steps sees no index. Stage 5 makes it atomic.
 - Searching vectors requires the model named in the manifest to be present; a mismatch is an error
   for vector and hybrid search, while lexical search keeps working.
-- Delivery to another site: the collection directories and `models/`.
+- Delivery to another site: the index directories and `models/`.
 
 ### 3.4 Search and tools
 
 - One Lucene document per record: the text and the breadcrumb, each analyzed with Russian and with
   English stemming (modeled on `mail-mcp-server`), one exact lower-cased term per value of a
-  document field for filters, the stored record, a vector field when the collection has vectors.
+  document field for filters, the stored record, a vector field when the index has vectors.
   Field names are in `index/IndexFields`; the behavior a user sees is in `docs/search.md`.
 - Query words are optional and ranked by BM25, with the breadcrumb weighted twice the text (D56).
 - A page holds the best section of each document unless `perDocument` asks for more (D38): the
@@ -203,11 +203,11 @@ in the manifest.
   section and the record id for a row; candidates are ranked deeper until the page is full.
 - Modes: `lexical` (BM25), `vector` (kNN on the `vector` field, cosine), `hybrid` — both, fused
   by RRF (D12, D26) with `TopDocs.rrf(topN, k, TopDocs[])` of Lucene, present in the 10.5.2 we
-  use (the release that introduced it is to verify). Collections of one model form one kNN list,
-  with doc ids moved to the reader of all searched collections; the lists and the BM25 list are
+  use (the release that introduced it is to verify). Indexes of one model form one kNN list,
+  with doc ids moved to the reader of all searched indexes; the lists and the BM25 list are
   fused by doc id. The query vector is computed by the model of the manifest, loaded once per
   process by `EmbeddingModels`.
-- A call may search several collections; results carry their collection and the mode used.
+- A call may search several indexes; results carry their index and the mode used.
 - Responses are bounded: a default and a maximum number of results and a total size cap set by the
   server; a search returns snippets, `getDocument` returns the full record (D54).
 
@@ -217,8 +217,8 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 |---|---|---|
 | `collections` | `listCollections` | done |
 | `search` | `search`, `getDocument`; the resource `rag://{collection}/{id}` and its completion (D48) | done |
-| `lookup` | `lookup`: exact lookups by the key fields of catalog collections (D23) | done |
-| `admin` | `rebuildCollection` (D50) | done |
+| `lookup` | `lookup`: exact lookups by the key fields of catalog indexes (D23) | done |
+| `admin` | `rebuildIndex` (D50) | done |
 | `browse` | `fieldValues`, `relatedRecords` (D72); listing by filters is `search` without a query | done |
 | `debug` | `explainSearch` (D72) | done |
 
@@ -229,7 +229,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 | Tool groups | `collections`, `search`, `lookup` | all |
 | Limits | few results, snippets, small size cap | defaults |
 | Instances | one per audience, each with its own data directory (D8, D49) | one |
-| Index | delivered ready (D7) | built in place, `rebuildCollection` available |
+| Index | delivered ready (D7) | built in place, `rebuildIndex` available |
 | Embedding model | in-process, same as at build time (D11) | in-process |
 
 ### 3.6 Packages
@@ -238,7 +238,7 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 
 ```
 tools/ ──► search/ ──► index/
-  └──────► definition/, ingest/     (listCollections shows collections that are not built)
+  └──────► definition/, ingest/     (listCollections shows indexes that are not built)
 cli/ ───► definition/, ingest/, index/, search/, embedding/, eval/
 eval/ ──► search/                              (question sets, references, measures)
 index/ ──► document/ ──► ingest/ ──► definition/   (build: list, convert, parse, split, map, write)
@@ -249,8 +249,8 @@ config/  — Spring wiring, properties, MCP customizer
 
 | Package | Responsibility |
 |---|---|
-| `definition/` | The shape of `collections.json` and nothing about formats: `IndexesLoader` (with the imports, D78), `YamlTree` (a YAML file as the JSON tree, D81), `LoadedIndexes`, `IndexDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
-| `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); the lookups of a source (`JoinSpec`, what the template check needs, and `JoinTable`, the units of a lookup by key, D77); `StepRegistry` (implementations by name, and the check of a collection's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
+| `definition/` | The shape of `indexes.json` and nothing about formats: `IndexesLoader` (with the imports, D78), `YamlTree` (a YAML file as the JSON tree, D81), `LoadedIndexes`, `IndexDefinition`, `SourceDefinition`, `JoinDefinition`, `SplitSettings`, `MapSettings`, name rules, `${VAR}` placeholders |
+| `ingest/` | The contracts of the build pipeline (D15): the step interfaces `Origin`, `Converter`, `Format`, `Splitter`, `Mapper`; the shapes `SourceItem`, `SourceText`, `ParsedDocument` (`SectionTree` with `Section`, or `Rows`), `Unit`, `ChunkRecord`; what a format declares (`MapDefaults`, `ValueNames`); the lookups of a source (`JoinSpec`, what the template check needs, and `JoinTable`, the units of a lookup by key, D77); `StepRegistry` (implementations by name, and the check of an index's sources); `SourcePipeline` (the steps of one source, checked and ready to run) |
 | `ingest/origin/` | `FilesOrigin`, `CommandOrigin` |
 | `ingest/convert/` | `CommandConverter` |
 | `ingest/format/` | `MarkdownFormat` with `MarkdownReader`; the row formats `TsvFormat`, `YamlFormat`, `JsonlFormat` with `RowValues`, `SqlFormat`, and `PdfFormat` (Spring AI's `PagePdfDocumentReader`, reads the file) |
@@ -258,7 +258,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `ingest/map/` | `TemplateMapper`, `Template` (the `{value}` language), `TemplateCheck` (templates against the value names a format declares), `TextParts` (splitting a long text) |
 | `ingest/exec/` | `CommandRunner`: running an external command — argument array, timeout, output capture; shared by `CommandOrigin` and `CommandConverter` |
 | `document/` | The boundary to Spring AI's `Document` (D31): `RecordDocuments` (the one mapping between a record and a document), `SourceDocumentReader` (a source, or one item of it, as a `DocumentReader`), `RecordContentFormatter` (what a model sees of a record, D44) |
-| `index/` | `Analyzers`, `IndexFields`, `IndexBuilder` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `IndexStore` (built collections under the data directory) |
+| `index/` | `Analyzers`, `IndexFields`, `IndexBuilder` (build and swap; writes the documents of each item through a `DocumentWriter`), `Manifest`, `IndexStore` (built indexes under the data directory) |
 | `search/` | `SearchService` (query, filters, modes and fusion, paging, snippets, limits), `FilterQueries` (Spring AI filter expressions to Lucene queries), `SearchMode`, `SearchHit`, `SearchPage` |
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
@@ -271,7 +271,7 @@ How the pipeline is wired:
 
 - `definition/` reads a source entry into a definition with the raw settings of each step.
   `StepRegistry.checked` resolves the step names and reports a setting that does not fit as the
-  configuration error of the collection; every caller of `IndexesLoader.load` applies it.
+  configuration error of the index; every caller of `IndexesLoader.load` applies it.
 - `IndexBuilder` asks `SourcePipeline` for items and for the records of an item and names no
   step implementation.
 - A step implementation is a `@Component`; the registry is a bean that receives every step bean
@@ -285,7 +285,7 @@ How the pipeline is wired:
   receives every type bean; `StepBeansTest` checks the set.
 - Adding a format: a class in `ingest/format/` implementing `Format` and annotated `@Component`,
   a line in `StepRegistry.builtIn()`, synthetic files in `testdata/` (D20), the format's section
-  in `docs/collections.md`. Nothing else changes.
+  in `docs/indexes.md`. Nothing else changes.
 
 ### 3.7 Spring AI
 
@@ -348,13 +348,13 @@ done here. A stage is taken only when the user asks for it.
 | # | Stage | Result | State |
 |---|---|---|---|
 | 0 | Scaffold | Build, stdio server, `listCollections` stub, documents | done 2026-11-14 |
-| 1 | Markdown collection, lexical search | `collections.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
+| 1 | Markdown index, lexical search | `indexes.json` loader; `markdown` reader with front matter; chunker; Lucene index and manifest; `rag-index` and `rag-search` commands; tools `listCollections`, `search`, `getDocument`; response limits | done 2026-11-14 |
 | 2 | Source pipeline and remaining formats | The five steps as interfaces with a registry; `tsv`, `yaml`, `jsonl`, `sql`; commands as origin and as `convert`; `where` conditions; `lookup` group | done 2026-11-15 |
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
-| 5 | Delivery | Atomic rebuild and `rebuildCollection` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/collections.md`, "Delivering collections"); Docker image not needed for now (D51) | done 2026-11-15 |
+| 5 | Delivery | Atomic rebuild and `rebuildIndex` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/indexes.md`, "Delivering indexes"); Docker image not needed for now (D51) | done 2026-11-15 |
 | 6 | Convenience and release | `browse` and `debug` groups (D72); CI and release workflow, JBang alias, Glama file, third-party notices (D73); the MCP Registry waits for a Docker image | done 2026-11-15; no release made yet |
 | 7 | Indexes and search without choosing one | A collection is named an index and its name leaves the assistant's tools: one record id (D84); `search`, `lookup` and `explainSearch` over every built index (D82, D86); the field `project` (D83, D85); `fieldValues` over every index (D87); `describeKnowledge` and `listIndexes` instead of `listCollections` (D89); a glossary in the examples (D88). Raises the index schema once | not started |
 
@@ -363,13 +363,13 @@ Stage 4, in progress:
 1. Done 2026-11-15: `rag-eval` (D64, D65), the measuring command; user description in
    `docs/search.md`, "Measuring search". On the question set of the first corpus (20 questions:
    10 expect a Markdown document, the others tables by `data:`, requirements by `spec:` and
-   symptoms by `symptom:`) it reproduces the check of stage 3 on the Markdown collection: MRR 0.80,
-   0.60 and 0.85 for lexical, vector and hybrid. With a collection of the 16 YAML table
+   symptoms by `symptom:`) it reproduces the check of stage 3 on the Markdown index: MRR 0.80,
+   0.60 and 0.85 for lexical, vector and hybrid. With an index of the 16 YAML table
    descriptions (29 records, 19 of them longer than 512 tokens) and `--ref data=table`, 12
    questions are measured: MRR 0.71, 0.50 and 0.71, recall@10 0.67, 0.56 and 0.56; the 9 `spec:`
    and 8 `symptom:` references then named nothing indexed.
 2. Done 2026-11-15: `spec:` references stay unreachable (D36); symptoms are indexed as table
-   rows (D37). With the 35 symptoms as a third collection and `--ref symptom=number`, 17 of 20
+   rows (D37). With the 35 symptoms as a third index and `--ref symptom=number`, 17 of 20
    questions are measured: MRR 0.67, 0.53 and 0.66, recall@10 0.69, 0.69 and 0.72 for lexical,
    vector and hybrid; 15 of 17 are found within 10 in every mode.
 3. Done 2026-11-15, first tuning pass on the same 17 questions (documents, table descriptions,
@@ -404,9 +404,9 @@ Stage 4, in progress:
    the question is in the expected article, which uses other terms for the same screen, and its
    best section is 20th by vector; in the other, the expected symptom is a row of a few words,
    which longer sections matching more of the question outrank. Both are gaps of the
-   collections, not ranking errors, so the condition of D41 for a reranker is not met.
+   indexes, not ranking errors, so the condition of D41 for a reranker is not met.
 6. Done 2026-11-15: three embedding models compared on the same corpus, rebuilt from the same
-   sources, with the set grown to 63 questions, 60 measured (`rag-model fetch`, one collection
+   sources, with the set grown to 63 questions, 60 measured (`rag-model fetch`, one index
    set per model; lexical is the same for all: 43/57/0.81/0.85):
 
    | Model | vector @10 | vector MRR | hybrid @1 | hybrid @10 | hybrid MRR | hybrid recall@10 | build of the documents |
@@ -420,7 +420,7 @@ Stage 4, in progress:
    - MiniLM cuts 1,029 of 1,120 document records at its input limit of 128 tokens and is far
      weaker here; `rag-model fetch` now prints the input length a repository names.
    - The two questions outside the first ten are the same for every model, the gaps of item 5.
-     With 60 measured questions the misses are still gaps of the collections, so D41 keeps the
+     With 60 measured questions the misses are still gaps of the indexes, so D41 keeps the
      reranker out; 15 questions rank 2 to 9 in hybrid with `e5-small`, which a reranker could
      only move up within the page a client already reads.
 7. Next: grow the set further (its authors aim at several hundred questions) and close the gaps
@@ -433,12 +433,12 @@ Stage 3, done 2026-11-15 (D24–D27):
   `Enable-Native-Access: ALL-UNNAMED`, so the JVM prints no warning when they load native code.
 - Model: `multilingual-e5-small` FP32 (D25); SHA-256 of `model.onnx` and `tokenizer.json` matched
   the hashes Hugging Face publishes.
-- Checked on the first corpus: the Markdown collection of 239 files gave 1,031 records with 384
+- Checked on the first corpus: the Markdown index of 239 files gave 1,031 records with 384
   dimensions in 61 s on a 16-thread desktop CPU, 123 records longer than 512 tokens; a rebuild from
   the cache took 3.2 s. On the 10 questions of its question set that expect a Markdown document,
   the expected document was first in 7 (lexical), 4 (vector) and 8 (hybrid), and within the top
   5 in 9 for each mode; MRR 0.80, 0.60 and 0.85. `rag-search` takes 0.8 s per lexical query and
-  2.7 s per vector or hybrid query, JVM start and model load included. A collection served from a
+  2.7 s per vector or hybrid query, JVM start and model load included. An index served from a
   data directory without its model answers `lexical` and reports the missing model for `vector`
   and `hybrid`.
 
@@ -467,7 +467,7 @@ Stage 2 in more detail:
    comment 9 records.
 4. Done 2026-11-15: commands (D10): `ingest/exec/`, the `command` origin and the `command`
    converter; argument array, no shell, timeout (default 60 seconds), working directory of
-   `collections.json`, output read as UTF-8. A `convert` step names its converter by a key and is
+   `indexes.json`, output read as UTF-8. A `convert` step names its converter by a key and is
    resolved by the registry; a converter prepares a checked step from its settings. `{file}` in
    an argument is the path of the item's file; without it the text so far goes to standard
    input. The manifest keeps `command` and `convert`. `${name}` is resolved in `path` and `import` only.
@@ -483,7 +483,7 @@ Stage 2 in more detail:
    either case, a message text, a job class and a menu id and address were each found.
 
 Every format step adds synthetic files of the same shape as the first real corpus to `testdata/`
-and is checked by building a collection from that corpus (D20). The corpus has Markdown, YAML,
+and is checked by building an index from that corpus (D20). The corpus has Markdown, YAML,
 TSV, SQL and JSONL files, and these are the formats of this stage.
 
 `docbook` is not in this stage (D17). If it is written, it is a StAX reader of nested `section`

@@ -19,23 +19,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.API;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.DOCS;
 
-/** {@code rebuildCollection} builds a collection of the collections file, as {@code rag-index} does. */
+/** {@code rebuildIndex} builds an index of the indexes file, as {@code rag-index} does. */
 class AdminToolsTest {
 
     @TempDir
     Path dataDir;
 
     private AdminTools tools(boolean vectors) throws IOException {
-        TestKnowledge.writeCollectionsFile(dataDir, vectors);
+        TestKnowledge.writeIndexesFile(dataDir, vectors);
         RagMcpProperties properties = new RagMcpProperties(dataDir.toString(), null);
         return new AdminTools(properties, StepRegistry.builtIn(), FakeEmbeddingModel.models(dataDir, "fake"), name -> null);
     }
 
     @Test
-    void aCollectionIsBuiltAndServed() throws IOException {
-        RebuildResult result = tools(false).rebuildCollection(" " + API + " ");
+    void anIndexIsBuiltAndServed() throws IOException {
+        RebuildResult result = tools(false).rebuildIndex(" " + API + " ");
 
-        assertThat(result.collection()).isEqualTo(API);
+        assertThat(result.index()).isEqualTo(API);
         assertThat(result.records()).isPositive();
         assertThat(result.builtAt()).endsWith("Z");
         assertThat(result.embedded()).isNull();
@@ -43,10 +43,10 @@ class AdminToolsTest {
     }
 
     @Test
-    void aCollectionWithVectorsReportsTheirSource() throws IOException {
+    void anIndexWithVectorsReportsTheirSource() throws IOException {
         AdminTools tools = tools(true);
-        RebuildResult first = tools.rebuildCollection(DOCS);
-        RebuildResult second = tools.rebuildCollection(DOCS);
+        RebuildResult first = tools.rebuildIndex(DOCS);
+        RebuildResult second = tools.rebuildIndex(DOCS);
 
         assertThat(first.embedded()).isEqualTo(first.records());
         assertThat(second.embedded()).isZero();
@@ -54,18 +54,18 @@ class AdminToolsTest {
     }
 
     @Test
-    void onlyCollectionsOfTheFileCanBeBuilt() throws IOException {
-        assertThatThrownBy(() -> tools(false).rebuildCollection("other@billing"))
+    void onlyIndexesOfTheFileCanBeBuilt() throws IOException {
+        assertThatThrownBy(() -> tools(false).rebuildIndex("other@billing"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("'other@billing' is not in").hasMessageContaining(DOCS);
     }
 
     @Test
-    void aMissingCollectionsFileIsReported() throws IOException {
+    void aMissingIndexesFileIsReported() throws IOException {
         AdminTools tools = tools(false);
-        Files.delete(dataDir.resolve("collections.json"));
+        Files.delete(dataDir.resolve("indexes.json"));
 
-        assertThatThrownBy(() -> tools.rebuildCollection(DOCS)).isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("is not in").hasMessageContaining("collections.json");
+        assertThatThrownBy(() -> tools.rebuildIndex(DOCS)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("is not in").hasMessageContaining("indexes.json");
     }
 }

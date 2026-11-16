@@ -1,7 +1,10 @@
 package ru.it_spectrum.ai.rag.mcp.config;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -15,8 +18,25 @@ class RagMcpPropertiesTest {
 
         Path home = Paths.get(System.getProperty("user.home"));
         assertThat(properties.resolvedDataDir()).isEqualTo(home.resolve(".lucene-rag-server"));
-        assertThat(properties.resolvedCollectionsFile())
-                .isEqualTo(home.resolve(".lucene-rag-server").resolve("collections.json"));
+        // The file name depends on which indexes file the home data directory holds.
+        assertThat(properties.resolvedIndexesFile().getParent()).isEqualTo(home.resolve(".lucene-rag-server"));
+        assertThat(properties.resolvedIndexesFile().getFileName().toString())
+                .isIn("indexes.json", "indexes.yaml", "indexes.yml");
+    }
+
+    @Test
+    void aCollectionsFileWithoutAnIndexesFileIsReported(@TempDir Path dataDir) throws IOException {
+        RagMcpProperties properties = new RagMcpProperties(dataDir.toString(), null);
+        assertThat(properties.oldFileNotice()).isEmpty();
+
+        Files.writeString(dataDir.resolve("collections.yaml"), "collections: {}");
+        assertThat(properties.oldFileNotice()).hasValueSatisfying(notice -> assertThat(notice)
+                .contains("collections.yaml is not read", "rename it to indexes.yaml", "\"indexes\""));
+        assertThat(new RagMcpProperties(dataDir.toString(), dataDir.resolve("x.json").toString())
+                .oldFileNotice()).isEmpty();
+
+        Files.writeString(dataDir.resolve("indexes.json"), "{}");
+        assertThat(properties.oldFileNotice()).isEmpty();
     }
 
     @Test

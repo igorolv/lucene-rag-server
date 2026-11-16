@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * Discovery for the collection arguments of the search tools.
  *
  * <p>Built collections come from the data directory alone. Collections that are only described in
- * {@code collections.json} are listed too, as not built, so a missing index is visible; the file
+ * {@code indexes.json} are listed too, as not built, so a missing index is visible; the file
  * is reread on every call and is optional.
  *
  * <p>The {@link ConditionalOnProperty} flag is the tool-group switch every tool class carries
@@ -56,7 +56,7 @@ public class CollectionTools {
                     "description says what the collection holds, fields are the names search accepts as " +
                     "filters, keys are the fields lookup finds records by, modes are the search modes it supports, " +
                     "model is its embedding model and modelProblem why that model cannot be used. " +
-                    "importProblems says which imported collections files could not be used. Only " +
+                    "importProblems says which imported indexes files could not be used. Only " +
                     "collections with built=true can be searched.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
@@ -85,7 +85,7 @@ public class CollectionTools {
                 }
             }
         } catch (IllegalStateException e) {
-            log.warn("The collections file is ignored: {}", e.getMessage());
+            log.warn("The indexes file is ignored: {}", e.getMessage());
         }
         return new ListCollectionsResult(List.copyOf(infos), importProblems);
     }

@@ -2,7 +2,7 @@ package ru.it_spectrum.ai.rag.mcp.definition;
 
 /**
  * One entry of a source's {@code join}: a lookup whose units give values to the units of the
- * source ({@code docs/collections.md}, "Joining values from another file").
+ * source ({@code docs/indexes.md}, "Joining values from another file").
  *
  * @param name   the prefix of the values the lookup gives: {@code <name>.<value>}
  * @param source what the lookup reads and how: origin, {@code convert}, {@code format} and

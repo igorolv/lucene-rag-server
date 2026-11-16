@@ -17,7 +17,7 @@ import java.util.Map;
  * (docs/plan.md section 4, stage 4).
  *
  * <ul>
- *   <li>A reference that names no record of the searched collections is <em>unreachable</em>:
+ *   <li>A reference that names no record of the searched indexes is <em>unreachable</em>:
  *       no search can find it, so it is reported apart and left out of the measures. A question
  *       with no reachable reference is left out too.</li>
  *   <li>Ranks count records as a client sees them, after the limit of records per document
@@ -89,7 +89,7 @@ public final class Evaluation {
     }
 
     /**
-     * @throws IllegalArgumentException for an unknown collection or a mode the collections do not have
+     * @throws IllegalArgumentException for an unknown index or a mode the indexes do not have
      * @throws IOException              when an index cannot be read or a model fails
      */
     public Report run(List<String> collections, List<QuestionSet.Question> questions, List<SearchMode> modes,

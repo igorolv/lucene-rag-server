@@ -34,7 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Looking around a collection without a query (docs/decisions.md D72): the values of a field with
+ * Looking around an index without a query (docs/decisions.md D72): the values of a field with
  * the number of records of each, and the records related to one record — the other sections of its
  * document and the records most like it.
  */
@@ -66,7 +66,7 @@ public final class BrowseService {
     /**
      * Values of a field, most frequent first.
      *
-     * @param distinct values of the field in the collection, also those not returned
+     * @param distinct values of the field in the index, also those not returned
      * @param values   the values returned
      */
     public record FieldValues(String collection, String field, int distinct, List<Value> values) {
@@ -81,7 +81,7 @@ public final class BrowseService {
      * @param similar   records most like it outside its document, best first, with the start of
      *                  their text as the snippet
      * @param similarBy {@code vector} when compared by the stored vectors, {@code words} when by the
-     *                  words of the text, for a collection without vectors
+     *                  words of the text, for an index without vectors
      */
     public record Related(SearchHit record, List<SearchHit> sections, List<SearchHit> similar, String similarBy) {
     }
@@ -89,12 +89,12 @@ public final class BrowseService {
     /**
      * @param prefix only values starting with it, ignoring case; {@code null} for all
      * @param limit  values to return; {@value #DEFAULT_VALUES} when {@code null}, at most {@value #MAX_VALUES}
-     * @throws IllegalArgumentException for an unknown collection or field
+     * @throws IllegalArgumentException for an unknown index or field
      */
     public FieldValues fieldValues(String collection, String field, String prefix, Integer limit) throws IOException {
         Manifest manifest = search.resolve(List.of(collection)).getFirst();
         if (field == null || !manifest.fields().contains(field.strip())) {
-            throw new IllegalArgumentException("Collection '" + manifest.name() + "' has no field '" + field
+            throw new IllegalArgumentException("Index '" + manifest.name() + "' has no field '" + field
                     + "'; its fields: " + String.join(", ", manifest.fields()));
         }
         String name = field.strip();
@@ -139,7 +139,7 @@ public final class BrowseService {
 
     /**
      * @param limit sections and similar records to return, each; capped as a page of search is
-     * @throws IllegalArgumentException for an unknown collection or record
+     * @throws IllegalArgumentException for an unknown index or record
      */
     public Related related(String collection, String id, Integer limit) throws IOException {
         Manifest manifest = search.resolve(List.of(collection)).getFirst();
@@ -153,7 +153,7 @@ public final class BrowseService {
             var stored = searcher.storedFields();
             TopDocs found = searcher.search(new TermQuery(new Term(IndexFields.ID, id.strip())), 1);
             if (found.scoreDocs.length == 0) {
-                throw new IllegalArgumentException("No record '" + id.strip() + "' in collection '"
+                throw new IllegalArgumentException("No record '" + id.strip() + "' in index '"
                         + manifest.name() + "'");
             }
             int self = found.scoreDocs[0].doc;

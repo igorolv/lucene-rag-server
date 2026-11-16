@@ -83,8 +83,8 @@ class CommandStepsTest {
     }
 
     private static List<IndexDefinition> load(String sources) throws IOException {
-        Path file = dir.resolve("collections.json");
-        Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [" + sources + "]}}}");
+        Path file = dir.resolve("indexes.json");
+        Files.writeString(file, "{\"indexes\": {\"c\": {\"sources\": [" + sources + "]}}}");
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
@@ -174,10 +174,10 @@ class CommandStepsTest {
 
     @Test
     void aReaderMayHoldTheConvertSteps() throws IOException {
-        Path file = dir.resolve("collections.json");
+        Path file = dir.resolve("indexes.json");
         Files.writeString(file, "{\"readers\": {\"described\": {\"format\": \"markdown\", \"convert\": [{\"command\": "
                 + tool("describe", "{file}") + "}]}},"
-                + " \"collections\": {\"c\": {\"sources\": [{\"path\": \"files\", \"include\": \"**/*.bin\","
+                + " \"indexes\": {\"c\": {\"sources\": [{\"path\": \"files\", \"include\": \"**/*.bin\","
                 + " \"reader\": \"described\"}]}}}");
         IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))
                 .getFirst();

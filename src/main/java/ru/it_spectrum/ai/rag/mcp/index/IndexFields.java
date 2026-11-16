@@ -10,7 +10,7 @@ public final class IndexFields {
     public static final String ID = "id";
     /** Key of the document the record belongs to, indexed and stored. */
     public static final String DOCUMENT = "document";
-    /** Name of the collection, stored: tells records apart when several collections are searched. */
+    /** Name of the index, stored: tells records apart when several indexes are searched. */
     public static final String COLLECTION = "collection";
 
     /** Passage, Russian analysis; not stored. */
@@ -40,7 +40,7 @@ public final class IndexFields {
     public static final String LOOKUP = "k";
     /**
      * Unit-length embedding of the breadcrumb and the passage, compared by cosine; only in a
-     * collection with vectors.
+     * index with vectors.
      */
     public static final String VECTOR = "vector";
     /** Prefix of the stored original values of a document field. */

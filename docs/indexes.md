@@ -1,12 +1,12 @@
-# Collections
+# Indexes
 
-How to describe collections in `collections.json`, build them and move a built collection to
+How to describe indexes in `indexes.json`, build them and move a built index to
 another machine.
 
-- [The collections file](#the-collections-file)
+- [The indexes file](#the-indexes-file)
   - [Variables](#variables)
   - [YAML](#yaml)
-- [Importing the collections of projects](#importing-the-collections-of-projects)
+- [Importing the indexes of projects](#importing-the-indexes-of-projects)
 - [Sources](#sources)
 - [Named readers](#named-readers)
 - [From a file to records](#from-a-file-to-records)
@@ -24,21 +24,23 @@ another machine.
 - [Vectors](#vectors)
 - [Examples](#examples)
 - [Building](#building)
-- [What a built collection is](#what-a-built-collection-is)
-- [Delivering collections](#delivering-collections)
+- [What a built index is](#what-a-built-index-is)
+- [Delivering indexes](#delivering-indexes)
 
-## The collections file
+## The indexes file
 
-A collection is a named, indexed set of sources. Collections are described in one file,
-`<data-dir>/collections.json` (`RAG_MCP_DATA_DIR` sets the data directory, default
-`~/.lucene-rag-server`; `RAG_MCP_COLLECTIONS_FILE` points at another file). The file may be
-written in [YAML](#yaml) instead: `collections.yaml` or `collections.yml` is used when the data
-directory has no `collections.json`, and a data directory with more than one of them is an error.
-The examples in this document are JSON.
+An index is a named, indexed set of sources. Indexes are described in one file,
+`<data-dir>/indexes.json` (`RAG_MCP_DATA_DIR` sets the data directory, default
+`~/.lucene-rag-server`; `RAG_MCP_INDEXES_FILE` points at another file). The file may be
+written in [YAML](#yaml) instead: `indexes.yaml` or `indexes.yml` is used when the data
+directory has no `indexes.json`, and a data directory with more than one of them is an error.
+The examples in this document are JSON. A file named `collections.json`, `.yaml` or `.yml`, as
+earlier versions called it, is not read; `rag-index` names it in a `NOTICE:` line with the advice
+to rename the file and its key `collections` to `indexes`.
 
 ```json
 {
-  "collections": {
+  "indexes": {
     "docs@billing": {
       "description": "Billing: articles and troubleshooting playbooks",
       "sources": [
@@ -50,30 +52,30 @@ The examples in this document are JSON.
 }
 ```
 
-- The key is the collection name: what tools and commands take as the collection, and the name of
+- The key is the index name: what tools and commands take as the index, and the name of
   its directory under the data directory. Letters, digits, `.`, `_`, `-` and at most one `@`, up
   to 64 characters, not starting with a dot; `logs`, `models` and `cache` are reserved. The
   suggested form is `<part>@<project>`.
-- `description` is shown to the model by `listCollections`; say what the collection holds.
-- A missing or empty file means no collections can be built. A file that is not valid JSON is an
-  error. A single wrong entry is reported for that collection (`configError` in `listCollections`,
+- `description` is shown to the model by `listCollections`; say what the index holds.
+- A missing or empty file means no indexes can be built. A file that is not valid JSON is an
+  error. A single wrong entry is reported for that index (`configError` in `listCollections`,
   a failure in `rag-index`) and does not affect the others.
 - Unknown keys are ignored without a warning: check spelling when a setting has no effect. Inside
   `map`, a misspelled value name is an error.
-- The file is needed only to build. A [built collection](#what-a-built-collection-is) is served
+- The file is needed only to build. A [built index](#what-a-built-index-is) is served
   without it.
 
 ### Variables
 
-`${name}` in a `path`, or in an entry of [`import`](#importing-the-collections-of-projects), is
-replaced by a variable. The top-level `vars` object of the collections file names variables of its
+`${name}` in a `path`, or in an entry of [`import`](#importing-the-indexes-of-projects), is
+replaced by a variable. The top-level `vars` object of the indexes file names variables of its
 own, so a root that every path shares is written once and the file needs nothing from the
 environment:
 
 ```json
 {
   "vars": { "projects": "C:/projects" },
-  "collections": {
+  "indexes": {
     "docs@billing": { "sources": [ { "path": "${projects}/billing/knowledge/articles" } ] }
   }
 }
@@ -81,24 +83,24 @@ environment:
 
 - A name is looked up in `vars` first, then among the environment variables, so an entry of
   `vars` hides an environment variable of the same name. A name that is in neither is an error
-  of the collection, or of the import, that uses it.
+  of the index, or of the import, that uses it.
 - A name is letters, digits and `_`, not starting with a digit. A value is a string; it may name
   environment variables, such as `${USERPROFILE}/projects`, but not other entries of `vars`.
 - `vars` that is not an object of names to strings, or a value naming a variable that is not set,
   makes the whole file unusable.
-- The variables apply to the files the collections file imports as well; an imported file may not
+- The variables apply to the files the indexes file imports as well; an imported file may not
   have `vars` of its own.
 
 ### YAML
 
-A file whose name ends with `.yaml` or `.yml`, the collections file or an
-[imported](#importing-the-collections-of-projects) one, is read as YAML into the same structure as
+A file whose name ends with `.yaml` or `.yml`, the indexes file or an
+[imported](#importing-the-indexes-of-projects) one, is read as YAML into the same structure as
 JSON; each file may use either. YAML allows comments, regular expressions without doubled
 backslashes and templates on several lines:
 
 ```yaml
 # Requirements: one record per requirement, its identifier from the text.
-collections:
+indexes:
   specs@billing:
     description: Billing requirements
     vectors: true
@@ -132,10 +134,10 @@ collections:
   or `+7` stays text; a plain `null`, `~` or nothing is no value.
 - A repeated key is an error with its line. Anchors and aliases work.
 
-## Importing the collections of projects
+## Importing the indexes of projects
 
-When knowledge lives in several projects, each project can describe its own collections in a file
-kept with its sources, and the collections file imports them. The models stay in the collections
+When knowledge lives in several projects, each project can describe its own indexes in a file
+kept with its sources, and the indexes file imports them. The models stay in the indexes
 file, which belongs to the machine; how the files of a project are read belongs to the project and
 changes with it.
 
@@ -147,18 +149,18 @@ changes with it.
                   "default": true }
   },
   "import": [
-    "${projects}/billing/knowledge/rag-collections.json",
-    "${projects}/billing/openspec/rag-collections.json",
-    { "file": "${projects}/crm/knowledge/rag-collections.json", "commands": true }
+    "${projects}/billing/knowledge/rag-indexes.json",
+    "${projects}/billing/openspec/rag-indexes.json",
+    { "file": "${projects}/crm/knowledge/rag-indexes.json", "commands": true }
   ]
 }
 ```
 
-`C:/projects/billing/knowledge/rag-collections.json`:
+`C:/projects/billing/knowledge/rag-indexes.json`:
 
 ```json
 {
-  "collections": {
+  "indexes": {
     "docs@billing": {
       "description": "Billing: articles and troubleshooting playbooks",
       "vectors": true,
@@ -169,31 +171,31 @@ changes with it.
 ```
 
 - An entry of `import` is a path, or an object with `file` and `commands`. A relative path is
-  resolved against the directory of the collections file; `~` and [`${name}`](#variables) work
+  resolved against the directory of the indexes file; `~` and [`${name}`](#variables) work
   as in `path`.
-- An imported file holds `collections` and `readers` only; `models`, `import` or `vars` in it makes the
+- An imported file holds `indexes` and `readers` only; `models`, `import` or `vars` in it makes the
   whole file a problem of its import. Its relative paths and the working directory of its
   commands are its own directory, so the file works in any checkout of the project. Its `readers`
   are its own: neither file sees the readers of the other.
-- Its collections take the models of the collections file. `"vectors": true` takes the model
-  marked as the [default](#vectors), so a project says whether a collection has vectors and the
-  machine says which model computes them; a collection that names a model, `{ "model": "…" }`,
-  needs that model in the collections file.
+- Its indexes take the models of the indexes file. `"vectors": true` takes the model
+  marked as the [default](#vectors), so a project says whether an index has vectors and the
+  machine says which model computes them; an index that names a model, `{ "model": "…" }`,
+  needs that model in the indexes file.
 - **Commands.** A source of an imported file that runs a program (`command`, a `convert` step, a
-  `join` with a command) is a configuration error of its collection unless the entry of the import
+  `join` with a command) is a configuration error of its index unless the entry of the import
   says `"commands": true`. A change of a project, such as a pull, cannot make the build run a
   program the operator has not allowed.
-- **Names** are shared by all files. A name already taken, by the collections file or an earlier
-  import, leaves the later collection out.
+- **Names** are shared by all files. A name already taken, by the indexes file or an earlier
+  import, leaves the later index out.
 - **Problems.** A file that does not exist, cannot be read or is not valid JSON gives no
-  collections; it, and a collection left out, is a problem of the import and not of a collection.
-  The other collections load. `rag-index` prints each problem as an `IMPORT:` line, and
-  `listCollections` returns them as `importProblems`. A wrong `import` key of the collections file
+  indexes; it, and an index left out, is a problem of the import and not of an index.
+  The other indexes load. `rag-index` prints each problem as an `IMPORT:` line, and
+  `listCollections` returns them as `importProblems`. A wrong `import` key of the indexes file
   itself, not an array, fails the whole file.
-- Imports are not nested. The name `rag-collections.json` (or `.yaml`) is a convention; any file
+- Imports are not nested. The name `rag-indexes.json` (or `.yaml`) is a convention; any file
   name works, and its extension says whether it is [YAML](#yaml).
 - One project may have several files, for example one in each directory that holds sources, so
-  that the paths in each are short. A collection is described in one file.
+  that the paths in each are short. An index is described in one file.
 
 ## Sources
 
@@ -201,7 +203,7 @@ Each entry of `sources`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`, or of the [imported file](#importing-the-collections-of-projects) the source is in; `~` is the home directory; `${name}` is replaced by a [variable](#variables) of `vars` or of the environment, and an unset one is an error |
+| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `indexes.json`, or of the [imported file](#importing-the-indexes-of-projects) the source is in; `~` is the home directory; `${name}` is replaced by a [variable](#variables) of `vars` or of the environment, and an unset one is an error |
 | `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf`, `**/*.{html,htm}`, `**/*.{docx,doc,xlsx,xls,pptx,ppt,odt,ods,odp,rtf}` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
 | `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` or `office`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`, `.html`, `.htm`, and the Office extensions); a directory without `include` is read as Markdown |
@@ -229,7 +231,7 @@ object and name it in each source with `reader`:
       "map": { "document": "{path[0]}", "title": "{heading.name}", "fields": { "kind": "spec" } }
     }
   },
-  "collections": {
+  "indexes": {
     "specs@billing": {
       "sources": [
         { "path": "C:/projects/billing/openspec/specs", "reader": "requirements" },
@@ -249,9 +251,9 @@ object and name it in each source with `reader`:
 - A key the source sets itself replaces the reader's key whole. The second source above sets
   `map`, so none of the reader's `map` is used: `split` and `map` are not merged key by key.
 - A reader is used only through the sources that name it: a mistake in a reader is reported as
-  the configuration error of each collection whose source names it, and an unused reader is not
+  the configuration error of each index whose source names it, and an unused reader is not
   checked. A source naming a reader that is not in `readers` is a configuration error of its
-  collection.
+  index.
 
 ## From a file to records
 
@@ -260,7 +262,7 @@ whatever it was made from:
 
 | Part | What it is |
 |---|---|
-| `id` | Unique in the collection; what `getDocument` takes |
+| `id` | Unique in the index; what `getDocument` takes |
 | `document` | Key of the document the record is a part of |
 | `title` | Short name of the record |
 | `breadcrumb` | Where the record is: searched with twice the weight of the text, and shown with every hit |
@@ -453,20 +455,20 @@ Word, Excel, PowerPoint, OpenDocument and RTF files (`.docx`, `.doc`, `.xlsx`, `
 
 ## Commands
 
-A program the server does not know can still feed a collection: it prints text, and the source's
+A program the server does not know can still feed an index: it prints text, and the source's
 `format` parses that text. A command runs only while `rag-index` builds, never while the server
-answers, and only as `collections.json` writes it.
+answers, and only as `indexes.json` writes it.
 
 - A command is an array: the program and its arguments, run without a shell, so there are no
   pipes, redirections or wildcards; write a script for those. The program is found on `PATH` or
-  by its path; the working directory is the directory of `collections.json`, or of the imported
+  by its path; the working directory is the directory of `indexes.json`, or of the imported
   file the source is in, so relative paths in arguments resolve against it.
 - What the program prints on standard output is read as UTF-8. A program that exits with a code
   other than 0, or does not finish within `timeoutSeconds` (default 60), fails the build with
   exit code 4 and the end of its error output in the message.
-- A collections file with commands runs programs on the machine that builds: do not build from a
-  collections file of an untrusted origin. The commands of an imported file run only when its
-  import allows them ([Importing](#importing-the-collections-of-projects)).
+- An indexes file with commands runs programs on the machine that builds: do not build from a
+  indexes file of an untrusted origin. The commands of an imported file run only when its
+  import allows them ([Importing](#importing-the-indexes-of-projects)).
 
 **A command as the origin.** A source with `command` instead of `path` runs the program once;
 its output is the source's only file. `include` and `exclude` do not apply, and the path the
@@ -507,7 +509,7 @@ The same steps written once as a [named reader](#named-readers):
     "word": { "convert": [ { "command": ["pandoc", "-f", "docx", "-t", "gfm", "{file}"] } ],
               "format": "markdown", "split": { "level": "h2" } }
   },
-  "collections": {
+  "indexes": {
     "manuals@billing": {
       "sources": [ { "path": "C:/projects/billing/manuals", "include": "**/*.docx", "reader": "word" } ]
     }
@@ -611,9 +613,9 @@ available everywhere; its unit values (`{column.…}`, `{record.…}`, `{item…
 `{body}` of YAML and SQL) from `title` on.
 
 An unknown value name, a value used too early, a group that the pattern does not define and a
-broken template are configuration errors of the collection.
+broken template are configuration errors of the index.
 
-Two records with the same id in one collection fail the build: make the document keys or the
+Two records with the same id in one index fail the build: make the document keys or the
 `id` template distinguish them.
 
 ## Joining values from another file
@@ -699,9 +701,9 @@ record has in the index, inherited and mapped.
 
 ## Vectors
 
-A collection with `vectors` gets an embedding of every record, so that `search` can find passages
+An index with `vectors` gets an embedding of every record, so that `search` can find passages
 close in meaning to the query even when they share no words with it
-([search.md](search.md#modes)). A collection without `vectors` is searched by words only, which
+([search.md](search.md#modes)). An index without `vectors` is searched by words only, which
 suits catalogs of codes and names.
 
 ```json
@@ -710,7 +712,7 @@ suits catalogs of codes and names.
     "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: ",
                   "maxTokens": 512 }
   },
-  "collections": {
+  "indexes": {
     "docs@billing": {
       "description": "Billing: articles and troubleshooting playbooks",
       "vectors": { "model": "e5-small" },
@@ -720,26 +722,26 @@ suits catalogs of codes and names.
 }
 ```
 
-The top-level `models` object names the embedding models; `vectors.model` of a collection names
-one of them. Several collections may share a model.
+The top-level `models` object names the embedding models; `vectors.model` of an index names
+one of them. Several indexes may share a model.
 
-`"vectors": true` takes the model marked `"default": true`, so a collection says that it has
-vectors without naming a model, and the model is chosen where the collections are built. This is
-the way for the collections file of a project ([Importing](#importing-the-collections-of-projects)).
+`"vectors": true` takes the model marked `"default": true`, so an index says that it has
+vectors without naming a model, and the model is chosen where the indexes are built. This is
+the way for the indexes file of a project ([Importing](#importing-the-indexes-of-projects)).
 
 ```json
 "models": { "e5-small": { "queryPrefix": "query: ", "passagePrefix": "passage: ", "default": true } },
-"collections": { "docs@billing": { "vectors": true, "sources": [ ... ] } }
+"indexes": { "docs@billing": { "vectors": true, "sources": [ ... ] } }
 ```
 
-- `"vectors": false`, like no `vectors`, keeps a collection lexical.
-- `"vectors": true` without a default model is a configuration error of the collection, listing
+- `"vectors": false`, like no `vectors`, keeps an index lexical.
+- `"vectors": true` without a default model is a configuration error of the index, listing
   the models there are. Two models marked as the default, or a `default` that is not `true` or
   `false`, make the whole file unusable.
-- A collection records the model it was built with in its manifest. Marking another model as the
-  default changes nothing until the collection is rebuilt; until then it is searched by words only
-  if the old model is gone ([What a built collection is](#what-a-built-collection-is)).
-- The records of a collection are cut to the input limit of the model (`maxTokens`). `split.maxChars`
+- An index records the model it was built with in its manifest. Marking another model as the
+  default changes nothing until the index is rebuilt; until then it is searched by words only
+  if the old model is gone ([What a built index is](#what-a-built-index-is)).
+- The records of an index are cut to the input limit of the model (`maxTokens`). `split.maxChars`
   of a source chosen for one model may be too long for another: after a change of the default,
   check what `rag-index` reports as cut.
 
@@ -749,16 +751,16 @@ the way for the collections file of a project ([Importing](#importing-the-collec
 | `queryPrefix` | empty | Put before a search query. The E5 models expect `query: ` |
 | `passagePrefix` | empty | Put before the text of a record. The E5 models expect `passage: ` |
 | `maxTokens` | 512 | Input limit in tokens; a longer record is cut and its vector covers only its beginning. 512 is the limit of the E5 models |
-| `default` | `false` | The model of collections with `"vectors": true`; at most one model is the default |
+| `default` | `false` | The model of indexes with `"vectors": true`; at most one model is the default |
 | `pooling` | `mean` | How an `onnx` model makes one vector of its token states: `mean` averages them, as E5 and most sentence-transformers models are trained; `cls` takes the state of the first token, as BGE models are trained. A wrong value gives vectors that are not the model's, without an error; `rag-model fetch` says which one a repository uses. Other types ignore it |
 
 The model name is also a directory name: letters, digits, `.`, `_` and `-`, up to 64 characters,
 not starting with a dot. A model that is not defined, or a wrong entry in `models`, is a
-configuration error of the collections that name it.
+configuration error of the indexes that name it.
 
 ### Model files
 
-The files of a model named `e5-small` are in `<data-dir>/models/e5-small/`, both where collections
+The files of a model named `e5-small` are in `<data-dir>/models/e5-small/`, both where indexes
 are built and where they are served; there is no setting for another place. An `onnx` model
 needs two files there:
 
@@ -769,8 +771,8 @@ needs two files there:
 
 A large export keeps its weights in files beside the graph, for example `model.onnx_data`; ONNX
 Runtime reads them from the same directory. Every file of the directory except `source.json` and
-names starting with a dot is part of the model: its SHA-256 is in the manifest of each collection
-built with it, so a file added or changed later makes the collection's model another one.
+names starting with a dot is part of the model: its SHA-256 is in the manifest of each index
+built with it, so a file added or changed later makes the index's model another one.
 
 The server never downloads anything. The command `rag-model` fetches the files of a model when
 the operator runs it:
@@ -796,7 +798,7 @@ java -jar lucene-rag-server.jar rag-model fetch e5-small
   already in place with the right hash is not downloaded again. A failed or interrupted download
   leaves the old files as they were.
 - It writes `source.json` into the directory: the repository, the commit and each file with its
-  size and hash. It ends by printing the entry of the model for `models` in `collections.json`.
+  size and hash. It ends by printing the entry of the model for `models` in `indexes.json`.
 - The JVM's proxy settings apply: `java -Dhttps.proxyHost=proxy.example.com -Dhttps.proxyPort=3128
   -jar …`. `--from <base-url>` downloads from a mirror that serves the same paths as
   `https://huggingface.co`.
@@ -836,7 +838,7 @@ java -jar lucene-rag-server.jar rag-model fetch minilm --repo sentence-transform
   `attention_mask`.
 
 Without internet access, fetch on another machine and deliver the data directory
-([Delivering collections](#delivering-collections)), or copy the files by hand. The
+([Delivering indexes](#delivering-indexes)), or copy the files by hand. The
 `model_qint8_avx512_vnni.onnx` variant of `e5-base` needs a processor with AVX-512 VNNI.
 
 On first use the tokenizer library unpacks its native code into `<data-dir>/cache/djl/`. The
@@ -861,28 +863,28 @@ they switch it on:
 | `SPRING_AI_OPENAI_EMBEDDING_MODEL` | `bge-m3` | The model name the service knows |
 | `SPRING_AI_OPENAI_EMBEDDING_DIMENSIONS` | | Vector size, for a service that can shorten vectors |
 
-The bean is then named `openAiEmbeddingModel`, and a collection uses it like any model:
+The bean is then named `openAiEmbeddingModel`, and an index uses it like any model:
 
 ```json
 "models": {
   "openAiEmbeddingModel": { "type": "bean", "queryPrefix": "", "passagePrefix": "" }
 },
-"collections": {
+"indexes": {
   "docs@billing": { "vectors": { "model": "openAiEmbeddingModel" }, "sources": [ ... ] }
 }
 ```
 
-- The same settings are needed wherever the collection is searched, since a query is embedded by
-  the same model; `collections.json` is not. Set them for `rag-index`, `rag-search`, `rag-eval` and
+- The same settings are needed wherever the index is searched, since a query is embedded by
+  the same model; `indexes.json` is not. Set them for `rag-index`, `rag-search`, `rag-eval` and
   the server alike.
 - One endpoint and one model per server: the settings are those of the application, not of a
-  model entry. Collections of another remote model need another server.
+  model entry. Indexes of another remote model need another server.
 - Records and queries are sent to the endpoint. That is why the model is named in
-  `collections.json` and switched on by the operator (`docs/decisions.md` D11).
+  `indexes.json` and switched on by the operator (`docs/decisions.md` D11).
 - Spring AI's other models (chat, image, audio, moderation) are switched off and stay off; the
   server never generates text (D1).
 - When the model is loaded it embeds one probe text. Its vector size and the model name its
-  response gives are recorded in the manifest with the bean name, and a collection is searched by
+  response gives are recorded in the manifest with the bean name, and an index is searched by
   vectors only with a bean that gives the same.
 - A bean that does not exist is an error that lists the embedding model beans there are.
 
@@ -897,7 +899,7 @@ own. `rag-index` reports how many records were cut.
 ### The embedding cache
 
 Vectors are kept in `<data-dir>/cache/embeddings/` by a hash of the model files, `maxTokens` and
-the embedded text. A rebuild embeds only records whose text changed, and collections with the same
+the embedded text. A rebuild embeds only records whose text changed, and indexes with the same
 model share the entries. The cache is never pruned; deleting the directory only makes the next
 build slower. While one build uses it, a build in another process embeds every record and logs a
 warning.
@@ -1024,54 +1026,55 @@ java -jar lucene-rag-server.jar rag-index docs@billing
 java -jar lucene-rag-server.jar rag-index --all
 ```
 
-The command prints the number of files, documents and records per collection; for a collection
+The command prints the number of files, documents and records per index; for an index
 with vectors also the model, the vector size, how many records were embedded, how many vectors
 came from the [cache](#the-embedding-cache) and how many records were cut to `maxTokens`. It ends
 with `RESULT: OK (...)` or `RESULT: FAILED (...)`. A problem of an
-[import](#importing-the-collections-of-projects) is printed as an `IMPORT:` line before the
-result; it fails `--all`, which then builds the collections that could be read and ends with
-`RESULT: FAILED (2 collections built; 1 import problem)` and exit code 2. A build of one named
-collection prints the problems and is not failed by them.
+[import](#importing-the-indexes-of-projects) is printed as an `IMPORT:` line before the
+result; it fails `--all`, which then builds the indexes that could be read and ends with
+`RESULT: FAILED (2 indexes built; 1 import problem)` and exit code 2. A build of one named
+index prints the problems and is not failed by them. A `NOTICE:` line before everything else
+names an indexes file of the old name (`collections.json`) that is not read.
 
 ```
-Collection docs@billing
+Index docs@billing
   files 3, documents 3, records 12, 4.1 s
   vectors: model e5-small, 384 dimensions, 12 embedded, 0 from cache, 0 cut to 512 tokens
   model: files in C:/Users/me/.lucene-rag-server/models/e5-small
-RESULT: OK (1 collection built)
+RESULT: OK (1 index built)
 ```
 
 | Exit code | Meaning |
 |---|---|
 | 0 | built |
 | 1 | unexpected error |
-| 2 | wrong usage, unknown collection, wrong configuration, or with `--all` a problem of an import |
+| 2 | wrong usage, unknown index, wrong configuration, or with `--all` a problem of an import |
 | 4 | a source could not be read, a command failed, the model could not be loaded or the index could not be written |
 
-A build always reads every source again and replaces the whole collection. The new index is
+A build always reads every source again and replaces the whole index. The new index is
 written next to the old one and swapped in when complete: the old directory is renamed aside, the
-new one takes its name and the old one is removed. A failed build keeps the previous collection.
+new one takes its name and the old one is removed. A failed build keeps the previous index.
 On Windows the rename fails while another process is in the middle of reading the old index; the
 build then reports that the index is in use and keeps it, and running the build again helps. An
-old directory still in use when it is removed stays as `.old-<collection>-<number>` and is removed
-by the next build; directories whose name starts with a dot are never served. If a collection is
+old directory still in use when it is removed stays as `.old-<index>-<number>` and is removed
+by the next build; directories whose name starts with a dot are never served. If an index is
 lost all the same, building it again restores it.
 
-A running server sees a rebuilt collection on its next call; no restart is needed.
+A running server sees a rebuilt index on its next call; no restart is needed.
 
-A client can rebuild a collection through the server too, with the tool `rebuildCollection` of the
+A client can rebuild an index through the server too, with the tool `rebuildIndex` of the
 `admin` group, which `RAG_MCP_TOOLS_ADMIN=false` turns off. The tool takes the name
-of a collection in `collections.json`, which the server then needs, reads the file again and
+of an index in `indexes.json`, which the server then needs, reads the file again and
 builds as `rag-index` does, commands included. It answers when the build is done, with the counts
 `rag-index` prints: files, documents, records, seconds, and for vectors how many were embedded,
-taken from the cache and cut. A second call for a collection already being rebuilt fails. A long
+taken from the cache and cut. A second call for an index already being rebuilt fails. A long
 build may outlast the time a client waits for a tool; `rag-index` has no such limit.
 
-## What a built collection is
+## What a built index is
 
 ```
 <data-dir>/
-  collections.json        needed to build only
+  indexes.json            needed to build only
   models/e5-small/        model.onnx, tokenizer.json
   cache/                  embedding cache and the tokenizer's native code; derived
   docs@billing/
@@ -1081,18 +1084,18 @@ build may outlast the time a client waits for a tool; `rag-index` has no such li
     index/                Lucene index, with the vectors
 ```
 
-A collection directory is self-contained. To serve it elsewhere, copy the directory under that
-machine's data directory, keeping its name ([Delivering collections](#delivering-collections)); neither the sources nor `collections.json` are needed
-there. A collection with vectors needs its model for vector and hybrid search: copy
-`models/<model>/` too. Search compares the files with the hashes in the manifest, so a collection
+An index directory is self-contained. To serve it elsewhere, copy the directory under that
+machine's data directory, keeping its name ([Delivering indexes](#delivering-indexes)); neither the sources nor `indexes.json` are needed
+there. An index with vectors needs its model for vector and hybrid search: copy
+`models/<model>/` too. Search compares the files with the hashes in the manifest, so an index
 built with other model files is searched lexically only until it is rebuilt. A directory is served when its `manifest.json` names the directory and has the index
 schema of the running server; after an upgrade that changes the schema, rebuild.
 
-## Delivering collections
+## Delivering indexes
 
-Collections are built where the sources are and served where the assistant runs. The serving
-machine needs the server jar, the collection directories and the files of their models; it needs
-neither the sources nor `collections.json`, unless collections are rebuilt there.
+Indexes are built where the sources are and served where the assistant runs. The serving
+machine needs the server jar, the index directories and the files of their models; it needs
+neither the sources nor `indexes.json`, unless indexes are rebuilt there.
 
 **1. Build and check** on the machine with the sources:
 
@@ -1105,10 +1108,10 @@ java -jar lucene-rag-server.jar rag-eval docs@billing C:/projects/billing/knowle
 ```
 
 `rag-index` must end with `RESULT: OK`; `rag-eval` or a few `rag-search` queries show that the
-collections answer as expected.
+indexes answer as expected.
 
-**2. Pack** the data directory: the collection directories and `models/<model>/` of every model a
-collection with vectors names (`vectors.model` in its `manifest.json`; `rag-index` prints where
+**2. Pack** the data directory: the index directories and `models/<model>/` of every model an
+index with vectors names (`vectors.model` in its `manifest.json`; `rag-index` prints where
 the files were). The data directory is what a serving machine needs, laid out as it is here:
 
 ```bash
@@ -1116,22 +1119,22 @@ tar -czf billing.tar.gz -C C:/Users/me/.lucene-rag-server docs@billing api@billi
 ```
 
 Leave out `cache/` and `logs/`, which each machine makes for itself, directories whose name starts
-with a dot, which are unfinished or replaced builds, and `collections.json`. The `tar` that comes
+with a dot, which are unfinished or replaced builds, and `indexes.json`. The `tar` that comes
 with Windows 10 and later reads and writes these archives too.
 
-**3. Check the server version.** A collection is served only by a server of the same index schema
+**3. Check the server version.** An index is served only by a server of the same index schema
 (`schema` in `manifest.json`); another server skips it and logs that it must be rebuilt. Deliver
-the jar the collections were built with, or one known to have the same schema.
+the jar the indexes were built with, or one known to have the same schema.
 
-**4. Put the collections in place.** With the server stopped, unpack into its data directory:
+**4. Put the indexes in place.** With the server stopped, unpack into its data directory:
 
 ```bash
 tar -xzf billing.tar.gz -C /opt/rag/data
 ```
 
-A running server sees a collection on its next call, so a collection must appear whole. Unpack
+A running server sees an index on its next call, so an index must appear whole. Unpack
 into a directory of the data directory whose name starts with a dot, which is never served, then
-move each collection in by renaming, as `rag-index` does:
+move each index in by renaming, as `rag-index` does:
 
 ```bash
 mkdir /opt/rag/data/.incoming
@@ -1143,15 +1146,15 @@ tar -xzf billing.tar.gz -C /opt/rag/data/.incoming
 
 1. Rename the old `docs@billing` to `.old-docs@billing-1`, if there is one.
 2. Rename `.incoming/docs@billing` to `docs@billing`.
-3. Delete `.old-docs@billing-1` and, when all collections are moved, `.incoming`.
+3. Delete `.old-docs@billing-1` and, when all indexes are moved, `.incoming`.
 
 On Windows the first rename fails while a search is reading the old index; repeat it. An
-`.old-<collection>-<number>` directory that is still in use is removed by the next `rag-index` or
-`rebuildCollection` of that collection.
+`.old-<index>-<number>` directory that is still in use is removed by the next `rag-index` or
+`rebuildIndex` of that index.
 
 **5. Models.** A model that was missing is loaded by the first search that needs it. A model whose
-files are replaced needs a restart: the server loads each model once and keeps it. Until a
-collection's model is in place, the collection is searched by words only and `vector` and `hybrid`
+files are replaced needs a restart: the server loads each model once and keeps it. Until an
+index's model is in place, the index is searched by words only and `vector` and `hybrid`
 report the missing model.
 
 **6. Check on the serving machine:**
@@ -1160,10 +1163,10 @@ report the missing model.
 java -jar lucene-rag-server.jar rag-search docs@billing "payment was not matched" --mode hybrid
 ```
 
-Exit code 5 means the model is missing or is not the one the collection was built with; without
+Exit code 5 means the model is missing or is not the one the index was built with; without
 `--mode`, a missing model gives a `NOTE:` line and a search by words. Through MCP,
-`listCollections` shows every collection with `built: true`, its record count, its build time,
+`listCollections` shows every index with `built: true`, its record count, its build time,
 its `model` and, when something is known to be wrong with it, `modelProblem`.
 
-A collection with a remote model needs no files: set the same Spring AI settings on the serving
+An index with a remote model needs no files: set the same Spring AI settings on the serving
 machine ([Spring AI models](#spring-ai-models)).

@@ -45,8 +45,8 @@ class HtmlAndOfficeFormatTest {
     Path dir;
 
     private List<IndexDefinition> load(String source) throws IOException {
-        Path file = dir.resolve("collections.json");
-        Files.writeString(file, "{\"collections\": {\"help@billing\": {\"sources\": [" + source + "]}}}");
+        Path file = dir.resolve("indexes.json");
+        Files.writeString(file, "{\"indexes\": {\"help@billing\": {\"sources\": [" + source + "]}}}");
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 

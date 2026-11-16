@@ -7,7 +7,7 @@ import java.util.regex.PatternSyntaxException;
 
 /**
  * How a unit of a source is laid out as a record: templates over the values the reader provides
- * ({@code docs/collections.md}, "Mapping"). A {@code null} component means the format's default,
+ * ({@code docs/indexes.md}, "Mapping"). A {@code null} component means the format's default,
  * so a source without a {@code map} block behaves as the format describes.
  *
  * @param pathPattern   regular expression searched in the file path relative to the source; its

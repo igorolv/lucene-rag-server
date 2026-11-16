@@ -85,7 +85,7 @@ class RecordDocumentsTest {
 
     @Test
     void aSourceReadsAsTheDocumentsOfItsRecords() throws IOException {
-        Path file = TestKnowledge.writeCollectionsFile(dataDir);
+        Path file = TestKnowledge.writeIndexesFile(dataDir);
         IndexDefinition docs = StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null))
                 .stream().filter(d -> d.name().equals(TestKnowledge.DOCS)).findFirst().orElseThrow();
         SourcePipeline pipeline = StepRegistry.builtIn().pipeline(docs.sources().getFirst());

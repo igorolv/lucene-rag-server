@@ -44,35 +44,35 @@ class CommandsTest {
     }
 
     @Test
-    void indexBuildsOneCollectionOrAll() throws IOException {
-        TestKnowledge.writeCollectionsFile(dataDir);
+    void indexBuildsOneIndexOrAll() throws IOException {
+        TestKnowledge.writeIndexesFile(dataDir);
 
         assertThat(index(DOCS)).isZero();
-        assertThat(output()).contains("Collection " + DOCS, "files 3, documents 3", "RESULT: OK (1 collection built)");
+        assertThat(output()).contains("Index " + DOCS, "files 3, documents 3", "RESULT: OK (1 index built)");
         assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(DOCS);
 
         assertThat(index("--all")).isZero();
-        assertThat(output()).contains("RESULT: OK (2 collections built)");
+        assertThat(output()).contains("RESULT: OK (2 indexes built)");
         assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
     }
 
     @Test
     void anImportProblemIsReportedAndFailsABuildOfAll() throws IOException {
-        Path file = TestKnowledge.writeCollectionsFile(dataDir);
+        Path file = TestKnowledge.writeIndexesFile(dataDir);
         String json = Files.readString(file);
-        Files.writeString(file, json.replaceFirst("\\{", "{\"import\": [\"absent/rag-collections.json\"],"));
+        Files.writeString(file, json.replaceFirst("\\{", "{\"import\": [\"absent/rag-indexes.json\"],"));
 
         assertThat(index(DOCS)).isZero();
-        assertThat(output()).contains("IMPORT: import[0]: ", "does not exist", "RESULT: OK (1 collection built)");
+        assertThat(output()).contains("IMPORT: import[0]: ", "does not exist", "RESULT: OK (1 index built)");
 
         assertThat(index("--all")).isEqualTo(2);
-        assertThat(output()).contains("RESULT: FAILED (2 collections built; 1 import problem)");
+        assertThat(output()).contains("RESULT: FAILED (2 indexes built; 1 import problem)");
         assertThat(new IndexStore(dataDir).built()).extracting(Manifest::name).containsExactly(API, DOCS);
     }
 
     @Test
-    void rebuildingReplacesTheCollectionAndLeavesNoBuildDirectory() throws IOException {
-        TestKnowledge.writeCollectionsFile(dataDir);
+    void rebuildingReplacesTheIndexAndLeavesNoBuildDirectory() throws IOException {
+        TestKnowledge.writeIndexesFile(dataDir);
         assertThat(index(DOCS)).isZero();
         Files.writeString(dataDir.resolve(DOCS).resolve("stale.txt"), "left by the previous build");
 
@@ -81,7 +81,7 @@ class CommandsTest {
         assertThat(dataDir.resolve(DOCS).resolve("stale.txt")).doesNotExist();
         try (var children = Files.list(dataDir)) {
             assertThat(children.map(p -> p.getFileName().toString()))
-                    .containsExactlyInAnyOrder("collections.json", DOCS);
+                    .containsExactlyInAnyOrder("indexes.json", DOCS);
         }
     }
 
@@ -92,14 +92,20 @@ class CommandsTest {
         assertThat(index("--help")).isZero();
 
         assertThat(index("--all")).isEqualTo(2);
-        assertThat(output()).contains("no collections in");
+        assertThat(output()).contains("no indexes in").doesNotContain("NOTICE:");
 
-        TestKnowledge.writeCollectionsFile(dataDir);
+        Files.writeString(dataDir.resolve("collections.json"), "{\"collections\": {}}");
+        assertThat(index("--all")).isEqualTo(2);
+        assertThat(output()).contains("NOTICE: " + dataDir.resolve("collections.json") + " is not read: "
+                + "rename it to indexes.json", "no indexes in");
+        Files.delete(dataDir.resolve("collections.json"));
+
+        TestKnowledge.writeIndexesFile(dataDir);
         assertThat(index("unknown")).isEqualTo(2);
         assertThat(output()).contains("'unknown' is not in", DOCS);
 
-        Files.writeString(dataDir.resolve("collections.json"),
-                "{\"collections\": {\"gone\": {\"sources\": [{\"path\": \"missing-dir\"}]},"
+        Files.writeString(dataDir.resolve("indexes.json"),
+                "{\"indexes\": {\"gone\": {\"sources\": [{\"path\": \"missing-dir\"}]},"
                         + " \"odd\": {\"sources\": [{\"path\": \"a\", \"format\": \"docx\"}]}}}");
         assertThat(index("gone")).isEqualTo(4);
         assertThat(output()).contains("Source path does not exist");
@@ -148,7 +154,7 @@ class CommandsTest {
 
         TestKnowledge.build(dataDir);
         assertThat(search("nope", "x")).isEqualTo(2);
-        assertThat(output()).contains("Unknown collection 'nope'");
+        assertThat(output()).contains("Unknown index 'nope'");
         assertThat(search(DOCS, "x", "--filter", "colour=red")).isEqualTo(2);
         assertThat(output()).contains("Unknown filter field 'colour'");
         assertThat(search(DOCS, "--filter-expression", "kind ==")).isEqualTo(2);

@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** A catalog collection with key fields from three formats, and a collection without keys. */
+/** A catalog index with key fields from three formats, and an index without keys. */
 public final class LookupTestData {
 
     public static final String CATALOGS = "catalogs@billing";
@@ -15,12 +15,12 @@ public final class LookupTestData {
     private LookupTestData() {
     }
 
-    public static Path writeCollectionsFile(Path dataDir) throws IOException {
+    public static Path writeIndexesFile(Path dataDir) throws IOException {
         String root = TestKnowledge.root().toString().replace('\\', '/');
-        Path file = dataDir.resolve("collections.json");
+        Path file = dataDir.resolve("indexes.json");
         Files.createDirectories(dataDir);
         Files.writeString(file, """
-                {"collections": {
+                {"indexes": {
                   "%1$s": {"sources": [
                     {"path": "%2$s/catalogs/messages", "format": "tsv",
                      "map": {"title": "{column.text}", "text": "{column.text} ({column.method})",

@@ -99,8 +99,8 @@ class PdfFormatTest {
     }
 
     private List<IndexDefinition> load(String source) throws IOException {
-        Path file = dir.resolve("collections.json");
-        Files.writeString(file, "{\"collections\": {\"manuals@billing\": {\"sources\": [" + source + "]}}}");
+        Path file = dir.resolve("indexes.json");
+        Files.writeString(file, "{\"indexes\": {\"manuals@billing\": {\"sources\": [" + source + "]}}}");
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
@@ -170,7 +170,7 @@ class PdfFormatTest {
     }
 
     @Test
-    void aPdfCollectionIsBuiltAndSearched() throws IOException {
+    void aPdfIndexIsBuiltAndSearched() throws IOException {
         pdf("refunds.pdf", "Billing operator manual",
                 "Refunds\nA refund is issued for a matched payment.",
                 "Webhooks\nDeliveries are retried with backoff.");

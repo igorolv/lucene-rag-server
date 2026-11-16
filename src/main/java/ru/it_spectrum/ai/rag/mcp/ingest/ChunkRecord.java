@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * One searchable record: the unit that is indexed, ranked and returned.
  *
- * @param id         unique inside the collection and stable while the heading it came from keeps
+ * @param id         unique inside the index and stable while the heading it came from keeps
  *                   its text: {@code <document key>#<heading slug>}, with {@code ~N} for the
  *                   parts of a split section
  * @param document   key of the document the record belongs to

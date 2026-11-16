@@ -1,8 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.embedding;
 
 /**
- * How a model is run, as {@code models.<name>} of {@code collections.json} sets it and the
- * manifest of a collection records it.
+ * How a model is run, as {@code models.<name>} of {@code indexes.json} sets it and the
+ * manifest of an index records it.
  *
  * @param type          the {@link ModelType}: {@value #ONNX} (files run in-process) or
  *                      {@code bean} (a Spring AI bean named as the model, D43)

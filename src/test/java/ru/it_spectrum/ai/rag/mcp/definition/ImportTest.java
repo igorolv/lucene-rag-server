@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** A collections file that imports the collections files of projects ({@code import}). */
+/** An indexes file that imports the indexes files of projects ({@code import}). */
 class ImportTest {
 
     private static final String MODELS = """
@@ -34,7 +34,7 @@ class ImportTest {
     }
 
     private LoadedIndexes read(String main, Map<String, String> env) throws IOException {
-        Path file = write("data/collections.json", main);
+        Path file = write("data/indexes.json", main);
         return IndexesLoader.read(file, env::get);
     }
 
@@ -43,21 +43,21 @@ class ImportTest {
     }
 
     @Test
-    void anImportedFileAddsItsCollectionsWithItsOwnPathsReadersAndTheModelsOfTheMainFile() throws IOException {
-        write("billing/knowledge/rag-collections.json", """
+    void anImportedFileAddsItsIndexesWithItsOwnPathsReadersAndTheModelsOfTheMainFile() throws IOException {
+        write("billing/knowledge/rag-indexes.json", """
                 {"readers": {"articles": {"split": {"level": "h3"}}},
-                 "collections": {
+                 "indexes": {
                    "docs@billing": {"vectors": {"model": "e5-small"},
                                     "sources": [{"path": "articles", "reader": "articles"}]},
                    "catalogs@billing": {"sources": [{"path": "catalogs/menu", "format": "tsv",
                                                      "map": {"text": "{column.name}"}}]}}}""");
-        write("billing/openspec/rag-collections.json", """
-                {"collections": {"specs@billing": {"sources": [{"path": "specs"}]}}}""");
+        write("billing/openspec/rag-indexes.json", """
+                {"indexes": {"specs@billing": {"sources": [{"path": "specs"}]}}}""");
 
         LoadedIndexes loaded = read("{" + MODELS + """
-                , "import": ["../billing/knowledge/rag-collections.json",
-                             {"file": "${PROJECTS}/billing/openspec/rag-collections.json"}],
-                 "collections": {"notes@home": {"sources": [{"path": "notes"}]}}}""",
+                , "import": ["../billing/knowledge/rag-indexes.json",
+                             {"file": "${PROJECTS}/billing/openspec/rag-indexes.json"}],
+                 "indexes": {"notes@home": {"sources": [{"path": "notes"}]}}}""",
                 Map.of("PROJECTS", dir.toString()));
 
         assertThat(loaded.importProblems()).isEmpty();
@@ -71,56 +71,56 @@ class ImportTest {
         assertThat(named(loaded, "specs@billing").sources().getFirst().path())
                 .isEqualTo(dir.resolve("billing/openspec/specs"));
         assertThat(StepRegistry.builtIn().checked(loaded.indexes())).allMatch(IndexDefinition::usable);
-        // load gives the same collections without the problems.
-        assertThat(IndexesLoader.load(dir.resolve("data/collections.json"), name -> dir.toString()))
+        // load gives the same indexes without the problems.
+        assertThat(IndexesLoader.load(dir.resolve("data/indexes.json"), name -> dir.toString()))
                 .hasSize(4);
     }
 
     @Test
-    void aMissingOrWrongImportIsAProblemThatLeavesTheOtherCollections() throws IOException {
-        write("broken/rag-collections.json", "{ not json");
-        write("withmodels/rag-collections.json", "{" + MODELS + ", \"collections\": {}}");
-        write("nested/rag-collections.json", "{\"import\": [\"x.json\"]}");
-        write("good/rag-collections.json", "{\"collections\": {\"good@p\": {\"sources\": [{\"path\": \"a\"}]}}}");
+    void aMissingOrWrongImportIsAProblemThatLeavesTheOtherIndexes() throws IOException {
+        write("broken/rag-indexes.json", "{ not json");
+        write("withmodels/rag-indexes.json", "{" + MODELS + ", \"indexes\": {}}");
+        write("nested/rag-indexes.json", "{\"import\": [\"x.json\"]}");
+        write("good/rag-indexes.json", "{\"indexes\": {\"good@p\": {\"sources\": [{\"path\": \"a\"}]}}}");
 
         LoadedIndexes loaded = read("""
-                {"import": ["../absent/rag-collections.json", "../broken/rag-collections.json",
-                            "../withmodels/rag-collections.json", "../nested/rag-collections.json",
-                            42, {"commands": true}, "../good/rag-collections.json"]}""");
+                {"import": ["../absent/rag-indexes.json", "../broken/rag-indexes.json",
+                            "../withmodels/rag-indexes.json", "../nested/rag-indexes.json",
+                            42, {"commands": true}, "../good/rag-indexes.json"]}""");
 
         assertThat(loaded.indexes()).extracting(IndexDefinition::name).containsExactly("good@p");
         assertThat(loaded.importProblems()).hasSize(6);
         assertThat(loaded.importProblems().get(0)).startsWith("import[0]: ").contains("does not exist");
         assertThat(loaded.importProblems().get(1)).startsWith("import[1]: ").contains("not valid JSON");
-        assertThat(loaded.importProblems().get(2)).contains("has \"models\"", "only \"collections\" and \"readers\"");
+        assertThat(loaded.importProblems().get(2)).contains("has \"models\"", "only \"indexes\" and \"readers\"");
         assertThat(loaded.importProblems().get(3)).contains("has \"import\"");
         assertThat(loaded.importProblems().get(4)).startsWith("import[4]: ").contains("a file path or");
         assertThat(loaded.importProblems().get(5)).startsWith("import[5]: ").contains("a file path or");
     }
 
     @Test
-    void aNameTakenAlreadyLeavesTheLaterCollectionOut() throws IOException {
-        write("a/rag-collections.json", "{\"collections\": {\"docs@p\": {\"sources\": [{\"path\": \"from-a\"}]},"
+    void aNameTakenAlreadyLeavesTheLaterIndexOut() throws IOException {
+        write("a/rag-indexes.json", "{\"indexes\": {\"docs@p\": {\"sources\": [{\"path\": \"from-a\"}]},"
                 + " \"only-a@p\": {\"sources\": [{\"path\": \"x\"}]}}}");
-        write("b/rag-collections.json", "{\"collections\": {\"docs@p\": {\"sources\": [{\"path\": \"from-b\"}]}}}");
+        write("b/rag-indexes.json", "{\"indexes\": {\"docs@p\": {\"sources\": [{\"path\": \"from-b\"}]}}}");
 
         LoadedIndexes loaded = read("""
-                {"import": ["../a/rag-collections.json", "../b/rag-collections.json"],
-                 "collections": {"only-a@p": {"sources": [{"path": "main"}]}}}""");
+                {"import": ["../a/rag-indexes.json", "../b/rag-indexes.json"],
+                 "indexes": {"only-a@p": {"sources": [{"path": "main"}]}}}""");
 
         assertThat(loaded.indexes()).extracting(IndexDefinition::name).containsExactly("only-a@p", "docs@p");
         assertThat(named(loaded, "only-a@p").sources().getFirst().path()).isEqualTo(dir.resolve("data/main"));
         assertThat(named(loaded, "docs@p").sources().getFirst().path()).isEqualTo(dir.resolve("a/from-a"));
         assertThat(loaded.importProblems()).hasSize(2);
         assertThat(loaded.importProblems().get(0)).startsWith("import[0]: ")
-                .contains("'only-a@p'", "is left out", "taken by a collection of");
+                .contains("'only-a@p'", "is left out", "taken by an index of");
         assertThat(loaded.importProblems().get(1)).startsWith("import[1]: ").contains("'docs@p'", "is left out");
     }
 
     @Test
     void theCommandsOfAnImportedFileRunOnlyWhenItsImportAllowsThem() throws IOException {
-        write("p/rag-collections.json", """
-                {"collections": {
+        write("p/rag-indexes.json", """
+                {"indexes": {
                   "origin@p": {"sources": [{"command": ["python", "export.py"], "format": "jsonl",
                                             "map": {"text": "{record.text}"}}]},
                   "convert@p": {"sources": [{"path": "docs", "convert": [{"command": ["pandoc", "{file}"]}]}]},
@@ -128,7 +128,7 @@ class ImportTest {
                               "format": "tsv", "key": "{column.1}", "on": "{path[0]}"}}}]},
                   "files@p": {"sources": [{"path": "docs"}]}}}""");
 
-        LoadedIndexes denied = read("{\"import\": [\"../p/rag-collections.json\"]}");
+        LoadedIndexes denied = read("{\"import\": [\"../p/rag-indexes.json\"]}");
 
         assertThat(named(denied, "files@p").usable()).isTrue();
         for (String name : List.of("origin@p", "convert@p", "join@p")) {
@@ -136,7 +136,7 @@ class ImportTest {
         }
         assertThat(denied.importProblems()).isEmpty();
 
-        LoadedIndexes allowed = read("{\"import\": [{\"file\": \"../p/rag-collections.json\", \"commands\": true}]}");
+        LoadedIndexes allowed = read("{\"import\": [{\"file\": \"../p/rag-indexes.json\", \"commands\": true}]}");
 
         assertThat(allowed.indexes()).allMatch(IndexDefinition::usable);
         CommandSettings command = named(allowed, "origin@p").sources().getFirst().command();
@@ -145,14 +145,14 @@ class ImportTest {
 
     @Test
     void varsOfTheMainFileAreLookedUpBeforeTheEnvironmentInItAndInTheFilesItImports() throws IOException {
-        write("projects/billing/knowledge/rag-collections.json", """
-                {"collections": {"docs@billing": {"sources": [{"path": "articles"},
+        write("projects/billing/knowledge/rag-indexes.json", """
+                {"indexes": {"docs@billing": {"sources": [{"path": "articles"},
                                                               {"path": "${shared}/glossary"}]}}}""");
 
         LoadedIndexes loaded = read("""
                 {"vars": {"projects": "${ROOT}/projects", "shared": "${projects}-not-a-var", "HOME": "overridden"},
-                 "import": ["${projects}/billing/knowledge/rag-collections.json"],
-                 "collections": {"notes@home": {"sources": [{"path": "${HOME}/notes"}]}}}""",
+                 "import": ["${projects}/billing/knowledge/rag-indexes.json"],
+                 "indexes": {"notes@home": {"sources": [{"path": "${HOME}/notes"}]}}}""",
                 Map.of("ROOT", dir.toString(), "HOME", "from-environment", "projects", "env-projects"));
 
         assertThat(loaded.importProblems()).isEmpty();
@@ -167,23 +167,23 @@ class ImportTest {
     void wrongVarsFailTheFileAndVarsInAnImportedFileAreAProblem() throws IOException {
         for (String vars : List.of("\"vars\": [\"a\"]", "\"vars\": {\"1a\": \"x\"}", "\"vars\": {\"a\": 1}",
                 "\"vars\": {\"a\": \"${UNSET}\"}")) {
-            Path file = write("data/collections.json", "{" + vars + "}");
+            Path file = write("data/indexes.json", "{" + vars + "}");
             assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                     .as(vars).isInstanceOf(IllegalStateException.class).hasMessageContaining("vars");
         }
-        Path file = write("data/collections.json", "{\"collections\": {\"c\": {\"sources\": [{\"path\": \"${nope}\"}]}}}");
+        Path file = write("data/indexes.json", "{\"indexes\": {\"c\": {\"sources\": [{\"path\": \"${nope}\"}]}}}");
         assertThat(IndexesLoader.read(file, name -> null).indexes().getFirst().configError())
                 .contains("'nope'", "neither in \"vars\" nor in the environment");
 
-        write("p/rag-collections.json", "{\"vars\": {\"a\": \"b\"}, \"collections\": {}}");
-        assertThat(read("{\"import\": [\"../p/rag-collections.json\"]}").importProblems().getFirst())
+        write("p/rag-indexes.json", "{\"vars\": {\"a\": \"b\"}, \"indexes\": {}}");
+        assertThat(read("{\"import\": [\"../p/rag-indexes.json\"]}").importProblems().getFirst())
                 .contains("has \"vars\"");
     }
 
     @Test
     void vectorsTrueTakesTheDefaultModelOfTheMainFile() throws IOException {
-        write("p/rag-collections.json", """
-                {"collections": {
+        write("p/rag-indexes.json", """
+                {"indexes": {
                   "docs@p": {"vectors": true, "sources": [{"path": "a"}]},
                   "named@p": {"vectors": {"model": "e5-base"}, "sources": [{"path": "a"}]},
                   "lexical@p": {"vectors": false, "sources": [{"path": "a"}]},
@@ -191,7 +191,7 @@ class ImportTest {
 
         LoadedIndexes loaded = read("""
                 {"models": {"e5-small": {"queryPrefix": "query: ", "default": true}, "e5-base": {}},
-                 "import": ["../p/rag-collections.json"]}""");
+                 "import": ["../p/rag-indexes.json"]}""");
 
         assertThat(named(loaded, "docs@p").vectors().name()).isEqualTo("e5-small");
         assertThat(named(loaded, "docs@p").vectors().queryPrefix()).isEqualTo("query: ");
@@ -201,7 +201,7 @@ class ImportTest {
         assertThat(named(loaded, "wrong@p").configError()).contains("must be true, false or an object");
 
         LoadedIndexes noDefault = read("""
-                {"models": {"e5-small": {}}, "import": ["../p/rag-collections.json"]}""");
+                {"models": {"e5-small": {}}, "import": ["../p/rag-indexes.json"]}""");
 
         assertThat(named(noDefault, "docs@p").configError())
                 .contains("\"vectors\": true needs a model marked \"default\": true", "defined: e5-small");
@@ -212,7 +212,7 @@ class ImportTest {
     void twoDefaultModelsOrAWrongFlagFailTheFile() throws IOException {
         for (String models : List.of("{\"a\": {\"default\": true}, \"b\": {\"default\": true}}",
                 "{\"a\": {\"default\": \"yes\"}}")) {
-            Path file = write("data/collections.json", "{\"models\": " + models + "}");
+            Path file = write("data/indexes.json", "{\"models\": " + models + "}");
             assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                     .as(models).isInstanceOf(IllegalStateException.class).hasMessageContaining("default");
         }
@@ -220,7 +220,7 @@ class ImportTest {
 
     @Test
     void aWrongImportKeyOfTheMainFileFailsTheWholeFile() throws IOException {
-        Path file = write("data/collections.json", "{\"import\": \"one.json\"}");
+        Path file = write("data/indexes.json", "{\"import\": \"one.json\"}");
 
         assertThatThrownBy(() -> IndexesLoader.read(file, name -> null))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("\"import\"", "array");

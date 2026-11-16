@@ -27,28 +27,28 @@ help look around and tune, and how `rag-eval` measures search on a question set.
 | `vector` | similarity of the embedded query to the embedded records | passages close in meaning, also without shared words |
 | `hybrid` | both lists fused by reciprocal rank fusion | either; a passage high in both lists ranks first |
 
-- **Default:** `hybrid` when a searched collection has vectors and the call has a query; `lexical`
-  otherwise. `listCollections` shows the modes of each collection (`modes`). A collection has
-  vectors when its `collections.json` entry names a model ([collections.md](collections.md#vectors)).
-- `vector` needs every searched collection to have vectors. In `hybrid`, collections without
+- **Default:** `hybrid` when a searched index has vectors and the call has a query; `lexical`
+  otherwise. `listCollections` shows the modes of each index (`modes`). An index has
+  vectors when its `indexes.json` entry names a model ([indexes.md](indexes.md#vectors)).
+- `vector` needs every searched index to have vectors. In `hybrid`, indexes without
   vectors take part through the BM25 list only.
 - `vector` and `hybrid` need a query; a call with filters only lists records as in `lexical`.
-- **The model must be at hand.** The query is embedded by the model the collection was built
+- **The model must be at hand.** The query is embedded by the model the index was built
   with, from `<data-dir>/models/<model>/` or the Spring AI bean it names. When the files are
-  missing or are not the files the collection was built with (their SHA-256 is in the manifest),
+  missing or are not the files the index was built with (their SHA-256 is in the manifest),
   or the bean cannot embed:
   - a call without `mode` is searched `lexical`, and the result says why in `notice`
     (`rag-search` prints it as a `NOTE:` line);
   - a call that asks for `vector` or `hybrid` is an error that says so.
 
-  `listCollections` shows the model of each collection (`model`) and, in `modelProblem`, why it
+  `listCollections` shows the model of each index (`model`) and, in `modelProblem`, why it
   cannot be used as far as is known without loading it: a type the server lacks or missing files;
-  once loaded, also other files than the collection was built with. The first search that needs
+  once loaded, also other files than the index was built with. The first search that needs
   the model loads it, which takes a few seconds; a model whose files are replaced is seen after a
   restart.
 - **Fusion:** a record at rank *r* of a list scores 1 / (60 + *r*) for that list, and the scores
-  of the lists add up (`TopDocs.rrf` of Lucene). Collections built with the same model are one
-  vector list; collections of different models are separate lists.
+  of the lists add up (`TopDocs.rrf` of Lucene). Indexes built with the same model are one
+  vector list; indexes of different models are separate lists.
 - **Scores:** in `lexical` the BM25 score; in `vector` the cosine similarity scaled to 0…1; in
   `hybrid` the fusion score, below 0.04. Compare scores within one search only.
 - **Candidates:** each list of a `vector` or `hybrid` search contributes its best 100 records
@@ -86,8 +86,8 @@ neither.
 
 What applies to both:
 
-- Fields are the document fields of the records ([collections.md](collections.md#mapping));
-  `listCollections` returns the names available in each collection. An unknown field name is an
+- Fields are the document fields of the records ([indexes.md](indexes.md#mapping));
+  `listCollections` returns the names available in each index. An unknown field name is an
   error that lists the known ones.
 - A value matches exactly, without regard to case and surrounding blanks. A field with several
   values matches when one of them equals the value.
@@ -125,13 +125,13 @@ What applies to both:
 identifier, a class or table name, a message text. It is for the case where the caller has the
 value, as an error text from a screen or a parameter code, and not the words to describe it.
 
-- The value is compared whole with every value of the key fields of the collections: without
+- The value is compared whole with every value of the key fields of the indexes: without
   surrounding blanks and ignoring case, as a filter compares. Words are not matched one by one,
   word forms do not match, and a part of a value finds nothing.
 - The key fields are those the operator listed in `map.keys` of the sources
-  ([collections.md](collections.md#mapping)); `listCollections` shows them as `keys`. A
-  collection without keys is skipped; naming only such collections is an error that lists the
-  collections that have keys.
+  ([indexes.md](indexes.md#mapping)); `listCollections` shows them as `keys`. An
+  index without keys is skipped; naming only such indexes is an error that lists the
+  indexes that have keys.
 - Results come in index order, with the passage as the snippet, and are paged and capped like
   the results of `search`. `getDocument` reads a hit in full.
 - With a field name at hand, `search` with `filters` and no query is the same exact match on that
@@ -163,11 +163,11 @@ the fields (a nested list), then the passage, cut to the response size cap as `g
 or attach it to a conversation without a tool call. The values in the URI are percent-encoded
 (an id holds `#` and often `/`), for example
 `rag://docs%40billing/article.billing.refunds%23statuses`. A client that supports completion
-suggests both values: `collection` from the built collections whose name starts with what is
-typed, ignoring case, and `id` from the ids of the chosen collection that start with it, in id
+suggests both values: `collection` from the built indexes whose name starts with what is
+typed, ignoring case, and `id` from the ids of the chosen index that start with it, in id
 order, at most 100. The resource and its completion belong to the `search` group.
 
-Several collections in one call are searched as one index, so their BM25 scores are comparable.
+Several indexes in one call are searched as one index, so their BM25 scores are comparable.
 
 ## Limits
 
@@ -209,7 +209,7 @@ the records it counts.
 - `sections`: the other sections of its document nearest to it by position, in document order.
   A row of a catalog or a table stands alone and has none.
 - `similar`: the records most like it outside its document (outside itself for a row), best
-  first, each with the start of its text as the snippet. In a collection with vectors they are
+  first, each with the start of its text as the snippet. In an index with vectors they are
   compared by the stored vectors, so no model is loaded (`similarBy: vector`); without vectors, by
   the words the record shares with them (`similarBy: words`).
 
@@ -263,15 +263,15 @@ java -jar lucene-rag-server.jar rag-search docs@billing "деньги верну
 java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STATUS_ENUM
 ```
 
-The first argument is one or more collection names separated by commas; the remaining words are the
+The first argument is one or more index names separated by commas; the remaining words are the
 query. `--filter name=value` may be repeated; `--filter-expression` takes one
 [filter expression](#filter-expressions). `--per-document N` shows up to N sections of a document
 ([Results](#results)). `--mode lexical|vector|hybrid` chooses the
 [mode](#modes); without it the default applies, and the last line names the mode used.
 `--lookup value` makes an [exact lookup](#exact-lookup) instead and takes no query, no filters, no
 expression, no mode and no `--per-document`. Exit codes: 0 searched (also with no matches), 1
-unexpected error, 2 wrong usage, an unknown collection, filter field or mode, or an expression that
-does not parse, 4 an index could not be read, 5 the embedding model of a collection is missing or
+unexpected error, 2 wrong usage, an unknown index, filter field or mode, or an expression that
+does not parse, 4 an index could not be read, 5 the embedding model of an index is missing or
 is not the one it was built with.
 
 ## Measuring search
@@ -307,9 +307,9 @@ details. Other keys are ignored.
   with `--ref data=table`, `data:PAYMENT` names the records whose field `table` is `PAYMENT`.
 
 **What is measured:**
-- A reference that names no record of the collections cannot be found by any search. It is counted
+- A reference that names no record of the indexes cannot be found by any search. It is counted
   by prefix and left out; a question with no reference that names a record is left out too. Add the
-  collection, the mapping or the field that makes it reachable, or accept it as a gap.
+  index, the mapping or the field that makes it reachable, or accept it as a gap.
 - Ranks count records as a client sees them, after the [one section per document](#results)
   limit; `--per-document N` measures with another limit.
 - `@1`, `@5` and `@N`: the questions whose first expected record is at rank 1, within 5, and within
@@ -318,19 +318,19 @@ details. Other keys are ignored.
   search; the first vector search includes loading the model.
 
 **Options:** `--limit N` sets the depth (default 10, at most 100). `--modes lexical,hybrid`
-chooses the modes; without it every mode the collections have is measured (`vector` only when
-every collection has vectors). `--ref prefix=field` may be repeated. `--per-document N` measures
+chooses the modes; without it every mode the indexes have is measured (`vector` only when
+every index has vectors). `--ref prefix=field` may be repeated. `--per-document N` measures
 search with that limit instead of the default 1. `--details` adds a line per
 question with its rank in each mode (`-` when not found) and the references that name no record.
 
-Exit codes: 0 measured, 1 unexpected error, 2 wrong usage, an unknown collection or mode, or a
-question file that cannot be read, 4 an index could not be read, 5 the embedding model of a
-collection is missing or is not the one it was built with.
+Exit codes: 0 measured, 1 unexpected error, 2 wrong usage, an unknown index or mode, or a
+question file that cannot be read, 4 an index could not be read, 5 the embedding model of an
+index is missing or is not the one it was built with.
 
 ## Known limits
 
 - Lexical search does not find a passage that uses other words than the query; retry with
-  synonyms, or use `vector` or `hybrid` on a collection with vectors.
+  synonyms, or use `vector` or `hybrid` on an index with vectors.
 - A vector covers at most `maxTokens` of a record (512 tokens for E5); the rest of a longer
   record is found by its words only.
 - How well each mode finds the right passage has been measured on one question set only; tuning is

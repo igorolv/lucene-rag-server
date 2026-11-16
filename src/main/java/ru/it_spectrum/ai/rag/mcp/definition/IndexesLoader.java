@@ -18,8 +18,8 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 /**
- * Reads {@code collections.json}: the only place the collections this installation can build are
- * described. A missing or empty file yields no collections; a file that is not valid JSON, or
+ * Reads {@code indexes.json}: the only place the indexes this installation can build are
+ * described. A missing or empty file yields no indexes; a file that is not valid JSON, or
  * whose top level has the wrong shape, is an error. A single bad entry is reported through
  * {@link IndexDefinition#configError()} and leaves the others usable.
  *
@@ -32,21 +32,21 @@ import java.util.regex.Pattern;
  * itself replaces the reader's key whole (docs/decisions.md D18). The reader is resolved here,
  * before the steps are checked, so the rest of the server sees only complete sources.
  *
- * <p>A top-level {@code models} object names the embedding models; a collection with
+ * <p>A top-level {@code models} object names the embedding models; an index with
  * {@code "vectors": {"model": "<name>"}} is embedded with one of them, one with
  * {@code "vectors": true} with the model marked {@code "default": true} (docs/decisions.md D80),
- * and a collection without {@code vectors} is searched lexically only.
+ * and an index without {@code vectors} is searched lexically only.
  *
  * <p>A top-level {@code vars} object names values for the {@code ${name}} placeholders of the
  * file and of the files it imports; they are looked up before the environment
  * (docs/decisions.md D79).
  *
- * <p>A top-level {@code import} array names other collections files, usually kept with the
+ * <p>A top-level {@code import} array names other indexes files, usually kept with the
  * sources they describe. An imported file holds {@code collections} and {@code readers} only;
  * its relative paths and the working directory of its commands are its own directory, its
- * collections name the models of the main file, and its commands run only when its entry of
+ * indexes name the models of the main file, and its commands run only when its entry of
  * {@code import} allows them (docs/decisions.md D78). What goes wrong with an import is reported
- * beside the collections ({@link LoadedIndexes#importProblems()}).
+ * beside the indexes ({@link LoadedIndexes#importProblems()}).
  *
  * <p>Keys the current version does not know are ignored without a warning, so a file written for
  * a later version still loads; check spelling when a setting seems to have no effect.
@@ -70,20 +70,20 @@ public final class IndexesLoader {
     }
 
     public static List<IndexDefinition> load(RagMcpProperties properties, UnaryOperator<String> env) {
-        return load(properties.resolvedCollectionsFile(), env);
+        return load(properties.resolvedIndexesFile(), env);
     }
 
-    /** The collections of the file and of the files it imports, without the problems of its imports. */
+    /** The indexes of the file and of the files it imports, without the problems of its imports. */
     public static List<IndexDefinition> load(Path file, UnaryOperator<String> env) {
         return read(file, env).indexes();
     }
 
     public static LoadedIndexes read(RagMcpProperties properties, UnaryOperator<String> env) {
-        return read(properties.resolvedCollectionsFile(), env);
+        return read(properties.resolvedIndexesFile(), env);
     }
 
     /**
-     * The collections of the file and of the files its {@code import} names, with what went wrong
+     * The indexes of the file and of the files its {@code import} names, with what went wrong
      * with an import.
      *
      * @throws IllegalStateException when the file itself cannot be used
@@ -138,7 +138,7 @@ public final class IndexesLoader {
     }
 
     /**
-     * The lookup of {@code ${name}} placeholders: the {@code vars} of the collections file first,
+     * The lookup of {@code ${name}} placeholders: the {@code vars} of the indexes file first,
      * then the environment. A value of {@code vars} may itself name environment variables, not
      * other entries of {@code vars}.
      *
@@ -167,7 +167,7 @@ public final class IndexesLoader {
     }
 
     /**
-     * The JSON object a collections file holds, or {@code null} for an empty file.
+     * The JSON object an indexes file holds, or {@code null} for an empty file.
      *
      * @throws IllegalArgumentException when the file cannot be read or is not a JSON object
      */
@@ -181,35 +181,35 @@ public final class IndexesLoader {
             root = YamlTree.isYaml(file.getFileName().toString()) ? YamlTree.read(text, file.toString())
                     : JSON.readTree(text);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Cannot read the collections file " + file + ": " + e.getMessage(), e);
+            throw new IllegalArgumentException("Cannot read the indexes file " + file + ": " + e.getMessage(), e);
         } catch (JacksonException e) {
-            throw new IllegalArgumentException("The collections file " + file + " is not valid JSON: "
+            throw new IllegalArgumentException("The indexes file " + file + " is not valid JSON: "
                     + e.getOriginalMessage(), e);
         }
         if (root == null) {
             return null;
         }
         if (!root.isObject()) {
-            throw new IllegalArgumentException("The collections file " + file + " must be "
+            throw new IllegalArgumentException("The indexes file " + file + " must be "
                     + (YamlTree.isYaml(file.getFileName().toString()) ? "a YAML mapping" : "a JSON object"));
         }
         return root;
     }
 
     /**
-     * The collections one file describes, with its own {@code readers}; relative paths and the
+     * The indexes one file describes, with its own {@code readers}; relative paths and the
      * working directory of commands are the directory of that file.
      *
      * @throws IllegalArgumentException when {@code collections} or {@code readers} is not an object
      */
     private static List<IndexDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
                                                           String defaultModel, UnaryOperator<String> env) {
-        JsonNode collections = root.get("collections");
+        JsonNode collections = root.get("indexes");
         if (collections == null || collections.isNull()) {
             return List.of();
         }
         if (!collections.isObject()) {
-            throw new IllegalArgumentException("\"collections\" in " + file + " must be a JSON object");
+            throw new IllegalArgumentException("\"indexes\" in " + file + " must be a JSON object");
         }
         JsonNode readers = root.get("readers");
         if (readers == null || readers.isNull()) {
@@ -227,9 +227,9 @@ public final class IndexesLoader {
     }
 
     /**
-     * Adds the collections of one entry of {@code import}: a file path, or an object with
+     * Adds the indexes of one entry of {@code import}: a file path, or an object with
      * {@code file} and {@code commands}. An imported file holds {@code collections} and
-     * {@code readers}; its collections name the models of the main file.
+     * {@code readers}; its indexes name the models of the main file.
      *
      * @throws IllegalArgumentException when the entry or its file cannot be used
      */
@@ -259,25 +259,25 @@ public final class IndexesLoader {
         for (String key : List.of("models", "import", "vars")) {
             if (root.has(key) && !root.get(key).isNull()) {
                 throw new IllegalArgumentException(file + " has \"" + key + "\"; an imported file holds only "
-                        + "\"collections\" and \"readers\"");
+                        + "\"indexes\" and \"readers\"");
             }
         }
         for (IndexDefinition definition : collections(root, file, models, defaultModel, env)) {
             Path owner = owners.putIfAbsent(definition.name(), file);
             if (owner != null) {
-                problems.add(where + ": the collection '" + definition.name() + "' of " + file
-                        + " is left out, the name is taken by a collection of " + owner);
+                problems.add(where + ": the index '" + definition.name() + "' of " + file
+                        + " is left out, the name is taken by an index of " + owner);
                 continue;
             }
             result.add(commands || !definition.usable() ? definition : withoutCommands(definition, file));
         }
     }
 
-    /** The collection of an imported file, broken when a source of it runs a command the import does not allow. */
+    /** The index of an imported file, broken when a source of it runs a command the import does not allow. */
     private static IndexDefinition withoutCommands(IndexDefinition definition, Path file) {
         for (int i = 0; i < definition.sources().size(); i++) {
             if (runsCommand(definition.sources().get(i))) {
-                return definition.withError("collections." + definition.name() + ".sources[" + i
+                return definition.withError("indexes." + definition.name() + ".sources[" + i
                         + "] runs a command, which the import of " + file + " does not allow; set "
                         + "\"commands\": true in its entry of \"import\" to allow the commands of that file");
             }
@@ -344,9 +344,9 @@ public final class IndexesLoader {
     }
 
     /**
-     * The collection with the model its {@code vectors} names, or broken when that is wrong.
+     * The index with the model its {@code vectors} names, or broken when that is wrong.
      * {@code "vectors": true} names the model marked {@code "default": true}; {@code false} or no
-     * {@code vectors} leaves the collection lexical.
+     * {@code vectors} leaves the index lexical.
      */
     private static IndexDefinition withVectors(IndexDefinition definition, JsonNode node,
                                                     Map<String, Object> models, String defaultModel) {
@@ -427,7 +427,7 @@ public final class IndexesLoader {
         List<SourceDefinition> definitions = new ArrayList<>();
         int index = 0;
         for (JsonNode source : sources) {
-            String where = "collections." + name + ".sources[" + index++ + "]";
+            String where = "indexes." + name + ".sources[" + index++ + "]";
             try {
                 definitions.add(source(withReader(source, readers), where, baseDir, env));
             } catch (IllegalStateException | IllegalArgumentException e) {

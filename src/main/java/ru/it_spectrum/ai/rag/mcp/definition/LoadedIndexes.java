@@ -3,7 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.definition;
 import java.util.List;
 
 /**
- * What the indexes file (still {@code collections.json}) and the files it imports give.
+ * What the indexes file and the files it imports give.
  *
  * @param indexes        the indexes of all files, those of the main file first; a wrong
  *                       entry is a broken definition

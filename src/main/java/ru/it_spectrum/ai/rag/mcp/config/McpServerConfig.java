@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
  * Stdio MCP uses a single stdout stream. Keeping synchronous tool execution immediate prevents
  * concurrent boundedElastic tool completions from racing while enqueueing responses (MCP Java SDK
  * issue #686). A slow tool call therefore blocks later calls of the same session — long work such
- * as rebuilding a collection must run in the background and return at once.
+ * as rebuilding an index must run in the background and return at once.
  *
  * <p>Copied from mail-mcp-server {@code config/McpServerConfig} @ {@code 0.1.1}.
  */

@@ -21,7 +21,7 @@ import java.io.StringReader;
 import java.util.regex.Pattern;
 
 /**
- * A collections file written in YAML, read into the same JSON tree a JSON file gives, so the
+ * An indexes file written in YAML, read into the same JSON tree a JSON file gives, so the
  * loader reads both alike (docs/decisions.md D81).
  *
  * <p>The file is read as nodes, not as Java objects, so that this class decides what a value is:
@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * SnakeYAML follows, would also read {@code on}, {@code off}, {@code yes} and {@code no} as
  * booleans, and {@code on} is a key of {@code join}.
  *
- * <p>Two mistakes of a collections file are reported as such instead of as the YAML they make: a
+ * <p>Two mistakes of an indexes file are reported as such instead of as the YAML they make: a
  * template that starts with <code>{</code> and is not quoted, which YAML reads as a mapping, and a
  * glob that starts with {@code *} and is not quoted, which YAML reads as an alias.
  */
@@ -48,7 +48,7 @@ final class YamlTree {
     private YamlTree() {
     }
 
-    /** Whether a file is a YAML collections file, by its extension. */
+    /** Whether a file is a YAML indexes file, by its extension. */
     static boolean isYaml(String fileName) {
         String name = fileName.toLowerCase(java.util.Locale.ROOT);
         return name.endsWith(".yaml") || name.endsWith(".yml");
@@ -63,10 +63,10 @@ final class YamlTree {
         try {
             root = new Yaml(new SafeConstructor(new LoaderOptions())).compose(new StringReader(text));
         } catch (MarkedYAMLException e) {
-            throw new IllegalArgumentException("The collections file " + file + " is not valid YAML: "
+            throw new IllegalArgumentException("The indexes file " + file + " is not valid YAML: "
                     + e.getProblem() + where(e.getProblemMark()) + hint(text, e.getProblemMark()), e);
         } catch (YAMLException e) {
-            throw new IllegalArgumentException("The collections file " + file + " is not valid YAML: "
+            throw new IllegalArgumentException("The indexes file " + file + " is not valid YAML: "
                     + e.getMessage(), e);
         }
         return root == null ? null : tree(root, file);
@@ -84,25 +84,25 @@ final class YamlTree {
             }
             case MappingNode mapping -> {
                 if (looksLikeTemplate(mapping)) {
-                    throw new IllegalArgumentException("The collections file " + file + where(mapping.getStartMark())
+                    throw new IllegalArgumentException("The indexes file " + file + where(mapping.getStartMark())
                             + ": a template that starts with { is read by YAML as a mapping; put it in quotes, "
                             + "as in title: '{heading.name}'");
                 }
                 ObjectNode object = NODES.objectNode();
                 for (NodeTuple tuple : mapping.getValue()) {
                     if (!(tuple.getKeyNode() instanceof ScalarNode key)) {
-                        throw new IllegalArgumentException("The collections file " + file
+                        throw new IllegalArgumentException("The indexes file " + file
                                 + where(tuple.getKeyNode().getStartMark()) + ": a key must be a plain value");
                     }
                     if (object.has(key.getValue())) {
-                        throw new IllegalArgumentException("The collections file " + file
+                        throw new IllegalArgumentException("The indexes file " + file
                                 + where(key.getStartMark()) + ": the key \"" + key.getValue() + "\" is repeated");
                     }
                     object.set(key.getValue(), tree(tuple.getValueNode(), file));
                 }
                 yield object;
             }
-            default -> throw new IllegalArgumentException("The collections file " + file
+            default -> throw new IllegalArgumentException("The indexes file " + file
                     + where(node.getStartMark()) + ": unsupported YAML node");
         };
     }
@@ -146,7 +146,7 @@ final class YamlTree {
         return mark == null ? "" : " at line " + (mark.getLine() + 1) + ", column " + (mark.getColumn() + 1);
     }
 
-    /** What an error of YAML syntax usually means in a collections file. */
+    /** What an error of YAML syntax usually means in an indexes file. */
     private static String hint(String text, Mark mark) {
         if (mark == null) {
             return "";

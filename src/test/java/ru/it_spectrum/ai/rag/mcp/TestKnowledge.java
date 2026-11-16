@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-/** Builds collections from the synthetic knowledge under {@code testdata/} into a temporary data directory. */
+/** Builds indexes from the synthetic knowledge under {@code testdata/} into a temporary data directory. */
 public final class TestKnowledge {
 
     public static final String DOCS = "docs@billing";
@@ -25,25 +25,25 @@ public final class TestKnowledge {
         return Paths.get("testdata", "knowledge").toAbsolutePath();
     }
 
-    /** Writes a collections file for {@link #DOCS} (Russian articles and playbooks) and {@link #API}. */
-    public static Path writeCollectionsFile(Path dataDir) throws IOException {
-        return writeCollectionsFile(dataDir, false);
+    /** Writes an indexes file for {@link #DOCS} (Russian articles and playbooks) and {@link #API}. */
+    public static Path writeIndexesFile(Path dataDir) throws IOException {
+        return writeIndexesFile(dataDir, false);
     }
 
     /**
      * @param vectors {@link #DOCS} gets vectors of the model {@code fake} of type
      *                {@code FakeEmbeddingModel.TYPE}, with E5 prefixes; {@link #API} stays lexical
      */
-    public static Path writeCollectionsFile(Path dataDir, boolean vectors) throws IOException {
+    public static Path writeIndexesFile(Path dataDir, boolean vectors) throws IOException {
         String root = root().toString().replace('\\', '/');
-        Path file = dataDir.resolve("collections.json");
+        Path file = dataDir.resolve("indexes.json");
         Files.createDirectories(dataDir);
         String models = vectors ? """
                 "models": {"fake": {"type": "fake", "queryPrefix": "query: ", "passagePrefix": "passage: "}},
                 """ : "";
         String docsVectors = vectors ? "\"vectors\": {\"model\": \"fake\"}," : "";
         Files.writeString(file, """
-                {%s"collections": {
+                {%s"indexes": {
                   "%s": {
                     "description": "Billing: articles and playbooks",
                     %s
@@ -61,9 +61,9 @@ public final class TestKnowledge {
         return file;
     }
 
-    /** Builds both collections and returns settings pointing at {@code dataDir}. */
+    /** Builds both indexes and returns settings pointing at {@code dataDir}. */
     public static RagMcpProperties build(Path dataDir) throws IOException {
-        Path file = writeCollectionsFile(dataDir);
+        Path file = writeIndexesFile(dataDir);
         List<IndexDefinition> definitions = IndexesLoader.load(file, name -> null);
         for (IndexDefinition definition : definitions) {
             IndexBuilder.build(definition, StepRegistry.builtIn(), dataDir, "test");

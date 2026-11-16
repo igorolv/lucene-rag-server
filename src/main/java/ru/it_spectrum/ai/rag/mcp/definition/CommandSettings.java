@@ -5,12 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * An external command as {@code collections.json} writes it (docs/decisions.md D10): an argument
+ * An external command as {@code indexes.json} writes it (docs/decisions.md D10): an argument
  * array run without a shell, a timeout, and the directory it runs in.
  *
  * @param command        the program and its arguments, as written
  * @param timeoutSeconds the run is stopped and fails after this many seconds
- * @param directory      the working directory: the directory of {@code collections.json}
+ * @param directory      the working directory: the directory of {@code indexes.json}
  */
 public record CommandSettings(List<String> command, int timeoutSeconds, Path directory) {
 

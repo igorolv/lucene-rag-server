@@ -24,7 +24,7 @@ class LookupCommandTest {
 
     @BeforeAll
     static void build() throws IOException {
-        Path file = LookupTestData.writeCollectionsFile(dataDir);
+        Path file = LookupTestData.writeIndexesFile(dataDir);
         properties = new RagMcpProperties(dataDir.toString(), file.toString());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int code = RagIndexCommand.run(new String[]{"--all"}, properties, StepRegistry.builtIn(), null,

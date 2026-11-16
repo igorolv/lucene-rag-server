@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * One entry of a collection's {@code sources}. A source has one origin: {@code path} (files) or
+ * One entry of an index's {@code sources}. A source has one origin: {@code path} (files) or
  * {@code command} (one run of a program).
  *
  * @param path    a directory or a single file, absolute after loading; {@code null} for a source

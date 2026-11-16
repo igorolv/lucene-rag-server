@@ -25,13 +25,13 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.UnaryOperator;
 
 /**
- * The {@code admin} tool group: rebuild a collection from its sources, as {@code rag-index} does,
- * without leaving the client. The collection must be described in {@code collections.json}, which
- * the server reads on each call; the argument only names a collection of that file, so nothing a
+ * The {@code admin} tool group: rebuild an index from its sources, as {@code rag-index} does,
+ * without leaving the client. The index must be described in {@code indexes.json}, which
+ * the server reads on each call; the argument only names an index of that file, so nothing a
  * client sends reaches a command line (docs/decisions.md D10). The group is on by default, as every
  * group is (D50).
  *
- * <p>One collection is rebuilt at a time per name; a second call for the same collection fails
+ * <p>One index is rebuilt at a time per name; a second call for the same index fails
  * instead of waiting. Searches go on during a build and see the new index once it is swapped in.
  */
 @Service
@@ -60,18 +60,18 @@ public class AdminTools {
     }
 
     @McpTool(
-            description = "Rebuild one collection from its sources, as described in the server's collections " +
+            description = "Rebuild one index from its sources, as described in the server's indexes " +
                     "file, so that search sees changed files. Takes from seconds to minutes; the old index is " +
                     "served until the new one is complete, and a failed build keeps it.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = false, destructiveHint = false,
                     idempotentHint = true, openWorldHint = false)
     )
-    public RebuildResult rebuildCollection(
-            @McpToolParam(description = "Name of a collection from listCollections", required = true)
-            String collection) {
-        log.info("Tool call: rebuildCollection collection={}", collection);
-        String name = collection == null ? "" : collection.strip();
+    public RebuildResult rebuildIndex(
+            @McpToolParam(description = "Name of an index from listCollections", required = true)
+            String index) {
+        log.info("Tool call: rebuildIndex index={}", index);
+        String name = index == null ? "" : index.strip();
         final List<IndexDefinition> definitions;
         final List<String> importProblems;
         try {
@@ -79,19 +79,19 @@ public class AdminTools {
             definitions = registry.checked(loaded.indexes());
             importProblems = loaded.importProblems();
         } catch (IllegalStateException e) {
-            throw new IllegalArgumentException("The collections file cannot be used: " + e.getMessage(), e);
+            throw new IllegalArgumentException("The indexes file cannot be used: " + e.getMessage(), e);
         }
         IndexDefinition definition = definitions.stream().filter(d -> d.name().equals(name)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Collection '" + name + "' is not in "
-                        + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
+                .orElseThrow(() -> new IllegalArgumentException("Index '" + name + "' is not in "
+                        + properties.resolvedIndexesFile() + " or a file it imports; defined: "
                         + String.join(", ", definitions.stream().map(IndexDefinition::name).toList())
                         + (importProblems.isEmpty() ? "" : "; " + String.join("; ", importProblems))));
         if (!definition.usable()) {
-            throw new IllegalArgumentException("Collection '" + name + "': " + definition.configError());
+            throw new IllegalArgumentException("Index '" + name + "': " + definition.configError());
         }
         ReentrantLock lock = building.computeIfAbsent(name, k -> new ReentrantLock());
         if (!lock.tryLock()) {
-            throw new IllegalStateException("Collection '" + name + "' is being rebuilt already");
+            throw new IllegalStateException("Index '" + name + "' is being rebuilt already");
         }
         try {
             long start = System.nanoTime();
@@ -99,13 +99,13 @@ public class AdminTools {
                     properties.resolvedDataDir(), serverVersion());
             Manifest manifest = built.manifest();
             double seconds = Math.round((System.nanoTime() - start) / 1e8) / 10.0;
-            log.info("Rebuilt collection {}: {} records in {} s", name, manifest.records(), seconds);
+            log.info("Rebuilt index {}: {} records in {} s", name, manifest.records(), seconds);
             boolean vectors = manifest.vectors() != null;
             return new RebuildResult(name, manifest.files(), manifest.documents(), manifest.records(), seconds,
                     manifest.builtAt(), vectors ? built.embedded() : null, vectors ? built.cached() : null,
                     vectors ? manifest.vectors().truncated() : null);
         } catch (IOException e) {
-            throw new UncheckedIOException("Collection '" + name + "' was not rebuilt: " + e.getMessage(), e);
+            throw new UncheckedIOException("Index '" + name + "' was not rebuilt: " + e.getMessage(), e);
         } finally {
             lock.unlock();
         }

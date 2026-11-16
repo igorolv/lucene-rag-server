@@ -15,7 +15,7 @@ public final class IndexNames {
 
     private static final Pattern VALID = Pattern.compile("[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?");
 
-    /** Directories the server keeps next to the collections. */
+    /** Directories the server keeps next to the indexes. */
     private static final Set<String> RESERVED = Set.of("logs", "models", "cache");
 
     private IndexNames() {

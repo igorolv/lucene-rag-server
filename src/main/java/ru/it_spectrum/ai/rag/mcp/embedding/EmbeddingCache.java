@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * Vectors already computed, by a hash of the model fingerprint and the embedded text, in a Lucene
  * index under {@code <data-dir>/cache/embeddings/} (docs/decisions.md D27). A rebuild embeds only
- * the records whose text changed; collections built with the same model share the entries.
+ * the records whose text changed; indexes built with the same model share the entries.
  *
  * <p>The cache is derived like an index: deleting the directory costs only time. It is never
  * pruned. While a build holds it, another build runs without it.

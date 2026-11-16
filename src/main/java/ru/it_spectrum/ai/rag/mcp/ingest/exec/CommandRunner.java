@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Runs an external program while an index is built (docs/decisions.md D10): the argument array
- * as given, without a shell, in the directory of {@code collections.json}, stopped after its
+ * as given, without a shell, in the directory of {@code indexes.json}, stopped after its
  * timeout. Standard input, output and error go through temporary files, so a program that writes
  * much never blocks on a full pipe. The output is read as UTF-8.
  *
- * <p>Only the build runs commands, and only as {@code collections.json} writes them; nothing a
+ * <p>Only the build runs commands, and only as {@code indexes.json} writes them; nothing a
  * client sends reaches a command line (AGENTS.md, invariant 6).
  */
 @Component

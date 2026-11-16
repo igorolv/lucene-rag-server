@@ -3,12 +3,12 @@ package ru.it_spectrum.ai.rag.mcp.definition;
 import java.util.function.UnaryOperator;
 
 /**
- * Resolves {@code ${ENV_VAR}} placeholders inside {@code collections.json} string values, so a
+ * Resolves {@code ${ENV_VAR}} placeholders inside {@code indexes.json} string values, so a
  * path can differ between machines without editing the file. A missing variable is a hard error
  * naming both the variable and the field.
  *
  * <p>Copied from mail-mcp-server {@code connections/EnvironmentPlaceholders} @ {@code 0.1.1}; the
- * lookup here is the {@code vars} of the collections file, then the environment, and the message
+ * lookup here is the {@code vars} of the indexes file, then the environment, and the message
  * says so.
  */
 public final class EnvironmentPlaceholders {

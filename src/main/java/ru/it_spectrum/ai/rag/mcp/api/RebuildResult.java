@@ -3,21 +3,21 @@ package ru.it_spectrum.ai.rag.mcp.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * A collection rebuilt by {@code rebuildCollection}: what {@code rag-index} prints for it.
+ * An index rebuilt by {@code rebuildIndex}: what {@code rag-index} prints for it.
  *
  * <p>Every field carries {@code nullable = true} and an explicit {@code requiredMode}, as
  * {@link CollectionInfo} explains.
  */
-@Schema(description = "A collection rebuilt from its sources")
+@Schema(description = "An index rebuilt from its sources")
 public record RebuildResult(
-        @Schema(description = "The collection", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-        String collection,
+        @Schema(description = "The index", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
+        String index,
         @Schema(description = "Files read from the sources", nullable = true,
                 requiredMode = Schema.RequiredMode.REQUIRED)
         int files,
         @Schema(description = "Documents made of them", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         int documents,
-        @Schema(description = "Searchable records now in the collection", nullable = true,
+        @Schema(description = "Searchable records now in the index", nullable = true,
                 requiredMode = Schema.RequiredMode.REQUIRED)
         int records,
         @Schema(description = "Build time in seconds", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)

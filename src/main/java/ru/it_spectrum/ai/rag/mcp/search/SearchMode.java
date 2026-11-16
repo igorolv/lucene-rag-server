@@ -9,7 +9,7 @@ public enum SearchMode {
 
     /** BM25 over the words of the query. */
     LEXICAL,
-    /** Nearest vectors to the embedded query; needs a collection with vectors and its model. */
+    /** Nearest vectors to the embedded query; needs an index with vectors and its model. */
     VECTOR,
     /** Both lists fused by reciprocal rank fusion. */
     HYBRID;

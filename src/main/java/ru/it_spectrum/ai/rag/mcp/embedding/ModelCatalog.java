@@ -45,8 +45,8 @@ public final class ModelCatalog {
             return files.stream().mapToLong(File::size).sum();
         }
 
-        /** The entry of {@code models} in {@code collections.json} for this model. */
-        public String collectionsEntry() {
+        /** The entry of {@code models} in {@code indexes.json} for this model. */
+        public String indexesEntry() {
             return "\"" + name + "\": { \"type\": \"onnx\", \"queryPrefix\": \"query: \", "
                     + "\"passagePrefix\": \"passage: \", \"maxTokens\": 512 }";
         }

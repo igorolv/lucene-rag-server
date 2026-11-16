@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Measures the synthetic question set against a docs collection with vectors and a data collection. */
+/** Measures the synthetic question set against a docs index with vectors and a data index. */
 class RagEvalCommandTest {
 
     static final String DOCS = TestKnowledge.DOCS;
@@ -45,10 +45,10 @@ class RagEvalCommandTest {
     static void build() throws IOException {
         String root = TestKnowledge.root().toString().replace('\\', '/');
         models = FakeEmbeddingModel.models(dataDir, "fake");
-        Path file = dataDir.resolve("collections.json");
+        Path file = dataDir.resolve("indexes.json");
         Files.writeString(file, """
                 {"models": {"fake": {"type": "fake", "queryPrefix": "query: ", "passagePrefix": "passage: "}},
-                 "collections": {
+                 "indexes": {
                   "%s": {"vectors": {"model": "fake"},
                          "sources": [{"path": "%s/articles"}, {"path": "%s/playbooks"}]},
                   "%s": {"sources": [{"path": "%s/data/tables", "include": "*.yaml",
@@ -74,7 +74,7 @@ class RagEvalCommandTest {
     }
 
     @Test
-    void everyModeOfTheCollectionsIsMeasured() {
+    void everyModeOfTheIndexesIsMeasured() {
         Run run = eval(DOCS + "," + DATA + "," + QUEUE, questions, "--ref", "data=table", "--ref", "symptom=number",
                 "--details");
 
@@ -98,7 +98,7 @@ class RagEvalCommandTest {
     }
 
     @Test
-    void aCollectionWithVectorsGetsTheVectorModeToo() {
+    void anIndexWithVectorsGetsTheVectorModeToo() {
         Run run = eval(DOCS, questions, "--limit", "3");
 
         assertThat(run.code()).as(run.out()).isZero();
@@ -112,7 +112,7 @@ class RagEvalCommandTest {
         assertThat(eval(DOCS, questions, "--ref", "data").code()).isEqualTo(2);
         assertThat(eval(DOCS, questions, "--limit", "0").out()).contains("--limit must be from 1 to 100");
         assertThat(eval(DOCS, "missing.jsonl").out()).contains("question file missing.jsonl does not exist");
-        assertThat(eval("nope", questions).out()).contains("Unknown collection 'nope'");
+        assertThat(eval("nope", questions).out()).contains("Unknown index 'nope'");
         assertThat(eval(DATA, questions, "--modes", "vector").out()).contains("no vectors");
         Path bad = dataDir.resolve("bad.jsonl");
         Files.writeString(bad, "{\"id\": \"x\", \"expected\": []}\n");

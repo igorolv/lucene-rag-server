@@ -12,7 +12,7 @@ import java.util.Map;
  *
  * @param settings  the keys of the entry with their values read from JSON: strings, numbers,
  *                  booleans, lists and maps
- * @param directory the directory of {@code collections.json}, against which a converter resolves
+ * @param directory the directory of {@code indexes.json}, against which a converter resolves
  *                  what it runs
  */
 public record ConvertStep(Map<String, Object> settings, Path directory) {

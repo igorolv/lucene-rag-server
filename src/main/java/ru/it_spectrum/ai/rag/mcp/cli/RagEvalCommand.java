@@ -31,9 +31,9 @@ import java.util.stream.Collectors;
  * application context without the MCP transport, like {@code rag-search} (D42), and searches as the {@code search} tool does except that the response
  * limits of the server do not apply.
  *
- * <p>Exit codes: 0 measured, 1 unexpected error, 2 usage, an unknown collection or mode, or a
+ * <p>Exit codes: 0 measured, 1 unexpected error, 2 usage, an unknown index or mode, or a
  * question file that cannot be read, 4 an index could not be read, 5 the embedding model a mode
- * needs is missing or is not the one the collection was built with.
+ * needs is missing or is not the one the index was built with.
  */
 public final class RagEvalCommand {
 
@@ -125,7 +125,7 @@ public final class RagEvalCommand {
                 .map(String::strip).filter(s -> !s.isEmpty()).toList();
         Path file = Path.of(positional.get(1));
         // Every record of a page is looked at: no response size cap, and the depth as the page size.
-        var unbounded = new RagMcpProperties(properties.dataDir(), properties.collectionsFile(),
+        var unbounded = new RagMcpProperties(properties.dataDir(), properties.indexesFile(),
                 new RagMcpProperties.Search(depth, depth), new RagMcpProperties.Response(Integer.MAX_VALUE));
         SearchService search = new SearchService(new IndexStore(properties.resolvedDataDir()), unbounded, models);
         final Evaluation.Report report;
@@ -153,7 +153,7 @@ public final class RagEvalCommand {
         return 0;
     }
 
-    /** The modes asked for, or every mode the collections have. */
+    /** The modes asked for, or every mode the indexes have. */
     private static List<SearchMode> modes(String value, SearchService search, List<String> collections) {
         if (value == null || value.isBlank()) {
             List<String> withVectors = search.withVectors(collections);
@@ -234,13 +234,13 @@ public final class RagEvalCommand {
     }
 
     private static void usage(PrintStream out) {
-        out.println("Usage: java -jar lucene-rag-server.jar rag-eval <collection>[,<collection>...] <questions.jsonl>"
+        out.println("Usage: java -jar lucene-rag-server.jar rag-eval <index>[,<index>...] <questions.jsonl>"
                 + " [--limit N] [--modes lexical,vector,hybrid] [--ref prefix=field]... [--per-document N]"
                 + " [--details]");
         out.println("Searches every question of a JSONL question set (\"question\", \"expected\", \"id\") and reports");
         out.println("how high the expected records rank in each mode. A reference is a document key, a record id,");
         out.println("a source path, or prefix:value matching a field; --ref maps a prefix to a field name.");
         out.println("--limit is the depth looked at (default " + DEFAULT_DEPTH + ", at most " + MAX_DEPTH
-                + "); without --modes every mode the collections have.");
+                + "); without --modes every mode the indexes have.");
     }
 }

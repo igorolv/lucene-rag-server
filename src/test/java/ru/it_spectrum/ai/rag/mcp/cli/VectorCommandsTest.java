@@ -18,7 +18,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.DOCS;
 
-/** rag-index and rag-search on a collection with vectors of the fake model. */
+/** rag-index and rag-search on an index with vectors of the fake model. */
 class VectorCommandsTest {
 
     @TempDir
@@ -30,7 +30,7 @@ class VectorCommandsTest {
 
     @BeforeAll
     static void build() throws IOException {
-        TestKnowledge.writeCollectionsFile(dataDir, true);
+        TestKnowledge.writeIndexesFile(dataDir, true);
         properties = new RagMcpProperties(dataDir.toString(), null);
         models = FakeEmbeddingModel.models(dataDir, "fake");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -53,7 +53,7 @@ class VectorCommandsTest {
         assertThat(indexOutput).contains("  model: files in " + dataDir.resolve("models").resolve("fake"));
         assertThat(indexOutput).contains("vectors: model fake, 64 dimensions, ")
                 .contains(" embedded, 0 from cache, 0 cut to 512 tokens")
-                .contains("RESULT: OK (2 collections built)");
+                .contains("RESULT: OK (2 indexes built)");
     }
 
     @Test

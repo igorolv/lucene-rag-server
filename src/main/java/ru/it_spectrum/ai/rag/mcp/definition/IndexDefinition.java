@@ -3,7 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.definition;
 import java.util.List;
 
 /**
- * One index as the indexes file ({@code collections.json}) describes it.
+ * One index as the indexes file ({@code indexes.json}) describes it.
  *
  * @param vectors     the model the records are embedded with, or {@code null} for an index
  *                    searched lexically only

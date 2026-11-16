@@ -22,7 +22,7 @@ import java.util.Map;
  *
  * <p>The server keeps what Spring AI does not give. The identity recorded in the manifest is the
  * bean name and the model the response names, and the vector size is that of a probe embedded
- * when the model is loaded; a collection served with a bean that answers for another model is
+ * when the model is loaded; an index served with a bean that answers for another model is
  * refused like one served with other model files. The prefixes of {@code models} apply. A model
  * of this type does not say which inputs it cut, so none are counted as cut.
  */

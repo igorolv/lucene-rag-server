@@ -1,8 +1,8 @@
 package ru.it_spectrum.ai.rag.mcp.definition;
 
 /**
- * One entry of the top-level {@code models} object of {@code collections.json}: an embedding model
- * a collection names in {@code vectors.model}. Its files are in {@code <data-dir>/models/<name>/}.
+ * One entry of the top-level {@code models} object of {@code indexes.json}: an embedding model
+ * an index names in {@code vectors.model}. Its files are in {@code <data-dir>/models/<name>/}.
  *
  * @param name          the key under {@code models}
  * @param type          how the model is run; {@code onnx} when absent

@@ -19,14 +19,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * User-run search over built collections, for looking something up without a chat model. Runs in
+ * User-run search over built indexes, for looking something up without a chat model. Runs in
  * the application context without the MCP transport, so the models are those of the server, beans
  * included (docs/decisions.md D42, D43). Uses the same search and the same limits as the
  * {@code search} tool.
  *
  * <p>Exit codes: 0 searched (also when nothing matched), 1 unexpected error, 2 usage, an unknown
- * collection or filter field or a filter expression that does not parse, 4 an index could not be read, 5 the embedding model a vector or
- * hybrid search needs is missing or is not the one the collection was built with.
+ * index or filter field or a filter expression that does not parse, 4 an index could not be read, 5 the embedding model a vector or
+ * hybrid search needs is missing or is not the one the index was built with.
  */
 public final class RagSearchCommand {
 
@@ -154,15 +154,15 @@ public final class RagSearchCommand {
     }
 
     private static void usage(PrintStream out) {
-        out.println("Usage: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] <query>"
+        out.println("Usage: java -jar lucene-rag-server.jar rag-search <index>[,<index>...] <query>"
                 + " [--limit N] [--filter name=value]... [--filter-expression \"<expression>\"]"
                 + " [--mode lexical|vector|hybrid] [--per-document N]");
-        out.println("Without --mode: hybrid for collections with vectors, lexical for the others.");
-        out.println("Searches built collections. Words are optional, \"quoted words\" are a phrase.");
+        out.println("Without --mode: hybrid for indexes with vectors, lexical for the others.");
+        out.println("Searches built indexes. Words are optional, \"quoted words\" are a phrase.");
         out.println("Shows the best section of each document; --per-document N shows up to N.");
         out.println("--filter-expression takes Spring AI filter syntax: kind == 'article' && tags in ['refunds'].");
         out.println("With --filter or --filter-expression the query may be omitted to list matching records.");
-        out.println("   or: java -jar lucene-rag-server.jar rag-search <collection>[,<collection>...] --lookup <value>"
+        out.println("   or: java -jar lucene-rag-server.jar rag-search <index>[,<index>...] --lookup <value>"
                 + " [--limit N]");
         out.println("Finds records whose key fields (map.keys) have the exact value, ignoring case.");
     }

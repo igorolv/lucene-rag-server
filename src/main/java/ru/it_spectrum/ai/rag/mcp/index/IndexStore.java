@@ -31,7 +31,7 @@ public final class IndexStore {
         this.dataDir = dataDir;
     }
 
-    /** Built collections, by name. */
+    /** Built indexes, by name. */
     public List<Manifest> built() {
         if (!Files.isDirectory(dataDir)) {
             return List.of();
@@ -51,7 +51,7 @@ public final class IndexStore {
         return result;
     }
 
-    /** The manifest of one built collection, or empty when it is absent or cannot be served. */
+    /** The manifest of one built index, or empty when it is absent or cannot be served. */
     public Optional<Manifest> manifest(String name) {
         if (!IndexNames.valid(name)) {
             return Optional.empty();
@@ -63,22 +63,22 @@ public final class IndexStore {
         try {
             Manifest manifest = Manifest.read(dir);
             if (!name.equals(manifest.name())) {
-                log.warn("Collection directory {} holds the manifest of '{}'; skipped", dir, manifest.name());
+                log.warn("Index directory {} holds the manifest of '{}'; skipped", dir, manifest.name());
                 return Optional.empty();
             }
             if (manifest.schema() != Manifest.SCHEMA) {
-                log.warn("Collection '{}' has index schema {}, this server reads {}; rebuild it",
+                log.warn("Index '{}' has index schema {}, this server reads {}; rebuild it",
                         name, manifest.schema(), Manifest.SCHEMA);
                 return Optional.empty();
             }
             return Optional.of(manifest);
         } catch (IOException e) {
-            log.warn("Collection '{}' is skipped: {}", name, e.getMessage());
+            log.warn("Index '{}' is skipped: {}", name, e.getMessage());
             return Optional.empty();
         }
     }
 
-    /** Directory of the Lucene index of a collection. */
+    /** Directory of the Lucene files of an index. */
     public Path indexDir(String name) {
         return dataDir.resolve(name).resolve(Manifest.INDEX_DIR);
     }

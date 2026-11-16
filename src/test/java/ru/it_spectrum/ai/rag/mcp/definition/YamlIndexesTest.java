@@ -14,7 +14,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Collections files written in YAML. */
+/** Indexes files written in YAML. */
 class YamlIndexesTest {
 
     @TempDir
@@ -30,12 +30,12 @@ class YamlIndexesTest {
     private static final String JSON_MAIN = """
             {"vars": {"root": "%s"},
              "models": {"e5-small": {"queryPrefix": "query: ", "maxTokens": 512, "default": true}},
-             "import": [{"file": "${root}/p/knowledge/rag-collections.%s", "commands": true}]}""";
+             "import": [{"file": "${root}/p/knowledge/rag-indexes.%s", "commands": true}]}""";
 
     private static final String JSON_PROJECT = """
             {"readers": {"catalog": {"join": {"cap": {"path": "catalog.md", "split": {"tableRows": true},
                                                       "key": "{column.1}", "on": "`{path[0]}`"}}}},
-             "collections": {
+             "indexes": {
                "specs@p": {"description": "Requirements", "vectors": true,
                            "sources": [{"path": "specs", "include": "**/spec.md", "reader": "catalog",
                                         "split": {"level": "h3", "headingPattern": "^Requirement: (?<name>.+)$",
@@ -58,7 +58,7 @@ class YamlIndexesTest {
             models:
               e5-small: { queryPrefix: 'query: ', maxTokens: 512, default: true }
             import:
-              - file: ${root}/p/knowledge/rag-collections.%s
+              - file: ${root}/p/knowledge/rag-indexes.%s
                 commands: true
             """;
 
@@ -72,7 +72,7 @@ class YamlIndexesTest {
                     key: '{column.1}'
                     on: '`{path[0]}`'      # YAML 1.1 would read the key on as true
 
-            collections:
+            indexes:
               specs@p:
                 description: Requirements
                 vectors: true
@@ -104,8 +104,8 @@ class YamlIndexesTest {
             """;
 
     private List<IndexDefinition> load(String main, String project, String extension) throws IOException {
-        write("p/knowledge/rag-collections." + extension, project);
-        Path file = write("data/collections." + extension,
+        write("p/knowledge/rag-indexes." + extension, project);
+        Path file = write("data/indexes." + extension,
                 main.formatted(dir.toString().replace('\\', '/'), extension));
         LoadedIndexes loaded = IndexesLoader.read(file, name -> null);
         assertThat(loaded.importProblems()).isEmpty();
@@ -113,7 +113,7 @@ class YamlIndexesTest {
     }
 
     @Test
-    void aYamlFileGivesTheCollectionsOfTheSameJsonFile() throws IOException {
+    void aYamlFileGivesTheIndexesOfTheSameJsonFile() throws IOException {
         List<IndexDefinition> fromJson = load(JSON_MAIN, JSON_PROJECT, "json");
         List<IndexDefinition> fromYaml = load(YAML_MAIN, YAML_PROJECT, "yaml");
 
@@ -131,7 +131,7 @@ class YamlIndexesTest {
     @Test
     void anUnquotedTemplateOrGlobIsExplained() throws IOException {
         Path template = write("data/a.yaml", """
-                collections:
+                indexes:
                   c:
                     sources:
                       - path: kb
@@ -143,7 +143,7 @@ class YamlIndexesTest {
                 .hasMessageContaining("line 6").hasMessageContaining("put it in quotes");
 
         Path longer = write("data/b.yaml", """
-                collections:
+                indexes:
                   c:
                     sources:
                       - path: kb
@@ -155,7 +155,7 @@ class YamlIndexesTest {
                 .hasMessageContaining("not valid YAML").hasMessageContaining("must be in quotes");
 
         Path glob = write("data/c.yaml", """
-                collections:
+                indexes:
                   c:
                     sources:
                       - path: kb
@@ -169,7 +169,7 @@ class YamlIndexesTest {
     @Test
     void aRepeatedKeyOrATopLevelThatIsNotAMappingIsAnError() throws IOException {
         Path repeated = write("data/a.yml", """
-                collections:
+                indexes:
                   c: { sources: [ { path: a } ] }
                   c: { sources: [ { path: b } ] }
                 """);
@@ -184,22 +184,22 @@ class YamlIndexesTest {
     }
 
     @Test
-    void theDataDirectoryMayHoldTheCollectionsFileInYamlButNotBoth() throws IOException {
+    void theDataDirectoryMayHoldTheIndexesFileInYamlButNotBoth() throws IOException {
         RagMcpProperties properties = new RagMcpProperties(dir.toString(), null);
-        assertThat(properties.resolvedCollectionsFile()).isEqualTo(dir.resolve("collections.json"));
+        assertThat(properties.resolvedIndexesFile()).isEqualTo(dir.resolve("indexes.json"));
 
-        write("collections.yaml", "collections: {}\n");
-        assertThat(properties.resolvedCollectionsFile()).isEqualTo(dir.resolve("collections.yaml"));
+        write("indexes.yaml", "indexes: {}\n");
+        assertThat(properties.resolvedIndexesFile()).isEqualTo(dir.resolve("indexes.yaml"));
 
-        write("collections.json", "{}");
-        assertThatThrownBy(properties::resolvedCollectionsFile).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("collections.json and collections.yaml");
+        write("indexes.json", "{}");
+        assertThatThrownBy(properties::resolvedIndexesFile).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("indexes.json and indexes.yaml");
     }
 
     @Test
     void plainOnYesAndNoStayStrings() throws IOException {
-        Path file = write("data/collections.yaml", """
-                collections:
+        Path file = write("data/indexes.yaml", """
+                indexes:
                   c:
                     sources:
                       - path: kb
@@ -212,8 +212,8 @@ class YamlIndexesTest {
         // A code keeps its leading zero and its sign; a number as JSON writes it stays as written.
         assertThat(fields).containsEntry("d", "0123").containsEntry("e", "42").containsEntry("f", "+7");
 
-        Path nullTemplate = write("data/collections.yaml", """
-                collections:
+        Path nullTemplate = write("data/indexes.yaml", """
+                indexes:
                   c:
                     sources:
                       - path: kb

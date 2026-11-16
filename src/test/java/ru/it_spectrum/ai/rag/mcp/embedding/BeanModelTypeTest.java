@@ -63,12 +63,12 @@ class BeanModelTypeTest {
     }
 
     @Test
-    void aCollectionIsBuiltAndSearchedWithABeanModel() throws IOException {
+    void anIndexIsBuiltAndSearchedWithABeanModel() throws IOException {
         String root = TestKnowledge.root().toString().replace('\\', '/');
-        Path file = dataDir.resolve("collections.json");
+        Path file = dataDir.resolve("indexes.json");
         Files.writeString(file, """
                 {"models": {"remoteEmbedding": {"type": "bean", "queryPrefix": "query: ", "passagePrefix": "passage: "}},
-                 "collections": {"docs@billing": {"vectors": {"model": "remoteEmbedding"},
+                 "indexes": {"docs@billing": {"vectors": {"model": "remoteEmbedding"},
                                                   "sources": [{"path": "%s/articles"}]}}}
                 """.formatted(root));
         IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null)).getFirst();

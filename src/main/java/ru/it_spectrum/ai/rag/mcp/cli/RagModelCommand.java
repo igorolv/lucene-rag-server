@@ -139,7 +139,7 @@ public final class RagModelCommand {
             }
             ModelCatalog.Model model = known.get();
             out.println("Model " + model.name() + " (" + model.repository() + ", " + model.license() + " license)");
-            return fetch(name, ModelCatalog.source(model), model.collectionsEntry(), false, models, from, http(), out);
+            return fetch(name, ModelCatalog.source(model), model.indexesEntry(), false, models, from, http(), out);
         }
         out.println("Model " + name + " (" + repository + ")");
         HttpClient http = http();
@@ -204,7 +204,7 @@ public final class RagModelCommand {
                     ? "  input length: the repository does not say; 512 is assumed, check the model card"
                     : "  input length: " + source.maxTokens() + " tokens, as the repository says");
         }
-        out.println("  in collections.json, under \"models\":");
+        out.println("  in indexes.json, under \"models\":");
         out.println("    " + entry);
         if (prefixes) {
             out.println("  set queryPrefix and passagePrefix as the model card of " + source.repository() + " says");

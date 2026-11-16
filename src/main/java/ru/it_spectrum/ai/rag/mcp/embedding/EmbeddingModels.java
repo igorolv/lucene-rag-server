@@ -19,7 +19,7 @@ import java.util.TreeMap;
  * builds and on the one that serves; a model of a type without files, such as a Spring AI bean
  * (D43), needs none. A model is loaded on first use and kept for the life of the process.
  *
- * <p>Search checks the loaded model against the manifest of the collection: the same type, vector
+ * <p>Search checks the loaded model against the manifest of the index: the same type, vector
  * size and file hashes, or {@link ModelUnavailableException}. A model whose files are replaced
  * while the process runs is seen after a restart.
  */
@@ -109,7 +109,7 @@ public final class EmbeddingModels implements AutoCloseable {
     }
 
     /**
-     * The model a collection is built with, as {@code collections.json} configures it.
+     * The model an index is built with, as {@code indexes.json} configures it.
      *
      * @throws IOException              when the files are missing or the model cannot be loaded
      * @throws IllegalArgumentException when the type is unknown
@@ -137,39 +137,39 @@ public final class EmbeddingModels implements AutoCloseable {
     }
 
     /**
-     * The model a built collection was embedded with, checked against what its manifest records.
+     * The model a built index was embedded with, checked against what its manifest records.
      *
-     * @param collection for the message
+     * @param index      for the message
      * @param dimension  vector size recorded at build time
      * @param files      file hashes recorded at build time
      * @throws ModelUnavailableException when the model cannot be loaded or is not the same model
      */
-    public VectorModel verified(String collection, String name, ModelParameters parameters, int dimension,
+    public VectorModel verified(String index, String name, ModelParameters parameters, int dimension,
                                 Map<String, String> files) {
         final VectorModel model;
         try {
             model = load(name, parameters);
         } catch (IOException | IllegalArgumentException e) {
-            throw new ModelUnavailableException("Collection '" + collection + "' needs model '" + name
+            throw new ModelUnavailableException("Index '" + index + "' needs model '" + name
                     + "' for vector and hybrid search, and it cannot be loaded: " + e.getMessage()
                     + ". Put the model files there, or search with mode lexical", e);
         }
         ModelInfo info = model.info();
         if (info.dimension() != dimension || !new TreeMap<>(info.files()).equals(new TreeMap<>(files))) {
-            throw new ModelUnavailableException("Collection '" + collection + "' was built with another version of model '"
+            throw new ModelUnavailableException("Index '" + index + "' was built with another version of model '"
                     + name + "' than the one in " + directory(name) + " (built with " + describe(dimension, files)
-                    + "; found " + describe(info.dimension(), info.files()) + "). Rebuild the collection or put the "
+                    + "; found " + describe(info.dimension(), info.files()) + "). Rebuild the index or put the "
                     + "model files it was built with there; mode lexical works without the model");
         }
         return model;
     }
 
     /**
-     * Why the model of a collection cannot be used, as far as is known without loading it: a type
+     * Why the model of an index cannot be used, as far as is known without loading it: a type
      * this installation lacks, or missing files. A model already loaded is checked in full. Empty
      * when nothing is known to be wrong; a model is loaded only by a search that needs it.
      */
-    public synchronized Optional<String> problem(String collection, String name, ModelParameters parameters,
+    public synchronized Optional<String> problem(String index, String name, ModelParameters parameters,
                                                  int dimension, Map<String, String> files) {
         ModelType loader = loaders.get(parameters.type());
         if (loader == null) {
@@ -179,7 +179,7 @@ public final class EmbeddingModels implements AutoCloseable {
         Path dir = directory(name);
         if (loaded.containsKey(key(parameters, dir))) {
             try {
-                verified(collection, name, parameters, dimension, files);
+                verified(index, name, parameters, dimension, files);
                 return Optional.empty();
             } catch (ModelUnavailableException e) {
                 return Optional.of(e.getMessage());

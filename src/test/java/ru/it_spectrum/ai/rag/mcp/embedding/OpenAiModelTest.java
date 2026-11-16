@@ -140,12 +140,12 @@ class OpenAiModelTest {
     }
 
     @Test
-    void aCollectionIsBuiltAndSearchedWithTheRemoteModel() throws IOException {
+    void anIndexIsBuiltAndSearchedWithTheRemoteModel() throws IOException {
         String root = TestKnowledge.root().toString().replace('\\', '/');
-        Path file = dataDir.resolve("collections.json");
+        Path file = dataDir.resolve("indexes.json");
         Files.writeString(file, """
                 {"models": {"%s": {"type": "bean", "queryPrefix": "query: ", "passagePrefix": "passage: "}},
-                 "collections": {"docs@billing": {"vectors": {"model": "%s"},
+                 "indexes": {"docs@billing": {"vectors": {"model": "%s"},
                                                   "sources": [{"path": "%s/articles"}]}}}
                 """.formatted(BEAN, BEAN, root), StandardCharsets.UTF_8);
         IndexDefinition definition = StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null))

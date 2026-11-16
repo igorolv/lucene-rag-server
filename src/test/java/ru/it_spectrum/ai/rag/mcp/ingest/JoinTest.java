@@ -69,8 +69,8 @@ class JoinTest {
     }
 
     private IndexDefinition load(String source) throws IOException {
-        Path file = dir.resolve("collections.json");
-        Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [" + source + "]}}}");
+        Path file = dir.resolve("indexes.json");
+        Files.writeString(file, "{\"indexes\": {\"c\": {\"sources\": [" + source + "]}}}");
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null)).getFirst();
     }
 
@@ -132,10 +132,10 @@ class JoinTest {
 
     @Test
     void aReaderMayHoldTheJoinOfSeveralSources() throws IOException {
-        Path file = dir.resolve("collections.json");
+        Path file = dir.resolve("indexes.json");
         Files.writeString(file, """
                 {"readers": {"catalog": {"join": %s}},
-                 "collections": {"c": {"sources": [
+                 "indexes": {"c": {"sources": [
                    {"path": "specs", "include": "**/spec.md", "reader": "catalog", %s,
                     "map": {"title": "{heading.name}", "breadcrumb": ["{cap.column.3|path[0]}", "{title}"]}}]}}}"""
                 .formatted(CATALOG, SPLIT));

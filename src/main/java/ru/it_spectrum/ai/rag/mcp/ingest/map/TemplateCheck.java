@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Checks the {@code map} block of a source when the collections file is loaded, so a misspelled
+ * Checks the {@code map} block of a source when the indexes file is loaded, so a misspelled
  * value name is a configuration error and not a silently empty field.
  *
  * <p>Values become available in the order records are laid out — document key, title,

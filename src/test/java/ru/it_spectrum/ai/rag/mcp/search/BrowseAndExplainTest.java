@@ -55,7 +55,7 @@ class BrowseAndExplainTest {
 
         EmbeddingModels models = FakeEmbeddingModel.models(vectorDir, "fake");
         for (IndexDefinition definition : StepRegistry.builtIn().checked(IndexesLoader.load(
-                TestKnowledge.writeCollectionsFile(vectorDir, true), name -> null))) {
+                TestKnowledge.writeIndexesFile(vectorDir, true), name -> null))) {
             IndexBuilder.build(definition, StepRegistry.builtIn(), models, vectorDir, "test");
         }
         RagMcpProperties vectorProperties = new RagMcpProperties(vectorDir.toString(), null);
@@ -63,7 +63,7 @@ class BrowseAndExplainTest {
         browseVectors = new BrowseService(vectors, vectorProperties);
 
         for (IndexDefinition definition : StepRegistry.builtIn().checked(IndexesLoader.load(
-                LookupTestData.writeCollectionsFile(catalogDir), name -> null))) {
+                LookupTestData.writeIndexesFile(catalogDir), name -> null))) {
             IndexBuilder.build(definition, StepRegistry.builtIn(), catalogDir, "test");
         }
         RagMcpProperties catalogProperties = new RagMcpProperties(catalogDir.toString(), null);
@@ -110,7 +110,7 @@ class BrowseAndExplainTest {
     }
 
     @Test
-    void inACollectionWithVectorsLikenessIsByVector() throws IOException {
+    void inAnIndexWithVectorsLikenessIsByVector() throws IOException {
         BrowseService.Related related = browseVectors.related(DOCS, REFUND_STATUSES, 3);
 
         assertThat(related.similarBy()).isEqualTo("vector");

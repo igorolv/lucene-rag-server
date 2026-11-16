@@ -40,7 +40,7 @@ class VectorSearchTest {
     static Map<String, IndexBuilder.Built> firstBuild = new HashMap<>();
 
     static List<IndexDefinition> definitions() throws IOException {
-        Path file = TestKnowledge.writeCollectionsFile(dataDir, true);
+        Path file = TestKnowledge.writeIndexesFile(dataDir, true);
         return StepRegistry.builtIn().checked(IndexesLoader.load(file, name -> null));
     }
 
@@ -95,7 +95,7 @@ class VectorSearchTest {
     }
 
     @Test
-    void hybridIsTheDefaultForACollectionWithVectorsAndFusesBothLists() throws IOException {
+    void hybridIsTheDefaultForAnIndexWithVectorsAndFusesBothLists() throws IOException {
         SearchPage page = search.search(List.of(DOCS), "отмена платежей", null, 5, null);
 
         assertThat(page.mode()).isEqualTo(SearchMode.HYBRID);
@@ -130,7 +130,7 @@ class VectorSearchTest {
     }
 
     @Test
-    void hybridOverACollectionWithoutVectorsUsesItsBm25ListOnly() throws IOException {
+    void hybridOverAnIndexWithoutVectorsUsesItsBm25ListOnly() throws IOException {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null, "hybrid");
 
         assertThat(page.hits()).extracting(SearchHit::collection).contains(DOCS, API);

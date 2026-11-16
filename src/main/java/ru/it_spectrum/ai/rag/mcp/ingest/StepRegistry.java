@@ -132,8 +132,8 @@ public final class StepRegistry {
     }
 
     /**
-     * The definitions with every source checked against its steps: a collection whose source
-     * does not fit becomes a broken entry, as a wrong entry of the collections file does.
+     * The definitions with every source checked against its steps: an index whose source
+     * does not fit becomes a broken entry, as a wrong entry of the indexes file does.
      */
     public List<IndexDefinition> checked(List<IndexDefinition> definitions) {
         List<IndexDefinition> result = new ArrayList<>();
@@ -148,7 +148,7 @@ public final class StepRegistry {
             try {
                 pipeline(definition.sources().get(i));
             } catch (IllegalArgumentException e) {
-                return definition.withError("collections." + definition.name() + ".sources[" + i + "]: "
+                return definition.withError("indexes." + definition.name() + ".sources[" + i + "]: "
                         + e.getMessage());
             }
         }

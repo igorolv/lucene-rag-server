@@ -135,7 +135,7 @@ class RagModelCommandTest {
 
     private String fetchCatalog(ModelCatalog.Model model, int expectedCode) {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        int code = RagModelCommand.fetch(model.name(), ModelCatalog.source(model), model.collectionsEntry(), false,
+        int code = RagModelCommand.fetch(model.name(), ModelCatalog.source(model), model.indexesEntry(), false,
                 dataDir.resolve("models"), base, RagModelCommand.http(),
                 new PrintStream(bytes, true, StandardCharsets.UTF_8));
         String out = bytes.toString(StandardCharsets.UTF_8);

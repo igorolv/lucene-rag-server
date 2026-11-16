@@ -57,7 +57,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Lexical, vector and hybrid search over built collections.
+ * Lexical, vector and hybrid search over built indexes.
  *
  * <ul>
  *   <li>The query is plain words; {@code "quoted words"} are a phrase. Words are optional: a
@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  *   <li>Filters are exact matches on document fields, case-insensitive; every filter must hold. A
  *       filter expression of Spring AI adds "or", "not", lists and text ranges
  *       ({@link FilterQueries}); it must hold together with the filters.</li>
- *   <li>Several collections are searched as one index, with shared term statistics.</li>
+ *   <li>Several indexes are searched as one, with shared term statistics.</li>
  *   <li>A page holds at most {@code perDocument} records of one document, 1 by default: the best
  *       ranked; the other sections of the document drop out of the results (docs/decisions.md
  *       D38). A row of a catalog, a table or a row format stands alone and is never dropped.</li>
@@ -138,7 +138,7 @@ public final class SearchService {
     }
 
     /**
-     * @param collections names of built collections; at least one
+     * @param indexes names of built indexes; at least one
      * @param query       words to look for; blank lists the records matching the filters
      * @param filters     field name to required value; may be {@code null}
      * @param filterExpression a Spring AI filter expression in its text syntax; blank or
@@ -146,12 +146,12 @@ public final class SearchService {
      * @param limit       page size; {@code null} for the server default, capped by the server maximum
      * @param offset      results to skip; {@code null} for none
      * @param mode        {@code lexical}, {@code vector} or {@code hybrid}; blank for hybrid when a
-     *                    searched collection has vectors and lexical otherwise
+     *                    searched index has vectors and lexical otherwise
      * @param perDocument the most records of one document in the results; {@code null} for
      *                    {@value #DEFAULT_PER_DOCUMENT}
-     * @throws IllegalArgumentException  for an unknown collection, an unknown filter field or a bad argument
+     * @throws IllegalArgumentException  for an unknown index, an unknown filter field or a bad argument
      * @throws ModelUnavailableException when the call asks for {@code vector} or {@code hybrid} and the
-     *                                   model of a collection cannot be used; without a mode the
+     *                                   model of an index cannot be used; without a mode the
      *                                   search runs lexically and says why in its notice
      */
     public SearchPage search(List<String> collections, String query, Map<String, String> filters,
@@ -233,7 +233,7 @@ public final class SearchService {
      *
      * @param id    a record to explain; {@code null} for none
      * @param limit records of the ranking to show; capped as a page of search is
-     * @throws IllegalArgumentException as {@link #search} does, and for an id no collection has
+     * @throws IllegalArgumentException as {@link #search} does, and for an id no index has
      */
     public Explanation explain(List<String> collections, String query, Map<String, String> filters,
                                String filterExpression, String mode, String id, Integer limit) throws IOException {
@@ -392,8 +392,8 @@ public final class SearchService {
 
     /**
      * One page of a vector or hybrid search. Each model ranks the nearest records of its
-     * collections; a hybrid search adds the BM25 list; several lists are fused by reciprocal rank
-     * fusion (docs/decisions.md D12). Collections without vectors take part in the BM25 list only.
+     * indexes; a hybrid search adds the BM25 list; several lists are fused by reciprocal rank
+     * fusion (docs/decisions.md D12). Indexes without vectors take part in the BM25 list only.
      */
     private SearchPage fused(List<Manifest> manifests, SearchMode mode, String text, Query lexical, Query filter,
                              Query textQuery, Integer limit, Integer offset, int perGroup) throws IOException {
@@ -427,11 +427,11 @@ public final class SearchService {
         }
     }
 
-    /** The query embedded by the model of a collection, checked against its manifest. */
+    /** The query embedded by the model of an index, checked against its manifest. */
     private float[] queryVector(Manifest manifest, String text) throws IOException {
         Manifest.Vectors vectors = manifest.vectors();
         if (models == null) {
-            throw new ModelUnavailableException("Collection '" + manifest.name()
+            throw new ModelUnavailableException("Index '" + manifest.name()
                     + "' needs its embedding model for vector and hybrid search, and none is available here; "
                     + "search with mode lexical");
         }
@@ -441,8 +441,8 @@ public final class SearchService {
     }
 
     /**
-     * The records nearest to the query in the collections of one model, with doc ids of the
-     * reader of all searched collections. Scores of one model are comparable across collections.
+     * The records nearest to the query in the indexes of one model, with doc ids of the
+     * reader of all searched indexes. Scores of one model are comparable across indexes.
      */
     private static TopDocs nearest(Opened opened, List<Integer> collections, float[] query, Query filter, int window)
             throws IOException {
@@ -459,7 +459,7 @@ public final class SearchService {
         return new TopDocs(new TotalHits(best.size(), TotalHits.Relation.EQUAL_TO), best.toArray(ScoreDoc[]::new));
     }
 
-    /** Collections whose queries are embedded the same way and whose scores are comparable. */
+    /** Indexes whose queries are embedded the same way and whose scores are comparable. */
     private record VectorGroup(String model, ModelParameters parameters, int dimension, Map<String, String> files) {
         static VectorGroup of(Manifest.Vectors vectors) {
             return new VectorGroup(vectors.model(), vectors.parameters(), vectors.dimension(),
@@ -471,8 +471,8 @@ public final class SearchService {
      * Records of which a key field ({@code map.keys}) has the value, compared as filters compare:
      * without surrounding blanks and ignoring case. Results come in index order.
      *
-     * @param collections names of built collections; at least one has key fields
-     * @throws IllegalArgumentException for an unknown collection, a blank value or collections
+     * @param indexes names of built indexes; at least one has key fields
+     * @throws IllegalArgumentException for an unknown index, a blank value or indexes
      *                                  without key fields
      */
     public SearchPage lookup(List<String> collections, String value, Integer limit, Integer offset)
@@ -486,7 +486,7 @@ public final class SearchService {
         }
         if (manifests.stream().allMatch(m -> m.keys().isEmpty())) {
             throw new IllegalArgumentException(String.join(", ", manifests.stream().map(Manifest::name).toList())
-                    + " has no key fields to look up (map.keys). Collections with keys: " + withKeys());
+                    + " has no key fields to look up (map.keys). Indexes with keys: " + withKeys());
         }
         Query query = new TermQuery(new Term(IndexFields.LOOKUP, IndexBuilder.filterTerm(value)));
         return page(manifests, query, null, limit, offset, null, Integer.MAX_VALUE);
@@ -528,7 +528,7 @@ public final class SearchService {
 
     /**
      * The ranked records with at most {@code perGroup} of one group ({@link IndexFields#STORED_GROUP}
-     * in its collection), stopping at {@code wanted} records.
+     * in its index), stopping at {@code wanted} records.
      */
     private static List<ScoreDoc> limited(IndexSearcher searcher, ScoreDoc[] ranked, int perGroup, int wanted)
             throws IOException {
@@ -607,7 +607,7 @@ public final class SearchService {
     }
 
     /**
-     * Record ids of one collection that start with a prefix, in id order: at most {@code max} of
+     * Record ids of one index that start with a prefix, in id order: at most {@code max} of
      * them, and whether more exist. For completing an id (docs/decisions.md D48).
      */
     public IdPage ids(String collection, String prefix, int max) throws IOException {
@@ -646,7 +646,7 @@ public final class SearchService {
     }
 
     /**
-     * Every record of the collections, without text or snippet, in index order. For measuring
+     * Every record of the indexes, without text or snippet, in index order. For measuring
      * search (which records a question set names), not for a tool: it is not bounded.
      */
     public List<SearchHit> all(List<String> collections) throws IOException {
@@ -664,26 +664,26 @@ public final class SearchService {
         }
     }
 
-    /** Names of the collections whose manifest records vectors. */
+    /** Names of the indexes whose manifest records vectors. */
     public List<String> withVectors(List<String> collections) {
         return resolve(collections).stream().filter(m -> m.vectors() != null).map(Manifest::name).toList();
     }
 
     List<Manifest> resolve(List<String> collections) {
         if (collections == null || collections.isEmpty()) {
-            throw new IllegalArgumentException("Name at least one collection. Available: " + available());
+            throw new IllegalArgumentException("Name at least one index. Available: " + available());
         }
         List<Manifest> manifests = new ArrayList<>();
         for (String name : new LinkedHashSet<>(collections)) {
             manifests.add(store.manifest(name == null ? "" : name.strip()).orElseThrow(() ->
-                    new IllegalArgumentException("Unknown collection '" + name + "'. Available: " + available())));
+                    new IllegalArgumentException("Unknown index '" + name + "'. Available: " + available())));
         }
         return manifests;
     }
 
     private String available() {
         List<Manifest> built = store.built();
-        return built.isEmpty() ? "none (no collection is built)"
+        return built.isEmpty() ? "none (no index is built)"
                 : built.stream().map(Manifest::name).collect(Collectors.joining(", "));
     }
 
@@ -766,11 +766,11 @@ public final class SearchService {
     /** Readers and directories of one call, closed in reverse order of opening. */
     static final class Opened implements Closeable {
         final List<Closeable> resources = new ArrayList<>();
-        /** The index of each collection, in the order of the call. */
+        /** The reader of each index, in the order of the call. */
         List<IndexReader> readers;
-        /** The first doc id of each collection's index in {@link #reader}. */
+        /** The first doc id of each index in {@link #reader}. */
         final List<Integer> bases = new ArrayList<>();
-        /** All searched collections as one index. */
+        /** All searched indexes as one reader. */
         IndexReader reader;
 
         @Override

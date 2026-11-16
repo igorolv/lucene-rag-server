@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.function.UnaryOperator;
 
 /**
- * User-run build of collections from their sources. It starts the application context to get the
+ * User-run build of indexes from their sources. It starts the application context to get the
  * same step beans the server has, with the MCP server switched off, so the stdio transport is
  * never opened and stdout carries only the report (docs/decisions.md D19).
  *
@@ -49,10 +49,11 @@ public final class RagIndexCommand {
     static int run(String[] args, RagMcpProperties properties, StepRegistry registry, EmbeddingModels models,
                    PrintStream out, UnaryOperator<String> env, String serverVersion) {
         if (args.length != 1 || List.of("--help", "-h").contains(args[0])) {
-            out.println("Usage: java -jar lucene-rag-server.jar rag-index <collection> | --all");
-            out.println("Builds collections from their sources as described in collections.json.");
+            out.println("Usage: java -jar lucene-rag-server.jar rag-index <index> | --all");
+            out.println("Builds indexes from their sources as described in indexes.json.");
             return args.length == 1 ? 0 : 2;
         }
+        properties.oldFileNotice().ifPresent(notice -> out.println("NOTICE: " + notice));
         final List<IndexDefinition> definitions;
         final List<String> importProblems;
         try {
@@ -69,28 +70,28 @@ public final class RagIndexCommand {
             selected = definitions;
             if (selected.isEmpty()) {
                 importProblems.forEach(problem -> out.println("IMPORT: " + problem));
-                out.println("RESULT: FAILED (no collections in " + properties.resolvedCollectionsFile() + ")");
+                out.println("RESULT: FAILED (no indexes in " + properties.resolvedIndexesFile() + ")");
                 return 2;
             }
         } else {
             selected = definitions.stream().filter(d -> d.name().equals(args[0])).toList();
             if (selected.isEmpty()) {
                 importProblems.forEach(problem -> out.println("IMPORT: " + problem));
-                out.println("RESULT: FAILED (collection '" + args[0] + "' is not in "
-                        + properties.resolvedCollectionsFile() + " or a file it imports; defined: "
+                out.println("RESULT: FAILED (index '" + args[0] + "' is not in "
+                        + properties.resolvedIndexesFile() + " or a file it imports; defined: "
                         + String.join(", ", definitions.stream().map(IndexDefinition::name).toList()) + ")");
                 return 2;
             }
         }
         for (IndexDefinition definition : selected) {
             if (!definition.usable()) {
-                out.println("RESULT: FAILED (collection '" + definition.name() + "': "
+                out.println("RESULT: FAILED (index '" + definition.name() + "': "
                         + definition.configError() + ")");
                 return 2;
             }
         }
         for (IndexDefinition definition : selected) {
-            out.println("Collection " + definition.name());
+            out.println("Index " + definition.name());
             long start = System.nanoTime();
             try {
                 IndexBuilder.Built built = IndexBuilder.build(definition, registry, models,
@@ -116,7 +117,7 @@ public final class RagIndexCommand {
                 return 4;
             }
         }
-        String built = selected.size() + (selected.size() == 1 ? " collection" : " collections") + " built";
+        String built = selected.size() + (selected.size() == 1 ? " index" : " indexes") + " built";
         importProblems.forEach(problem -> out.println("IMPORT: " + problem));
         if (all && !importProblems.isEmpty()) {
             // Everything was asked for and a part of it could not even be read.

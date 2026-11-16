@@ -1,7 +1,7 @@
 # lucene-rag-server
 
-An MCP server that turns directories of prepared project knowledge into searchable collections.
-Text and embedding vectors live in one Apache Lucene index per collection; a search combines BM25
+An MCP server that turns directories of prepared project knowledge into searchable Apache Lucene
+indexes that keep text and embedding vectors together; a search combines BM25
 and vector similarity. The server returns passages and their sources and leaves answering to the
 client.
 
@@ -12,10 +12,10 @@ client.
 
 ## What it is for
 
-- Describe collections in one `collections.json`: which directories to read, how to cut files
+- Describe indexes in one `indexes.json`: which directories to read, how to cut files
   into records and how to lay a record out (`split` and `map`), whether to compute vectors and
   with which model.
-- Build each collection into a self-contained index directory that can be copied to another
+- Build each index into a self-contained directory that can be copied to another
   machine and served there without the sources.
 - Serve the same index to a large-context model with every tool enabled, or to a small local
   model with a short tool list and tight response limits, by environment variables alone.
@@ -50,12 +50,12 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 
 ## Quickstart
 
-1. Describe a collection in `~/.lucene-rag-server/collections.json`
-   ([docs/collections.md](docs/collections.md)):
+1. Describe an index in `~/.lucene-rag-server/indexes.json`
+   ([docs/indexes.md](docs/indexes.md)):
 
    ```json
    {
-     "collections": {
+     "indexes": {
        "docs@billing": {
          "description": "Billing: articles and troubleshooting playbooks",
          "sources": [ { "path": "C:/projects/billing/knowledge" } ]
@@ -87,28 +87,28 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 
 | Tool | Group | What it does |
 |---|---|---|
-| `listCollections` | `collections` | Collections of this server, their descriptions and filter fields, and problems of imported collections files |
-| `search` | `search` | Passages matching a query, filters and a filter expression in one or more collections, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
+| `listCollections` | `collections` | Indexes of this server, their descriptions and filter fields, and problems of imported indexes files |
+| `search` | `search` | Passages matching a query, filters and a filter expression in one or more indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
-| `rebuildCollection` | `admin` | Rebuild a collection of `collections.json` from its sources, as `rag-index` does ([docs/collections.md](docs/collections.md#building)) |
+| `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |
 | `fieldValues` | `browse` | Values of a field with the number of records of each, to filter by ([docs/search.md](docs/search.md#browsing)) |
 | `relatedRecords` | `browse` | Other sections of a record's document and the records most like it |
 | `explainSearch` | `debug` | The query's words after analysis and where records rank in each list, for tuning ([docs/search.md](docs/search.md#explaining-a-search)) |
 
 A record is also the MCP resource `rag://{collection}/{id}`, and clients that support completion
-suggest its collection and id ([docs/search.md](docs/search.md#results)).
+suggest its index and id ([docs/search.md](docs/search.md#results)).
 
 ## Settings
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per collection, plus `models/` (embedding model files, [docs/collections.md](docs/collections.md#vectors)), `cache/` and `logs/` |
-| `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json`, or `collections.yaml` | Collection definitions, in JSON or YAML, which may import the collections files of projects; needed to build, not to serve |
+| `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per index, plus `models/` (embedding model files, [docs/indexes.md](docs/indexes.md#vectors)), `cache/` and `logs/` |
+| `RAG_MCP_INDEXES_FILE` | `<data-dir>/indexes.json`, or `indexes.yaml` | Index definitions, in JSON or YAML, which may import the indexes files of projects; needed to build, not to serve |
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |
-| `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`rebuildCollection`) |
+| `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`rebuildIndex`) |
 | `RAG_MCP_TOOLS_BROWSE` | `true` | Expose the `browse` tool group (`fieldValues`, `relatedRecords`) |
 | `RAG_MCP_TOOLS_DEBUG` | `true` | Expose the `debug` tool group (`explainSearch`) |
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |
@@ -121,7 +121,7 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 Embedding models run in the server process from files in `<data-dir>/models/`, which
 `rag-model fetch e5-small` downloads, or on an
 OpenAI-compatible endpoint configured by Spring AI's `SPRING_AI_OPENAI_*` settings
-([docs/collections.md](docs/collections.md#spring-ai-models)).
+([docs/indexes.md](docs/indexes.md#spring-ai-models)).
 
 ## License
 

@@ -15,12 +15,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Passport of a built collection, {@code <collection>/manifest.json}. Everything the server needs
- * to serve the collection without its sources and without {@code collections.json} is here.
+ * Passport of a built index, {@code <index>/manifest.json}. Everything the server needs
+ * to serve the index without its sources and without {@code indexes.json} is here.
  *
- * @param schema        index schema the collection was built with; see {@link #SCHEMA}
- * @param name          collection name; equals the directory name
- * @param description   what the collection holds, from {@code collections.json}
+ * @param schema        index schema the index was built with; see {@link #SCHEMA}
+ * @param name          index name; equals the directory name
+ * @param description   what the index holds, from {@code indexes.json}
  * @param builtAt       build time, ISO-8601 UTC
  * @param serverVersion version of the server that built the index
  * @param files         source files read
@@ -28,8 +28,8 @@ import java.util.Map;
  * @param records       records in the index
  * @param fields        names of the document fields usable as filters, sorted
  * @param keys          names of the fields the {@code lookup} tool searches, sorted; empty for none
- * @param sources       what the collection was built from
- * @param vectors       the model the records were embedded with, or {@code null} for a collection
+ * @param sources       what the index was built from
+ * @param vectors       the model the records were embedded with, or {@code null} for an index
  *                      searched lexically only
  */
 public record Manifest(int schema, String name, String description, String builtAt, String serverVersion,
@@ -44,7 +44,7 @@ public record Manifest(int schema, String name, String description, String built
     public static final int SCHEMA = 10;
 
     /**
-     * The embedding model of a collection with vectors: everything search needs to embed a query
+     * The embedding model of an index with vectors: everything search needs to embed a query
      * the same way and to tell whether the model at hand is the one the records were embedded
      * with (docs/decisions.md D7).
      *
@@ -88,7 +88,7 @@ public record Manifest(int schema, String name, String description, String built
     }
 
     /**
-     * A lookup of a source as it was built ({@code join} in the collections file).
+     * A lookup of a source as it was built ({@code join} in the indexes file).
      *
      * @param name   the prefix of the values the lookup gave
      * @param format name of the format step the lookup was read with
@@ -103,24 +103,24 @@ public record Manifest(int schema, String name, String description, String built
             .enable(SerializationFeature.INDENT_OUTPUT)
             .build();
 
-    public void write(Path collectionDir) throws IOException {
+    public void write(Path indexDir) throws IOException {
         try {
-            Files.writeString(collectionDir.resolve(FILE_NAME), JSON.writeValueAsString(this));
+            Files.writeString(indexDir.resolve(FILE_NAME), JSON.writeValueAsString(this));
         } catch (JacksonException e) {
             throw new IOException("Cannot write the manifest: " + e.getOriginalMessage(), e);
         }
     }
 
     /** @throws IOException when the file is missing, unreadable or not a manifest */
-    public static Manifest read(Path collectionDir) throws IOException {
+    public static Manifest read(Path indexDir) throws IOException {
         try {
-            Manifest manifest = JSON.readValue(Files.readString(collectionDir.resolve(FILE_NAME)), Manifest.class);
+            Manifest manifest = JSON.readValue(Files.readString(indexDir.resolve(FILE_NAME)), Manifest.class);
             if (manifest == null || manifest.name() == null) {
-                throw new IOException("The manifest in " + collectionDir + " has no name");
+                throw new IOException("The manifest in " + indexDir + " has no name");
             }
             return manifest;
         } catch (JacksonException e) {
-            throw new IOException("The manifest in " + collectionDir + " is not valid: " + e.getOriginalMessage(), e);
+            throw new IOException("The manifest in " + indexDir + " is not valid: " + e.getOriginalMessage(), e);
         }
     }
 }

@@ -66,12 +66,12 @@ import java.util.stream.Stream;
 public final class IndexBuilder {
 
     private static final String BUILD_PREFIX = ".building-";
-    /** A replaced collection directory waiting to be removed; a name with a dot is never served. */
+    /** A replaced index directory waiting to be removed; a name with a dot is never served. */
     private static final String OLD_PREFIX = ".old-";
 
     private static final Logger log = LoggerFactory.getLogger(IndexBuilder.class);
 
-    /** Directory of derived data shared by collections, under the data directory. */
+    /** Directory of derived data shared by indexes, under the data directory. */
     public static final String CACHE_DIR = "cache";
     /** The embedding cache, under {@link #CACHE_DIR}. */
     public static final String EMBEDDINGS_DIR = "embeddings";
@@ -80,7 +80,7 @@ public final class IndexBuilder {
     }
 
     /**
-     * Builds a collection without vectors.
+     * Builds an index without vectors.
      *
      * @throws IllegalArgumentException when the definition is unusable, has vectors or two records
      *                                  share an id
@@ -92,12 +92,12 @@ public final class IndexBuilder {
     }
 
     /**
-     * @param definition    a usable collection definition
+     * @param definition    a usable index definition
      * @param registry      the steps sources are built with
-     * @param models        the embedding models; may be {@code null} for a collection without vectors
+     * @param models        the embedding models; may be {@code null} for an index without vectors
      * @param dataDir       server data directory
      * @param serverVersion recorded in the manifest
-     * @return the manifest of the collection just built and where its vectors came from
+     * @return the manifest of the index just built and where its vectors came from
      * @throws IOException              when a source cannot be read, the model cannot be loaded or
      *                                  the index cannot be written
      * @throws IllegalArgumentException when the definition is unusable or two records share an id
@@ -105,13 +105,13 @@ public final class IndexBuilder {
     public static Built build(IndexDefinition definition, StepRegistry registry, EmbeddingModels models,
                               Path dataDir, String serverVersion) throws IOException {
         if (!definition.usable()) {
-            throw new IllegalArgumentException("Collection " + definition.name() + ": " + definition.configError());
+            throw new IllegalArgumentException("Index " + definition.name() + ": " + definition.configError());
         }
         VectorModel model = null;
         ModelDefinition vectors = definition.vectors();
         if (vectors != null) {
             if (models == null) {
-                throw new IllegalArgumentException("Collection " + definition.name()
+                throw new IllegalArgumentException("Index " + definition.name()
                         + " has vectors, and no embedding models are available");
             }
             model = models.load(vectors.name(), new ModelParameters(vectors.type(), vectors.queryPrefix(),
@@ -135,8 +135,8 @@ public final class IndexBuilder {
     }
 
     /**
-     * Puts a complete build in place of a collection. The old directory is renamed aside first, a
-     * single step that either happens or not, so a collection is never left half deleted; it is
+     * Puts a complete build in place of an index. The old directory is renamed aside first, a
+     * single step that either happens or not, so an index is never left half deleted; it is
      * then removed, and what cannot be removed now (a file another process holds open) is left to
      * the next build.
      */
@@ -162,7 +162,7 @@ public final class IndexBuilder {
         removeLeftovers(target.getParent(), target.getFileName().toString());
     }
 
-    /** Removes old directories of a collection, those of earlier builds included; skips what is in use. */
+    /** Removes old directories of an index, those of earlier builds included; skips what is in use. */
     private static void removeLeftovers(Path dataDir, String name) {
         String prefix = OLD_PREFIX + name + "-";
         try (Stream<Path> children = Files.list(dataDir)) {
@@ -180,7 +180,7 @@ public final class IndexBuilder {
     }
 
     /**
-     * A collection just built.
+     * An index just built.
      *
      * @param manifest its manifest
      * @param embedded records the model embedded in this build
@@ -239,7 +239,7 @@ public final class IndexBuilder {
     }
 
     /**
-     * The records of a collection written as Spring AI documents: checks that ids are unique,
+     * The records of an index written as Spring AI documents: checks that ids are unique,
      * collects the field and key names for the manifest and hands each record to the batch.
      * {@link #accept} throws {@link UncheckedIOException} when the index cannot be written.
      */

@@ -19,7 +19,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Exact lookups by the key fields of a catalog collection built from the synthetic catalogs. */
+/** Exact lookups by the key fields of a catalog index built from the synthetic catalogs. */
 class LookupTest {
 
     static final String CATALOGS = LookupTestData.CATALOGS;
@@ -33,7 +33,7 @@ class LookupTest {
 
     @BeforeAll
     static void build() throws IOException {
-        Path file = LookupTestData.writeCollectionsFile(dataDir);
+        Path file = LookupTestData.writeIndexesFile(dataDir);
         StepRegistry registry = StepRegistry.builtIn();
         for (IndexDefinition definition : registry.checked(IndexesLoader.load(file, name -> null))) {
             assertThat(definition.configError()).isNull();
@@ -84,15 +84,15 @@ class LookupTest {
     }
 
     @Test
-    void collectionsWithoutKeysAreSkippedOrRefused() throws IOException {
+    void indexesWithoutKeysAreSkippedOrRefused() throws IOException {
         assertThat(search.lookup(List.of(CATALOGS, NOTES), "2003", null, null).total()).isEqualTo(1);
         assertThatThrownBy(() -> search.lookup(List.of(NOTES), "2003", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("has no key fields", "Collections with keys: " + CATALOGS);
+                .hasMessageContaining("has no key fields", "Indexes with keys: " + CATALOGS);
         assertThatThrownBy(() -> search.lookup(List.of(CATALOGS), " ", null, null))
                 .hasMessageContaining("value is required");
         assertThatThrownBy(() -> search.lookup(List.of("absent@billing"), "x", null, null))
-                .hasMessageContaining("Unknown collection");
+                .hasMessageContaining("Unknown index");
     }
 
     @Test
@@ -106,8 +106,8 @@ class LookupTest {
 
     @Test
     void aKeyThatIsNotAFieldNameIsAConfigurationError(@TempDir Path dir) throws IOException {
-        Path file = dir.resolve("collections.json");
-        Files.writeString(file, "{\"collections\": {\"c\": {\"sources\": [{\"path\": \"a\","
+        Path file = dir.resolve("indexes.json");
+        Files.writeString(file, "{\"indexes\": {\"c\": {\"sources\": [{\"path\": \"a\","
                 + " \"map\": {\"keys\": [\"bad name\"]}}]}}}");
 
         assertThat(StepRegistry.builtIn().checked(IndexesLoader.load(file, n -> null)).getFirst().configError())

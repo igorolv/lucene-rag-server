@@ -37,7 +37,7 @@ public final class FilterQueries {
 
     private final Set<String> known;
 
-    /** @param known names of the fields of the searched collections */
+    /** @param known names of the fields of the searched indexes */
     public FilterQueries(Set<String> known) {
         this.known = known;
     }
@@ -168,7 +168,7 @@ public final class FilterQueries {
         String name = key(expression);
         if (!known.contains(name)) {
             throw new IllegalArgumentException("Unknown filter field '" + name
-                    + "'. Fields of the searched collections: " + String.join(", ", new TreeSet<>(known)));
+                    + "'. Fields of the searched indexes: " + String.join(", ", new TreeSet<>(known)));
         }
         return IndexFields.FILTER_PREFIX + name;
     }

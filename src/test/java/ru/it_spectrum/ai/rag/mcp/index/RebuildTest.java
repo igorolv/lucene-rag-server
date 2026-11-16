@@ -18,14 +18,14 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.DOCS;
 
-/** A rebuild replaces a collection whole or not at all. */
+/** A rebuild replaces an index whole or not at all. */
 class RebuildTest {
 
     @TempDir
     Path dataDir;
 
     private IndexDefinition docs() throws IOException {
-        List<IndexDefinition> all = IndexesLoader.load(TestKnowledge.writeCollectionsFile(dataDir),
+        List<IndexDefinition> all = IndexesLoader.load(TestKnowledge.writeIndexesFile(dataDir),
                 name -> null);
         return all.stream().filter(d -> d.name().equals(DOCS)).findFirst().orElseThrow();
     }
@@ -41,7 +41,7 @@ class RebuildTest {
     }
 
     @Test
-    void aRebuildReplacesTheCollectionAndLeavesNothingAside() throws IOException {
+    void aRebuildReplacesTheIndexAndLeavesNothingAside() throws IOException {
         Manifest first = build();
         Manifest second = build();
 
