@@ -170,6 +170,18 @@ class CommandsTest {
     }
 
     @Test
+    void anUnknownKeyIsAWarningThatFailsNothing() throws IOException {
+        Path file = TestKnowledge.writeIndexesFile(dataDir);
+        Files.writeString(file, Files.readString(file).replaceFirst("\\{\"path\"", "{\"exlude\": \"x\", \"path\""));
+
+        assertThat(index(DOCS)).isZero();
+        assertThat(output()).contains("WARNING: " + file + ": indexes." + DOCS + ".sources[0]: unknown key "
+                + "\"exlude\" is ignored; did you mean \"exclude\"?", "RESULT: OK (1 index built)");
+        assertThat(index("--preview", DOCS)).isZero();
+        assertThat(output().lines().filter(line -> line.startsWith("WARNING: "))).hasSize(2);
+    }
+
+    @Test
     void searchPrintsHitsWithTheirSource() throws IOException {
         TestKnowledge.build(dataDir);
 

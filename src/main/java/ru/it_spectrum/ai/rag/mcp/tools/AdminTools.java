@@ -69,7 +69,8 @@ public class AdminTools {
             description = "List the indexes of this server for its operator: built ones with their build time, " +
                     "record count, embedding model and modelProblem, and those only described in the indexes " +
                     "file, with configError when their configuration is wrong. importProblems says which " +
-                    "imported files could not be used. Not needed for searching.",
+                    "imported files could not be used, warnings names keys of the indexes files that are not read. " +
+                    "Not needed for searching.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -86,10 +87,14 @@ public class AdminTools {
         }
         Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
         List<String> importProblems = null;
+        List<String> warnings = null;
         try {
             LoadedIndexes loaded = IndexesLoader.read(properties, env);
             if (!loaded.importProblems().isEmpty()) {
                 importProblems = loaded.importProblems();
+            }
+            if (!loaded.warnings().isEmpty()) {
+                warnings = loaded.warnings();
             }
             for (IndexDefinition definition : registry.checked(loaded.indexes())) {
                 if (!builtNames.contains(definition.name())) {
@@ -101,7 +106,8 @@ public class AdminTools {
         } catch (IllegalStateException e) {
             importProblems = List.of("The indexes file cannot be used: " + e.getMessage());
         }
-        return new ListIndexesResult(List.copyOf(infos), importProblems, properties.oldFileNotice().orElse(null));
+        return new ListIndexesResult(List.copyOf(infos), importProblems, warnings,
+                properties.oldFileNotice().orElse(null));
     }
 
     @McpTool(

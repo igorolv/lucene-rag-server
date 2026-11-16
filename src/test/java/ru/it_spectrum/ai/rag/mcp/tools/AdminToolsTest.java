@@ -77,7 +77,13 @@ class AdminToolsTest {
         assertThat(docs.built()).isFalse();
         assertThat(docs.model()).isEqualTo("fake");
         assertThat(listed.importProblems()).isNull();
+        assertThat(listed.warnings()).isNull();
         assertThat(listed.notice()).isNull();
+
+        Path file = dataDir.resolve("indexes.json");
+        Files.writeString(file, Files.readString(file).replaceFirst("\"description\"", "\"descripton\""));
+        assertThat(tools.listIndexes().warnings()).singleElement().asString()
+                .contains("unknown key \"descripton\" is ignored; did you mean \"description\"?");
 
         Files.move(dataDir.resolve("indexes.json"), dataDir.resolve("collections.json"));
         ListIndexesResult old = tools.listIndexes();

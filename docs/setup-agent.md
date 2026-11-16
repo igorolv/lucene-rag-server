@@ -167,8 +167,8 @@ Read the whole output, not only `RESULT:`:
   breadcrumb place it? Does the text start where the unit starts, without the heading of the
   next one? Is the id stable, made of an identifier rather than a position? A title such as `1` or
   a text of one value means a `map` template names a value the unit does not have.
-- **A key with no effect.** Unknown keys are ignored: when the preview did not change after you
-  added a key, check its spelling.
+- **`WARNING:` lines** name keys that are not read, with the key you probably meant. Fix every
+  one: the setting it was meant to be has no effect.
 
 When the preview looks right, build:
 
@@ -218,9 +218,10 @@ the question set with the project if the user asks for it.
 
 ## Pitfalls
 
-- **Unknown keys are ignored without a warning.** A misspelled key (`exlude`, `maxChar`) does
-  nothing. When a setting seems to have no effect, check its spelling against
-  [indexes.md](indexes.md). Inside `map` a misspelled value name is an error.
+- **An unknown key is only a warning.** A misspelled key (`exlude`, `maxChar`) does nothing; the
+  build succeeds and a `WARNING:` line names it. Field names in `map.fields` and `where` are your
+  own and are not checked, and neither are the keys of a `convert` step. Inside `map` a misspelled
+  value name is an error.
 - **Quote YAML values that start with `{` or `*`**: `title: '{heading.name}'`,
   `include: '**/spec.md'`. Write regular expressions in single quotes
   ([YAML](indexes.md#yaml)).

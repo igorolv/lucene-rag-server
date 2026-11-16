@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D94; agent proposals as P36 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D95; agent proposals as P36 onwards).
 
 ## 1. Idea
 

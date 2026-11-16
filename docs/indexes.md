@@ -70,8 +70,12 @@ to rename the file and its key `collections` to `indexes`.
 - A missing or empty file means no indexes can be built. A file that is not valid JSON is an
   error. A single wrong entry is reported for that index (`configError` in `listIndexes`,
   a failure in `rag-index`) and does not affect the others.
-- Unknown keys are ignored without a warning: check spelling when a setting has no effect. Inside
-  `map`, a misspelled value name is an error.
+- A key the server does not know is ignored, so a file written for a later version still loads,
+  and is reported as a warning with the known key nearest to it: a `WARNING:` line of `rag-index`
+  and an entry of `warnings` in `listIndexes` ([Building](#building)). A warning fails nothing.
+  Names you choose are not checked: those of indexes, models, readers, lookups and variables, the
+  field names of `map.fields` and `where`, and the keys of a `convert` step. Inside `map`, a
+  misspelled value name is an error.
 - The file is needed only to build. A [built index](#what-a-built-index-is) is served
   without it.
 
@@ -257,7 +261,7 @@ object and name it in each source with `reader`:
 ```
 
 - A reader holds the reading keys of a source: `convert`, `format`, `split`, `map` and
-  [`join`](#joining-values-from-another-file). Other keys in a reader are ignored; `path`,
+  [`join`](#joining-values-from-another-file). Other keys in a reader are ignored, with a warning; `path`,
   `command`, `include` and `exclude` always belong to the source. Lookups shared by several
   sources are written once in a reader that holds only `join`; each source sets its own `split`
   and `map`.
@@ -1150,7 +1154,13 @@ with `RESULT: OK (...)` or `RESULT: FAILED (...)`. A problem of an
 result; it fails `--all`, which then builds the indexes that could be read and ends with
 `RESULT: FAILED (2 indexes built; 1 import problem)` and exit code 2. A build of one named
 index prints the problems and is not failed by them. A `NOTICE:` line before everything else
-names an indexes file of the old name (`collections.json`) that is not read.
+names an indexes file of the old name (`collections.json`) that is not read. A `WARNING:` line
+after it names a key of the indexes file, or of a file it imports, that is not read, with the known
+key nearest to it; it changes neither the build nor the exit code:
+
+```
+WARNING: C:/projects/billing/knowledge/rag-indexes.yaml: indexes.docs@billing.sources[0]: unknown key "exlude" is ignored; did you mean "exclude"?
+```
 
 ```
 Index docs@billing
@@ -1189,7 +1199,8 @@ build may outlast the time a client waits for a tool; `rag-index` has no such li
 The tool `listIndexes` of the same group shows the operator every index: the built ones with
 their project, build time, record count, `model` and `modelProblem`, and those only described in
 `indexes.json` with `built: false` and, when their configuration is wrong, `configError`.
-`importProblems` lists the problems of [imports](#importing-the-indexes-of-projects), and
+`importProblems` lists the problems of [imports](#importing-the-indexes-of-projects),
+`warnings` the keys that are not read, as the `WARNING:` lines of `rag-index` do, and
 `notice` names an indexes file of the old name (`collections.json`) that is not read, as the
 `NOTICE:` line of `rag-index` does. What an assistant needs to narrow a search is in
 `describeKnowledge` instead ([search.md](search.md#describing-the-knowledge)).

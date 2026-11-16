@@ -17,6 +17,10 @@ public record ListIndexesResult(
                 "indexes was left out; absent when every import is in order",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> importProblems,
+        @Schema(description = "Keys of the indexes files that are not read, such as a misspelled one, each with " +
+                "its file, where it is and the known key nearest to it; they change nothing. Absent when there " +
+                "are none", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        List<String> warnings,
         @Schema(description = "An indexes file of the old name that is not read, with what to rename; absent " +
                 "when there is none", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String notice) {

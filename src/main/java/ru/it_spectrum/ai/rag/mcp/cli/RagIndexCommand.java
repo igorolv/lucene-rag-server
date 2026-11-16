@@ -96,6 +96,7 @@ public final class RagIndexCommand {
             LoadedIndexes loaded = IndexesLoader.read(properties, env);
             definitions = registry.checked(loaded.indexes());
             importProblems = loaded.importProblems();
+            loaded.warnings().forEach(warning -> out.println("WARNING: " + warning));
         } catch (IllegalStateException e) {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 2;

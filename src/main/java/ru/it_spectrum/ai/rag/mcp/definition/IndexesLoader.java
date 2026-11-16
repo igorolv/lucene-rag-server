@@ -54,8 +54,9 @@ import java.util.regex.Pattern;
  * {@code import} allows them (docs/decisions.md D78). What goes wrong with an import is reported
  * beside the indexes ({@link LoadedIndexes#importProblems()}).
  *
- * <p>Keys the current version does not know are ignored without a warning, so a file written for
- * a later version still loads; check spelling when a setting seems to have no effect.
+ * <p>Keys the current version does not know are ignored, so a file written for a later version
+ * still loads; each is reported as a warning with the known key nearest to it
+ * ({@link UnknownKeys}, {@link LoadedIndexes#warnings()}).
  *
  * <p>Modeled on jdbc-mcp-server {@code connection/ConnectionsLoader}.
  */
@@ -124,6 +125,7 @@ public final class IndexesLoader {
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(e.getMessage(), e);
         }
+        List<String> warnings = new ArrayList<>(UnknownKeys.of(root, file, false));
         Map<String, Path> owners = new LinkedHashMap<>();
         for (IndexDefinition definition : result) {
             owners.put(definition.name(), file);
@@ -140,13 +142,14 @@ public final class IndexesLoader {
             for (JsonNode entry : imports) {
                 String where = "import[" + index++ + "]";
                 try {
-                    imported(entry, where, baseDir, models, defaultModel, lookup, result, owners, problems);
+                    imported(entry, where, baseDir, models, defaultModel, lookup, result, owners, problems,
+                            warnings);
                 } catch (IllegalStateException | IllegalArgumentException e) {
                     problems.add(where + ": " + e.getMessage());
                 }
             }
         }
-        return new LoadedIndexes(result, problems);
+        return new LoadedIndexes(result, problems, warnings);
     }
 
     /**
@@ -251,7 +254,7 @@ public final class IndexesLoader {
      */
     private static void imported(JsonNode entry, String where, Path baseDir, Map<String, Object> models,
                                  String defaultModel, UnaryOperator<String> env, List<IndexDefinition> result,
-                                 Map<String, Path> owners, List<String> problems) {
+                                 Map<String, Path> owners, List<String> problems, List<String> warnings) {
         JsonNode fileNode = entry.isObject() ? entry.get("file") : entry;
         String raw = fileNode == null || !fileNode.isString() ? null
                 : EnvironmentPlaceholders.resolve(text(fileNode), where, env);
@@ -272,6 +275,7 @@ public final class IndexesLoader {
         if (root == null) {
             return;
         }
+        warnings.addAll(UnknownKeys.of(root, file, true));
         for (String key : List.of("models", "import", "vars")) {
             if (root.has(key) && !root.get(key).isNull()) {
                 throw new IllegalArgumentException(file + " has \"" + key + "\"; an imported file holds only "

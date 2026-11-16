@@ -100,7 +100,7 @@ files, choose indexes and sources, build, check search, report. For example, in 
 | `search` | `search` | Passages matching a query, filters and a filter expression across all indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`); with `scope` the whole document or its rest |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
-| `listIndexes` | `admin` | The indexes for the operator: built or not, when, records, model problems, configuration errors and import problems ([docs/indexes.md](docs/indexes.md#building)) |
+| `listIndexes` | `admin` | The indexes for the operator: built or not, when, records, model problems, configuration errors, import problems and unknown keys ([docs/indexes.md](docs/indexes.md#building)) |
 | `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |
 | `fieldValues` | `browse` | Values of a field over all indexes, or over the records that pass filters, with the number of records of each, to filter by ([docs/search.md](docs/search.md#browsing)) |
 | `relatedRecords` | `browse` | Other sections of a record's document and the records most like it |
