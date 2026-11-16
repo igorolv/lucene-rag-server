@@ -30,7 +30,10 @@ import java.util.regex.Pattern;
  * that unit, and so are the values of the unit of a lookup it names ({@link JoinTable}).
  *
  * <p>Values are computed in a fixed order, each available to the templates after it: document
- * key, title, slug, breadcrumb, text, id, fields. Whatever the id template gives, ids are made
+ * key, title, slug, breadcrumb, text, id, fields. The document key is rendered for each unit,
+ * after {@code bodyPattern} and before the lookups, so a template of unit values makes each unit a
+ * document of its own and a template of file values gives every unit the same key
+ * (docs/decisions.md D91). Whatever the id template gives, ids are made
  * unique inside the document: a repeated id gets {@code -2}, {@code -3}, and the parts of a text
  * split by {@code maxChars} get {@code ~2}, {@code ~3}.
  */
@@ -72,12 +75,7 @@ public final class TemplateMapper implements Mapper {
         }
         put(base, "document.path", document.path());
         put(base, "document.title", document.title());
-
-        String key = Template.render(or(map.document(), defaults.document()), base::get).strip();
-        if (key.isEmpty()) {
-            throw new IllegalArgumentException("map.document gives an empty key for " + document.path());
-        }
-        put(base, "document.key", key);
+        String documentTemplate = or(map.document(), defaults.document());
 
         String textTemplate = or(map.text(), defaults.text());
         if (textTemplate == null) {
@@ -86,6 +84,7 @@ public final class TemplateMapper implements Mapper {
         Pattern bodyPattern = map.compiledBodyPattern();
         List<ChunkRecord> records = new ArrayList<>();
         Map<String, Integer> usedIds = new HashMap<>();
+        Map<String, Integer> ordinals = new HashMap<>();
         for (Unit unit : units) {
             Map<String, List<String>> values = new HashMap<>(base);
             values.putAll(unit.values());
@@ -97,6 +96,14 @@ public final class TemplateMapper implements Mapper {
                     }
                 }
             }
+            String key = Template.render(documentTemplate, values::get).strip();
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("map.document gives an empty key for "
+                        + (unit.intro() ? "the text before the first heading"
+                        : unit.heading() == null ? "a unit" : "\"" + unit.heading() + "\"")
+                        + " in " + document.path() + "; give an alternative, as in {body.id|path.name}");
+            }
+            put(values, "document.key", key);
             for (JoinTable join : joins) {
                 Map<String, List<String>> row = join.row(Template.render(join.on(), values::get));
                 if (row != null) {
@@ -127,8 +134,9 @@ public final class TemplateMapper implements Mapper {
             Map<String, List<String>> fields = fields(document, map, values);
             List<String> parts = TextParts.split(text, maxChars);
             for (int i = 0; i < parts.size(); i++) {
+                int ordinal = ordinals.merge(key, 1, Integer::sum) - 1;
                 records.add(new ChunkRecord(i == 0 ? uniqueId : uniqueId + "~" + (i + 1), key, title, breadcrumb,
-                        parts.get(i), document.path(), records.size(), fields));
+                        parts.get(i), document.path(), ordinal, fields));
             }
         }
         return records;

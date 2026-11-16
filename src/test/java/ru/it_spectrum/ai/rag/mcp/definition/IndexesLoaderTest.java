@@ -144,9 +144,8 @@ class IndexesLoaderTest {
                 .contains("map.bodyPattern", "regular expression");
         assertThat(errorOf("{\"path\": \"a\", \"map\": {\"id\": \"{body.code}\"}}"))
                 .contains("map.id", "named group (?<code>", "map.bodyPattern");
-        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"bodyPattern\": \"ID: (?<code>\\\\S+)\","
-                + " \"document\": \"{body.code}\"}}"))
-                .contains("map.document", "{body.code}", "not available here");
+        assertThat(errorOf("{\"path\": \"a\", \"map\": {\"document\": \"x-{document.key}\"}}"))
+                .contains("map.document", "{document.key}", "not available here");
         assertThat(errorOf("{\"path\": \"a\", \"format\": \"tsv\", \"map\": {\"text\": \"{row}\","
                 + " \"bodyPattern\": \"(?<code>x)\"}}"))
                 .contains("map.bodyPattern is not a setting of a TSV source");

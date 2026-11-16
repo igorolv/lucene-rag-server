@@ -72,7 +72,12 @@ final class TemplateCheck {
             lookups.put(join.name(), lookup);
         }
         Check check = new Check(names, headingGroups, pathGroups, bodyGroups, split.tableRows(), lookups);
-        check.template("map.document", map.document(), 0);
+        // The document key is rendered per unit before the lookups (D91): unit values, not itself
+        // and not the values of a lookup.
+        alone.template("map.document", map.document(), 1);
+        if (map.document() != null && map.document().contains("document.key")) {
+            throw new IllegalArgumentException("map.document: {document.key} is not available here");
+        }
         check.template("map.title", map.title(), 1);
         if (map.breadcrumb() != null) {
             for (String part : map.breadcrumb()) {

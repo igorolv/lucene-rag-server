@@ -174,7 +174,7 @@ class JoinTest {
         assertThat(errorOf(specs(CATALOG, "{\"title\": \"{cap.nope}\"}")))
                 .contains("map.title", "{cap.nope}", "not a value of the lookup \"cap\"");
         assertThat(errorOf(specs(CATALOG, "{\"document\": \"{cap.column.1}\"}")))
-                .contains("map.document", "not available here");
+                .as("a lookup value is not available to the document key").contains("map.document", "{cap.column.1}");
         assertThat(errorOf(specs(CATALOG.replace("`{path[0]}`", "{title}"), "{}")))
                 .contains("join.cap.on", "{title}", "not available here");
         assertThat(errorOf(specs(CATALOG.replace("{column.1}", "{path}"), "{}")))

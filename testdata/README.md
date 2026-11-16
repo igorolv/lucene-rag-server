@@ -11,6 +11,7 @@ real corpus the server is built for (`docs/decisions.md` D20).
 | `knowledge/api/` | An English article without front matter |
 | `knowledge/catalogs/<name>/` | TSV catalogs with a header line: messages of the code, a menu with empty cells and short rows; an SQL file with a free comment that generates a catalog |
 | `knowledge/data/` | YAML descriptions: enumerations with a list of `values`, a table with a mapping of columns, `logs.yaml` with a list of `sources` |
+| `knowledge/glossary/` | `glossary.md`: a Russian glossary in one file, a term per `### Term: <name>` heading with `**ID:**`, `**Сокращение:**` and other lines as a list; a term without an abbreviation has `—` |
 | `knowledge/queue/` | `symptoms.md`: a Russian list of user symptoms as two Markdown tables under `##` sections, numbered across both, with an escaped `\|` in a cell |
 | `knowledge/eval/` | A JSONL question set; `expected` holds document keys and references of the corpus's kinds: `data:<table>`, `spec:<capability>/<requirement>`, `symptom:<number>` (a row of `queue/symptoms.md`); requirements are not indexed, as in the real corpus |
 | `knowledge/queries/<area>/` | SQL queries with a header of `-- key: value` lines |

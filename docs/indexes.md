@@ -611,9 +611,9 @@ values above its own row:
 | `{path.<group>}` | A named group of `pathPattern` | everything |
 | `{document.path}`, `{document.title}` | The file path; the document title | everything |
 | `{document.key}` | The result of `document` | `title` and below |
-| `{heading}`, `{heading.<group>}` | The unit's heading; a named group of `split.headingPattern` | `title` and below |
-| `{parents}` | The headings above the unit, joined with ` › ` | `title` and below |
-| `{body.<group>}` | A named group of `bodyPattern` | `title` and below |
+| `{heading}`, `{heading.<group>}` | The unit's heading; a named group of `split.headingPattern` | `document`, `title` and below |
+| `{parents}` | The headings above the unit, joined with ` › ` | `document`, `title` and below |
+| `{body.<group>}` | A named group of `bodyPattern` | `document`, `title` and below |
 | `{<lookup>.<value>}` | A value of the unit of a lookup the unit names ([Joining values from another file](#joining-values-from-another-file)) | `title` and below |
 | `{title}`, `{slug}` | The result of `title`; the same in lower case with dashes (`intro` for text before the first heading) | `breadcrumb` and below |
 | `{breadcrumb}`, `{body}` | The result of `breadcrumb`; the unit's text | `text`, `id`, `fields` |
@@ -621,7 +621,15 @@ values above its own row:
 A TSV, YAML, JSONL, SQL or PDF source has the same values except `{frontmatter.…}`, `{heading…}` and
 `{parents}`. Its document values (`{yaml.<key>}`, `{header.<key>}`, `{comment}`, `{sql}`) are
 available everywhere; its unit values (`{column.…}`, `{record.…}`, `{item…}`, `{row}`, and
-`{body}` of YAML and SQL) from `title` on.
+`{body}` of YAML and SQL) in `document` and from `title` on.
+
+**One document per unit.** `document` is rendered for each unit. A template of file values, as
+the default, gives every unit of a file the same key, so the file is one document whose sections
+search returns one at a time ([search.md](search.md#results)). A template that names a value of
+the unit, such as `{body.id}` or `{heading.name}`, makes each unit a document of its own, for
+example each term of a glossary kept in one file; the default id and the position in the document
+then follow that key. A unit for which the template gives nothing is an error: give an
+alternative, as in `{body.id|path.name}`. A lookup value is not available to `document`.
 
 An unknown value name, a value used too early, a group that the pattern does not define and a
 broken template are configuration errors of the index.
@@ -952,6 +960,38 @@ breadcrumb `billing-payments › Create a payment` and the fields `kind=spec`,
 that are not requirements are left out. The identifier is written in the text of a requirement,
 not in its heading, so `bodyPattern` takes it from there; a requirement without the line gets its
 id from the title, and `lookup` finds a requirement by its identifier.
+
+A glossary kept in one file, each term under a heading `### Term: <name>` with its identifier and
+abbreviation as lines of its text; each term is a document of its own:
+
+```markdown
+### Term: Очередь разбора
+- **ID:** GL-003
+- **Сокращение:** ОР
+- **Определение:** список платежей, которые не удалось привязать к счёту автоматически.
+```
+
+```json
+{
+  "path": "C:/projects/billing/openspec/glossary.md",
+  "split": { "level": "h3", "headingPattern": "^Term: (?<name>.+)$" },
+  "map": {
+    "bodyPattern": "(?s)\\*\\*ID:\\*\\* (?<id>GL-\\d+)(?:.*?\\*\\*Сокращение:\\*\\* (?<abbr>[^\\n—]+))?",
+    "document": "glossary:{body.id}",
+    "title": "{heading.name}",
+    "breadcrumb": ["Словарь терминов", "{title}", "{body.abbr}"],
+    "id": "term:{body.id|slug}",
+    "fields": { "kind": "term", "term": "{body.id}", "abbr": "{body.abbr}" },
+    "keys": ["term", "abbr"]
+  }
+}
+```
+
+The term above gives the record `term:GL-003` of the document `glossary:GL-003` with the
+breadcrumb `Словарь терминов › Очередь разбора › ОР`. With `"document": "glossary"` the whole
+file would be one document, and a search with `{"kind": "term"}` would return a single term of it
+(docs/decisions.md D88); with a document per term it returns every term that matches. `lookup`
+finds a term by its identifier or abbreviation.
 
 Short notes kept whole, with the directory as a field and only two front matter fields kept:
 

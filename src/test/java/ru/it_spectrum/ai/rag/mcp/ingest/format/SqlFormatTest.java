@@ -126,9 +126,9 @@ class SqlFormatTest {
     @Test
     void unknownValuesOfAnSqlSourceAreRefused() {
         SourceDefinition source = new SourceDefinition(TestKnowledge.root().resolve("queries"), null, null, "sql",
-                SplitSettings.DEFAULT, new MapSettings(null, "{body}", null, null, null, null, null, null));
+                SplitSettings.DEFAULT, new MapSettings(null, "{title}", null, null, null, null, null, null));
 
         assertThatThrownBy(() -> StepRegistry.builtIn().pipeline(source))
-                .hasMessageContaining("map.document: {body} is not available here");
+                .hasMessageContaining("map.document: {title} is not available here");
     }
 }
