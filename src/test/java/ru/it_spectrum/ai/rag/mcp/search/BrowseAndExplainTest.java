@@ -73,14 +73,14 @@ class BrowseAndExplainTest {
 
     @Test
     void theValuesOfAFieldComeMostFrequentFirstAsRecordsWriteThem() throws IOException {
-        BrowseService.FieldValues tables = browseLexical.fieldValues(DOCS, "tables", null, null);
+        BrowseService.FieldValues tables = browseLexical.fieldValues(List.of(DOCS), "tables", null, null, null, null);
 
         assertThat(tables.values()).first().isEqualTo(new BrowseService.Value("PAYMENT",
                 tables.values().stream().mapToInt(BrowseService.Value::count).max().orElseThrow()));
         assertThat(tables.values()).extracting(BrowseService.Value::value).contains("REFUND", "INVOICE");
         assertThat(tables.distinct()).isEqualTo(tables.values().size());
 
-        BrowseService.FieldValues prefixed = browseLexical.fieldValues(DOCS, "tables", "re", 1);
+        BrowseService.FieldValues prefixed = browseLexical.fieldValues(List.of(DOCS), "tables", null, null, "re", 1);
         assertThat(prefixed.values()).extracting(BrowseService.Value::value).containsExactly("REFUND");
 
         // Each value filters search to the records it counts.
@@ -90,9 +90,35 @@ class BrowseAndExplainTest {
     }
 
     @Test
+    void withoutNamesValuesAreCountedOverEveryIndexAndFiltersNarrowThem() throws IOException {
+        BrowseService.FieldValues all = browseLexical.fieldValues(null, "tables", null, null, null, null);
+        assertThat(all.values()).isEqualTo(browseLexical.fieldValues(List.of(DOCS), "tables", null, null, null, null)
+                .values());
+
+        BrowseService.FieldValues refunds = browseLexical.fieldValues(null, "tables", Map.of("tags", "Refunds"),
+                null, null, null);
+        BrowseService.FieldValues payments = browseLexical.fieldValues(null, "tables", null, "tags == 'payments'",
+                null, null);
+        assertThat(all.values()).extracting(BrowseService.Value::value).contains("INVOICE");
+        assertThat(refunds.values()).extracting(BrowseService.Value::value).contains("REFUND")
+                .doesNotContain("INVOICE");
+        assertThat(payments.values()).extracting(BrowseService.Value::value).contains("INVOICE");
+
+        // Under a filter, each value still filters search to exactly the records it counts.
+        for (BrowseService.Value value : refunds.values()) {
+            assertThat(lexical.search(null, null, Map.of("tags", "Refunds", "tables", value.value()), 50, null)
+                    .total()).as(value.value()).isEqualTo(value.count());
+        }
+        for (BrowseService.Value value : payments.values()) {
+            assertThat(lexical.search(null, null, Map.of("tables", value.value()), "tags == 'payments'", 50, null,
+                    null).total()).as(value.value()).isEqualTo(value.count());
+        }
+    }
+
+    @Test
     void anUnknownFieldNamesTheFieldsThereAre() {
-        assertThatThrownBy(() -> browseLexical.fieldValues(DOCS, "colour", null, null))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("no field 'colour'")
+        assertThatThrownBy(() -> browseLexical.fieldValues(null, "colour", null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("No index has the field 'colour'")
                 .hasMessageContaining("tables");
     }
 
@@ -120,7 +146,7 @@ class BrowseAndExplainTest {
 
     @Test
     void aRowHasNoSectionsAndIsLikeOtherRowsOfItsFile() throws IOException {
-        String row = browseCatalog.fieldValues(LookupTestData.CATALOGS, "method", null, 1).values().getFirst().value();
+        String row = browseCatalog.fieldValues(List.of(LookupTestData.CATALOGS), "method", null, null, null, 1).values().getFirst().value();
         SearchHit someRow = new SearchService(new IndexStore(catalogDir),
                 new RagMcpProperties(catalogDir.toString(), null))
                 .search(List.of(LookupTestData.CATALOGS), null, Map.of("method", row), 1, null).hits().getFirst();

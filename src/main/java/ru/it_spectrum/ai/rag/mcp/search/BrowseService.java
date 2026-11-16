@@ -5,11 +5,10 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -18,6 +17,9 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
@@ -31,7 +33,10 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * Looking around an index without a query (docs/decisions.md D72): the values of a field with
@@ -66,10 +71,10 @@ public final class BrowseService {
     /**
      * Values of a field, most frequent first.
      *
-     * @param distinct values of the field in the index, also those not returned
+     * @param distinct values of the field in the counted records, also those not returned
      * @param values   the values returned
      */
-    public record FieldValues(String collection, String field, int distinct, List<Value> values) {
+    public record FieldValues(String field, int distinct, List<Value> values) {
     }
 
     /**
@@ -87,30 +92,39 @@ public final class BrowseService {
     }
 
     /**
-     * @param prefix only values starting with it, ignoring case; {@code null} for all
-     * @param limit  values to return; {@value #DEFAULT_VALUES} when {@code null}, at most {@value #MAX_VALUES}
-     * @throws IllegalArgumentException for an unknown index or field
+     * The values of a field over the records of the indexes that pass the filters (docs/decisions.md
+     * D87). A value is counted from the same terms a filter matches, so a value passed in
+     * {@code filters} finds exactly the records counted for it.
+     *
+     * @param indexes          names of built indexes, or {@code null} for every built index
+     * @param filters          exact field values, as for search; {@code null} for none
+     * @param filterExpression a filter expression, as for search; {@code null} for none
+     * @param prefix           only values starting with it, ignoring case; {@code null} for all
+     * @param limit            values to return; {@value #DEFAULT_VALUES} when {@code null}, at most
+     *                         {@value #MAX_VALUES}
+     * @throws IllegalArgumentException for an unknown index, a field no index has or a bad filter
      */
-    public FieldValues fieldValues(String collection, String field, String prefix, Integer limit) throws IOException {
-        Manifest manifest = search.resolve(List.of(collection)).getFirst();
-        if (field == null || !manifest.fields().contains(field.strip())) {
-            throw new IllegalArgumentException("Index '" + manifest.name() + "' has no field '" + field
-                    + "'; its fields: " + String.join(", ", manifest.fields()));
+    public FieldValues fieldValues(List<String> indexes, String field, Map<String, String> filters,
+                                   String filterExpression, String prefix, Integer limit) throws IOException {
+        List<Manifest> manifests = search.resolve(indexes);
+        TreeSet<String> known = new TreeSet<>();
+        manifests.forEach(m -> known.addAll(m.fields()));
+        if (field == null || !known.contains(field.strip())) {
+            throw new IllegalArgumentException("No index has the field '" + field + "'; fields: "
+                    + String.join(", ", known));
         }
         String name = field.strip();
         String start = prefix == null ? "" : IndexBuilder.filterTerm(prefix);
         int size = limit == null ? DEFAULT_VALUES : Math.min(MAX_VALUES, Math.max(1, limit));
-        try (SearchService.Opened opened = search.open(List.of(manifest))) {
+        Query filter = SearchService.filter(manifests, filters, filterExpression);
+        try (SearchService.Opened opened = search.open(manifests)) {
             IndexSearcher searcher = new IndexSearcher(opened.reader);
-            Terms terms = MultiTerms.getTerms(opened.reader, IndexFields.FILTER_PREFIX + name);
+            Map<String, Integer> counts = count(searcher, filter == null ? new MatchAllDocsQuery() : filter,
+                    IndexFields.FILTER_PREFIX + name);
             List<Value> all = new ArrayList<>();
-            if (terms != null) {
-                TermsEnum each = terms.iterator();
-                for (BytesRef term = each.next(); term != null; term = each.next()) {
-                    String value = term.utf8ToString();
-                    if (value.startsWith(start)) {
-                        all.add(new Value(value, each.docFreq()));
-                    }
+            for (var entry : counts.entrySet()) {
+                if (entry.getKey().startsWith(start)) {
+                    all.add(new Value(entry.getKey(), entry.getValue()));
                 }
             }
             all.sort(Comparator.comparingInt(Value::count).reversed().thenComparing(Value::value));
@@ -118,8 +132,35 @@ public final class BrowseService {
             for (Value value : all.subList(0, Math.min(size, all.size()))) {
                 shown.add(new Value(original(searcher, name, value.value()), value.count()));
             }
-            return new FieldValues(manifest.name(), name, all.size(), List.copyOf(shown));
+            return new FieldValues(name, all.size(), List.copyOf(shown));
         }
+    }
+
+    /** Records per term of a field among the documents a query matches, from the doc values of the field. */
+    private static Map<String, Integer> count(IndexSearcher searcher, Query query, String field) throws IOException {
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
+        Map<String, Integer> counts = new HashMap<>();
+        for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+            SortedSetDocValues values = leaf.reader().getSortedSetDocValues(field);
+            Scorer scorer = values == null ? null : weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            Map<Long, Integer> byOrd = new HashMap<>();
+            DocIdSetIterator docs = scorer.iterator();
+            var live = leaf.reader().getLiveDocs();
+            for (int doc = docs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docs.nextDoc()) {
+                if ((live == null || live.get(doc)) && values.advanceExact(doc)) {
+                    for (int i = 0; i < values.docValueCount(); i++) {
+                        byOrd.merge(values.nextOrd(), 1, Integer::sum);
+                    }
+                }
+            }
+            for (var entry : byOrd.entrySet()) {
+                counts.merge(values.lookupOrd(entry.getKey()).utf8ToString(), entry.getValue(), Integer::sum);
+            }
+        }
+        return counts;
     }
 
     /** A value as a record that has it writes it, rather than lower-cased as it is indexed. */

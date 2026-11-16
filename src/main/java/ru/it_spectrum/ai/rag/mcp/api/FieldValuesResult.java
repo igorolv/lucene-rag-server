@@ -10,11 +10,9 @@ import java.util.List;
  */
 @Schema(description = "Values of a field with the number of records of each, most frequent first")
 public record FieldValuesResult(
-        @Schema(description = "The collection", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-        String collection,
         @Schema(description = "The field", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         String field,
-        @Schema(description = "Distinct values of the field matching the prefix, also those not returned",
+        @Schema(description = "Distinct values of the field matching the prefix in the counted records, also those not returned",
                 nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         int distinct,
         @Schema(description = "The values; each works as a value of search's 'filters' for this field",

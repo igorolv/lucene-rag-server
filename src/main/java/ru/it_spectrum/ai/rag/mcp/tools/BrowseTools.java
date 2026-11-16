@@ -14,6 +14,8 @@ import ru.it_spectrum.ai.rag.mcp.search.SearchHit;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The {@code browse} tool group (docs/decisions.md D72): what values a field has, to filter by
@@ -32,23 +34,30 @@ public class BrowseTools {
     }
 
     @McpTool(
-            description = "List the values a field of a collection has, with the number of records of each, " +
-                    "most frequent first. Use a value as a filter of search to narrow it down. Field names " +
-                    "come from listCollections.",
+            description = "List the values a field has over all the knowledge, or over the records that pass " +
+                    "the filters, with the number of records of each, most frequent first. Use a value as a " +
+                    "filter of search to narrow it down. Field names come from listCollections.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public FieldValuesResult fieldValues(
-            @McpToolParam(description = "Collection name from listCollections", required = true) String collection,
-            @McpToolParam(description = "Field name from the fields of the collection", required = true) String field,
+            @McpToolParam(description = "Field name, e.g. kind or project", required = true) String field,
+            @McpToolParam(description = "Exact field values the counted records must have, as for search",
+                    required = false)
+            Map<String, String> filters,
+            @McpToolParam(description = "A filter expression the counted records must match, as for search",
+                    required = false)
+            String filterExpression,
             @McpToolParam(description = "Only values starting with this, ignoring case", required = false)
             String prefix,
             @McpToolParam(description = "Values to return, default 50, at most 200", required = false) Integer limit) {
-        log.info("Tool call: fieldValues collection={} field={} prefixChars={} limit={}", collection, field,
-                prefix == null ? 0 : prefix.length(), limit);
+        log.info("Tool call: fieldValues field={} filters={} filterExpressionChars={} prefixChars={} limit={}",
+                field, filters == null ? List.of() : filters.keySet(),
+                filterExpression == null ? 0 : filterExpression.length(), prefix == null ? 0 : prefix.length(), limit);
         try {
-            BrowseService.FieldValues values = browse.fieldValues(collection, field, prefix, limit);
-            return new FieldValuesResult(values.collection(), values.field(), values.distinct(),
+            BrowseService.FieldValues values = browse.fieldValues(null, field, filters, filterExpression, prefix,
+                    limit);
+            return new FieldValuesResult(values.field(), values.distinct(),
                     values.values().stream().map(v -> new FieldValuesResult.FieldValue(v.value(), v.count())).toList());
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);

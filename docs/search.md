@@ -219,11 +219,13 @@ still held the expected record for 14 of 17 questions against 15 for 10. A start
 The `browse` group helps a client find its way without a query. Listing the records that have
 some field values is `search` with `filters` and no query.
 
-**`fieldValues`** takes a `collection` and a `field` from its `fields` and returns the values of
-that field with the number of records of each, most frequent first: 50 by default, `limit` up to
-200, and `distinct`, how many values there are in all. `prefix` keeps the values that start with
-it, ignoring case. A value is written as a record has it, and passed in `filters` it finds exactly
-the records it counts.
+**`fieldValues`** takes a `field` and returns the values of that field over every index with the
+number of records of each, most frequent first: 50 by default, `limit` up to 200, and
+`distinct`, how many values there are in all. `filters` and `filterExpression`, as in
+[`search`](#filters), count only the records that pass them, for example the values of `kind`
+in one project. `prefix` keeps the values that start with it, ignoring case. A field no index has
+is an error that lists the known ones. A value is written as a record has it, and passed in
+`filters`, together with the same filters, it finds exactly the records it counts.
 
 **`relatedRecords`** takes the `id` of a record and returns what is around it, inside the index of
 the record:

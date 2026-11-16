@@ -365,7 +365,7 @@ public final class SearchService {
      * The filters and the filter expression as one Lucene query, or {@code null} for none. The map
      * is the equality conditions of a Spring AI expression joined by "and".
      */
-    private static Query filter(List<Manifest> manifests, Map<String, String> filters, String filterExpression) {
+    static Query filter(List<Manifest> manifests, Map<String, String> filters, String filterExpression) {
         Filter.Expression expression = FilterQueries.of(filters);
         if (filterExpression != null && !filterExpression.isBlank()) {
             expression = FilterQueries.and(expression, FilterQueries.parse(filterExpression.strip()));
