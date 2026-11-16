@@ -598,7 +598,7 @@ The same steps written once as a [named reader](#named-readers):
 |---|---|---|
 | `level` | `h2` | Heading level whose sections become units, `h1`…`h6`; deeper sections stay inside their parent unit, with their headings. `document` makes the whole file one unit |
 | `headingPattern` | none | Regular expression a heading at `level` must contain to become a unit. With a pattern, the rest of the file is left out. Its named groups `(?<name>…)` become the values `{heading.name}` |
-| `maxChars` | `2500` | A longer text is split at blank lines, then at line ends, then inside a line; every part is a record |
+| `maxChars` | `2500` | A longer text is split at blank lines, then at line ends, then inside a line; every part is a record. A Markdown table cut between parts starts each further part with its header and delimiter lines again, so its rows keep the names of their columns; a header longer than half of `maxChars`, or a table inside a fenced code block, is not repeated |
 | `minChars` | `0` | A shorter unit is joined to the previous one under the same parent heading. `0` joins nothing |
 | `list` | none | YAML only: the top-level key whose list items become units. Without it a YAML file is one unit. Any other format reports it as a configuration error |
 | `tableRows` | `false` | Markdown only: every row of a table in a unit becomes a unit of its own, and the rest of the unit is left out ([Table rows](#table-rows)) |
