@@ -55,7 +55,7 @@ class RecordResourcesTest {
         String markdown = resources.record(encoded(DOCS), encoded("article.billing.refunds#статусы-возврата"));
 
         assertThat(markdown).startsWith("# Возвраты › Статусы возврата\n\n");
-        assertThat(markdown).contains("- record: article.billing.refunds#статусы-возврата\n",
+        assertThat(markdown).contains("- id: " + DOCS + "/article.billing.refunds#статусы-возврата\n",
                 "- source: refunds.md\n", "- fields:\n", "  - tables: REFUND, PAYMENT\n", "| Исполнен | банк подтвердил перевод |");
     }
 
@@ -67,14 +67,14 @@ class RecordResourcesTest {
 
     @Test
     void indexesCompleteByPrefixIgnoringCase() {
-        assertThat(complete("collection", "", null).values()).containsExactly(API, DOCS);
-        assertThat(complete("collection", DOCS.substring(0, 2).toUpperCase(), null).values()).containsExactly(DOCS);
-        assertThat(complete("collection", "zzz", null).values()).isEmpty();
+        assertThat(complete("index", "", null).values()).containsExactly(API, DOCS);
+        assertThat(complete("index", DOCS.substring(0, 2).toUpperCase(), null).values()).containsExactly(DOCS);
+        assertThat(complete("index", "zzz", null).values()).isEmpty();
     }
 
     @Test
     void idsCompleteWithinTheChosenIndex() {
-        CompleteCompletion ids = complete("id", "article.billing.refunds#", Map.of("collection", encoded(DOCS)));
+        CompleteCompletion ids = complete("id", "article.billing.refunds#", Map.of("index", encoded(DOCS)));
 
         assertThat(ids.values()).isNotEmpty().allMatch(id -> id.startsWith("article.billing.refunds#"))
                 .contains("article.billing.refunds#статусы-возврата").isSorted();
@@ -84,7 +84,7 @@ class RecordResourcesTest {
     @Test
     void idsNeedAKnownIndex() {
         assertThat(complete("id", "article", null).values()).isEmpty();
-        assertThat(complete("id", "article", Map.of("collection", "no-such")).values()).isEmpty();
+        assertThat(complete("id", "article", Map.of("index", "no-such")).values()).isEmpty();
     }
 
     @Test

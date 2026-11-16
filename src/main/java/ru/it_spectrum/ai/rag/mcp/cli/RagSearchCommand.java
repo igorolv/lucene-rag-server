@@ -134,9 +134,9 @@ public final class RagSearchCommand {
         }
         int number = 0;
         for (SearchHit hit : page.hits()) {
-            out.println(++number + ". [" + hit.collection() + "] " + hit.breadcrumb());
+            out.println(++number + ". " + hit.breadcrumb());
             out.println(String.format(Locale.ROOT, "   id: %s   source: %s   score: %.2f",
-                    hit.id(), hit.source(), hit.score()));
+                    hit.address(), hit.source(), hit.score()));
             for (String line : hit.snippet().split("\n")) {
                 if (!line.isBlank()) {
                     out.println("   " + line.strip());

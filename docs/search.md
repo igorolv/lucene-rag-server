@@ -141,8 +141,8 @@ value, as an error text from a screen or a parameter code, and not the words to 
 
 ## Results
 
-`search` returns a page of hits, best first: `collection`, `id`, `breadcrumb`, `source` (the file,
-relative to its source), `score` and a `snippet` — part of the passage around the matches of the
+`search` returns a page of hits, best first: `id`, `breadcrumb`, `source` (the file, relative to
+its source), `score` and a `snippet` — part of the passage around the matches of the
 query's words, with the matches in `**bold**`; a passage found by its vector alone may have no
 bold words. `mode` says how the page was ranked. `total` counts all matching records (fused
 candidates in `vector` and `hybrid`); pass `nextOffset` as `offset` with the same arguments for the
@@ -156,16 +156,23 @@ Markdown source cut by headings). A row of a catalog, a table (`split.tableRows`
 another format stands alone and is never dropped. `total` still counts every matching record, so a
 page may end, without `nextOffset`, before `total` is reached.
 
-`getDocument` takes a hit's `collection` and `id` and returns the full passage with the document's
-fields, its key and the record's position in the document.
+**The id of a record** is `<index>/<record id>`, for example
+`docs@billing/article.billing.refunds#statuses`: the name of the index the record is in, a `/`,
+and the id the record has in that index ([indexes.md](indexes.md#mapping)). An index name holds no
+`/`, so the id is split at the first one. Every tool that takes a record takes this id as a hit
+gives it; an id without the index part, or with an index that is not built, is an error that says
+so and shows an example.
 
-**A record as a resource.** The same record is the MCP resource `rag://{collection}/{id}`, as
-Markdown: the breadcrumb as the heading, a list of the collection, the record id, the source and
-the fields (a nested list), then the passage, cut to the response size cap as `getDocument` is. A client can show it
+`getDocument` takes a hit's `id` and returns the full passage with the document's fields, its key
+and the record's position in the document.
+
+**A record as a resource.** The same record is the MCP resource `rag://{index}/{id}`, `rag://`
+followed by the id of a hit, as Markdown: the breadcrumb as the heading, a list of the id, the
+source and the fields (a nested list), then the passage, cut to the response size cap as `getDocument` is. A client can show it
 or attach it to a conversation without a tool call. The values in the URI are percent-encoded
 (an id holds `#` and often `/`), for example
 `rag://docs%40billing/article.billing.refunds%23statuses`. A client that supports completion
-suggests both values: `collection` from the built indexes whose name starts with what is
+suggests both values: `index` from the built indexes whose name starts with what is
 typed, ignoring case, and `id` from the ids of the chosen index that start with it, in id
 order, at most 100. The resource and its completion belong to the `search` group.
 
@@ -206,7 +213,8 @@ that field with the number of records of each, most frequent first: 50 by defaul
 it, ignoring case. A value is written as a record has it, and passed in `filters` it finds exactly
 the records it counts.
 
-**`relatedRecords`** takes a `collection` and the `id` of a record and returns what is around it:
+**`relatedRecords`** takes the `id` of a record and returns what is around it, inside the index of
+the record:
 
 - `sections`: the other sections of its document nearest to it by position, in document order.
   A row of a catalog or a table stands alone and has none.
@@ -221,7 +229,7 @@ the records it counts.
 
 **`explainSearch`** of the `debug` group shows why a search finds what it finds. It takes the
 arguments of `search` (`collections`, `query`, `filters`, `filterExpression`, `mode`), an
-optional `id` of a record to explain, and `limit`, and returns:
+optional `id` of a record to explain, as a hit gives it, and `limit`, and returns:
 
 - `terms` and `englishTerms`: the query's words as the Russian and the English analysis index
   them. A stop word is gone, a word is cut to its stem; a word that is not there cannot match.
@@ -266,7 +274,8 @@ java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STA
 ```
 
 The first argument is one or more index names separated by commas; the remaining words are the
-query. `--filter name=value` may be repeated; `--filter-expression` takes one
+query. Each hit is printed with its breadcrumb, its id (`<index>/<record id>`), source and score,
+and its snippet. `--filter name=value` may be repeated; `--filter-expression` takes one
 [filter expression](#filter-expressions). `--per-document N` shows up to N sections of a document
 ([Results](#results)). `--mode lexical|vector|hybrid` chooses the
 [mode](#modes); without it the default applies, and the last line names the mode used.

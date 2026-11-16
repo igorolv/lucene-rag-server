@@ -40,9 +40,7 @@ public record ExplainResult(
 
     @Schema(description = "A record and its place in each ranked list")
     public record ExplainedHit(
-            @Schema(description = "Collection", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-            String collection,
-            @Schema(description = "Record id", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
+            @Schema(description = "Record id, as search gives it", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
             String id,
             @Schema(description = "Document title and headings", nullable = true,
                     requiredMode = Schema.RequiredMode.NOT_REQUIRED)

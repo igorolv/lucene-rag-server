@@ -138,14 +138,17 @@ public final class BrowseService {
     }
 
     /**
-     * @param limit sections and similar records to return, each; capped as a page of search is
-     * @throws IllegalArgumentException for an unknown index or record
+     * Sections and similar records stay inside the index of the record: vectors of different
+     * models are not comparable.
+     *
+     * @param address the record, {@code <index>/<record id>}
+     * @param limit   sections and similar records to return, each; capped as a page of search is
+     * @throws IllegalArgumentException for a wrong id, an unknown index or record
      */
-    public Related related(String collection, String id, Integer limit) throws IOException {
-        Manifest manifest = search.resolve(List.of(collection)).getFirst();
-        if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("id is required");
-        }
+    public Related related(String address, Integer limit) throws IOException {
+        RecordAddress parsed = RecordAddress.parse(address);
+        Manifest manifest = search.resolve(List.of(search.builtIndex(parsed))).getFirst();
+        String id = parsed.id();
         int size = limit == null ? Math.min(5, properties.searchMaxLimit())
                 : Math.min(properties.searchMaxLimit(), Math.max(1, limit));
         try (SearchService.Opened opened = search.open(List.of(manifest))) {

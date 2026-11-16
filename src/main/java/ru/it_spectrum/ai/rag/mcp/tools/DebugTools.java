@@ -49,8 +49,8 @@ public class DebugTools {
             String filterExpression,
             @McpToolParam(description = "lexical, vector or hybrid; the default as for search", required = false)
             String mode,
-            @McpToolParam(description = "id of a record to explain, e.g. the one expected but not found",
-                    required = false)
+            @McpToolParam(description = "id of a record to explain, e.g. the one expected but not found, " +
+                    "as a search hit gives it: <index>/<record id>", required = false)
             String id,
             @McpToolParam(description = "Records of the ranking to show; the server applies its page limits",
                     required = false)
@@ -70,7 +70,7 @@ public class DebugTools {
     }
 
     private static ExplainResult.ExplainedHit hit(SearchService.Ranked ranked) {
-        return new ExplainResult.ExplainedHit(ranked.hit().collection(), ranked.hit().id(), ranked.hit().breadcrumb(),
+        return new ExplainResult.ExplainedHit(ranked.hit().address(), ranked.hit().breadcrumb(),
                 ranked.rank(), ranked.lexicalRank(), ranked.vectorRank(), ranked.hit().score());
     }
 }

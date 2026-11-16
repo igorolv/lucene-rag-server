@@ -21,7 +21,7 @@ public record RelatedResult(
                 "their text as the snippet", nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         List<SearchHitInfo> similar,
         @Schema(description = "How likeness was found: vector (the embeddings of the records) or words " +
-                "(their shared words, in a collection without vectors)",
+                "(their shared words, in an index without vectors)",
                 nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         String similarBy) {
 }

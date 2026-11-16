@@ -7,9 +7,8 @@ import java.util.Map;
 
 @Schema(description = "One record with its full text")
 public record DocumentResult(
-        @Schema(nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-        String collection,
-        @Schema(nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "Record id, as search gives it", nullable = true,
+                requiredMode = Schema.RequiredMode.REQUIRED)
         String id,
         @Schema(description = "Key of the document the record is a part of",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

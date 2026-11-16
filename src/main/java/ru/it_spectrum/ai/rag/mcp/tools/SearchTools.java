@@ -84,7 +84,7 @@ public class SearchTools {
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }
-        List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.collection(), hit.id(),
+        List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.address(),
                 hit.breadcrumb(), hit.source(), hit.score(), hit.snippet())).toList();
         return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated(),
                 page.mode() == null ? null : page.mode().id(), page.notice());
@@ -92,22 +92,21 @@ public class SearchTools {
 
     @McpTool(
             description = "Read one record in full: the passage, where it comes from and the fields of its " +
-                    "document. Use the collection and id of a search hit.",
+                    "document. Use the id of a search hit.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public DocumentResult getDocument(
-            @McpToolParam(description = "Collection of the search hit", required = true) String collection,
-            @McpToolParam(description = "id of the search hit", required = true) String id) {
-        log.info("Tool call: getDocument collection={} id={}", collection, id);
+            @McpToolParam(description = "id of the search hit, as it was returned", required = true) String id) {
+        log.info("Tool call: getDocument id={}", id);
         final SearchHit hit;
         try {
-            hit = search.get(collection, id).orElseThrow(() -> new IllegalArgumentException(
-                    "No record '" + id + "' in collection '" + collection + "'"));
+            hit = search.get(id).orElseThrow(() -> new IllegalArgumentException(
+                    "No record '" + id.strip() + "'"));
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }
-        return new DocumentResult(hit.collection(), hit.id(), hit.document(), hit.ordinal(), hit.breadcrumb(),
+        return new DocumentResult(hit.address(), hit.document(), hit.ordinal(), hit.breadcrumb(),
                 hit.source(), hit.text(), hit.fields());
     }
 }

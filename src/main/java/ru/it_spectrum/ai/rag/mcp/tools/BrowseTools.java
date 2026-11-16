@@ -57,19 +57,18 @@ public class BrowseTools {
 
     @McpTool(
             description = "Show what is around a record: the other sections of its document nearest to it, and " +
-                    "the records most like it elsewhere in the collection. Use the collection and id of a " +
-                    "search hit; read a related record with getDocument.",
+                    "the records most like it elsewhere in its index. Use the id of a search hit; read a related " +
+                    "record with getDocument.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public RelatedResult relatedRecords(
-            @McpToolParam(description = "Collection of the record", required = true) String collection,
-            @McpToolParam(description = "id of the record", required = true) String id,
+            @McpToolParam(description = "id of the record, as a search hit gives it", required = true) String id,
             @McpToolParam(description = "Sections and similar records to return, each; default 5", required = false)
             Integer limit) {
-        log.info("Tool call: relatedRecords collection={} id={} limit={}", collection, id, limit);
+        log.info("Tool call: relatedRecords id={} limit={}", id, limit);
         try {
-            BrowseService.Related related = browse.related(collection, id, limit);
+            BrowseService.Related related = browse.related(id, limit);
             return new RelatedResult(info(related.record()), related.sections().stream().map(BrowseTools::info).toList(),
                     related.similar().stream().map(BrowseTools::info).toList(), related.similarBy());
         } catch (IOException e) {
@@ -78,7 +77,7 @@ public class BrowseTools {
     }
 
     static SearchHitInfo info(SearchHit hit) {
-        return new SearchHitInfo(hit.collection(), hit.id(), hit.breadcrumb(), hit.source(), hit.score(),
+        return new SearchHitInfo(hit.address(), hit.breadcrumb(), hit.source(), hit.score(),
                 hit.snippet());
     }
 }

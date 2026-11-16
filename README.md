@@ -89,15 +89,15 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 |---|---|---|
 | `listCollections` | `collections` | Indexes of this server, their descriptions and filter fields, and problems of imported indexes files |
 | `search` | `search` | Passages matching a query, filters and a filter expression in one or more indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
-| `getDocument` | `search` | One record in full |
+| `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`) |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 | `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |
 | `fieldValues` | `browse` | Values of a field with the number of records of each, to filter by ([docs/search.md](docs/search.md#browsing)) |
 | `relatedRecords` | `browse` | Other sections of a record's document and the records most like it |
 | `explainSearch` | `debug` | The query's words after analysis and where records rank in each list, for tuning ([docs/search.md](docs/search.md#explaining-a-search)) |
 
-A record is also the MCP resource `rag://{collection}/{id}`, and clients that support completion
-suggest its index and id ([docs/search.md](docs/search.md#results)).
+A record is also the MCP resource `rag://` followed by its id, `<index>/<record id>`
+(`rag://{index}/{id}`), and clients that support completion suggest its index and id ([docs/search.md](docs/search.md#results)).
 
 ## Settings
 

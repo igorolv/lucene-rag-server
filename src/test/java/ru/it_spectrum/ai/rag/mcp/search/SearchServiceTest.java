@@ -219,7 +219,7 @@ class SearchServiceTest {
     void severalIndexesAreSearchedTogether() throws IOException {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null);
 
-        assertThat(page.hits()).extracting(SearchHit::collection).contains(DOCS, API);
+        assertThat(page.hits()).extracting(SearchHit::index).contains(DOCS, API);
     }
 
     @Test
@@ -261,14 +261,28 @@ class SearchServiceTest {
 
     @Test
     void aRecordIsReadInFullById() throws IOException {
-        SearchHit hit = search.get(DOCS, "article.billing.refunds#статусы-возврата").orElseThrow();
+        SearchHit hit = search.get(DOCS + "/article.billing.refunds#статусы-возврата").orElseThrow();
 
         assertThat(hit.text()).contains("| Исполнен | банк подтвердил перевод |");
         assertThat(hit.snippet()).isNull();
         assertThat(hit.breadcrumb()).isEqualTo("Возвраты › Статусы возврата");
         assertThat(hit.source()).isEqualTo("refunds.md");
         assertThat(hit.fields().get("tables")).containsExactly("REFUND", "PAYMENT");
-        assertThat(search.get(DOCS, "no-such-id")).isEmpty();
+        assertThat(hit.address()).isEqualTo(DOCS + "/article.billing.refunds#статусы-возврата");
+        assertThat(search.get(DOCS + "/no-such-id")).isEmpty();
+    }
+
+    @Test
+    void anIdWithoutAKnownIndexIsAnErrorWithAnExample() {
+        assertThatThrownBy(() -> search.get("article.billing.refunds#статусы-возврата"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("an id is <index>/<record id>, for example docs@billing/");
+        assertThatThrownBy(() -> search.get("nope@billing/article.billing.refunds"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("names the index 'nope@billing', which is not built here")
+                .hasMessageContaining(DOCS);
+        assertThatThrownBy(() -> search.get(" "))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("id is required");
     }
 
     @Test

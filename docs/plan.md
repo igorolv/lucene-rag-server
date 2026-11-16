@@ -216,7 +216,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 | Group | Tools | Stage |
 |---|---|---|
 | `collections` | `listCollections` | done |
-| `search` | `search`, `getDocument`; the resource `rag://{collection}/{id}` and its completion (D48) | done |
+| `search` | `search`, `getDocument`; the resource `rag://{index}/{id}` and its completion (D48) | done |
 | `lookup` | `lookup`: exact lookups by the key fields of catalog indexes (D23) | done |
 | `admin` | `rebuildIndex` (D50) | done |
 | `browse` | `fieldValues`, `relatedRecords` (D72); listing by filters is `search` without a query | done |
@@ -304,7 +304,7 @@ D28 with its reason.
 | Embedding input and batches | `Document` content for `MetadataMode.EMBED` by a `ContentFormatter` (`document/RecordContentFormatter`), batches by a `BatchingStrategy` (`embedding/CountBatchingStrategy`), the model called through `EmbeddingRequest` (D44) | used |
 | Embedding observations | the observation conventions of Spring AI embedding models (D46) | used; no metrics backend bundled |
 | MCP over HTTP | the streamable HTTP transport of the Spring AI MCP server starter (D45), `RAG_MCP_TRANSPORT=http` | used |
-| MCP resources and completion | `@McpResource` and `@McpComplete`: a record as `rag://{collection}/{id}`, its values completed (D48) | used; progress notifications not (D66) |
+| MCP resources and completion | `@McpResource` and `@McpComplete`: a record as `rag://{index}/{id}`, its values completed (D48) | used; progress notifications not (D66) |
 | Storage, search, fusion | none: Lucene (D28 a, b) | own |
 | Markdown reading, splitting, the five steps | none (D28 d, e) | own |
 

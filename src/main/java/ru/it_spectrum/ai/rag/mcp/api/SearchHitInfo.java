@@ -4,10 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "One search result")
 public record SearchHitInfo(
-        @Schema(description = "Collection the record is in",
-                nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
-        String collection,
-        @Schema(description = "Record id; pass it to getDocument with the same collection for the full text",
+        @Schema(description = "Record id; pass it to getDocument for the full text",
                 nullable = true, requiredMode = Schema.RequiredMode.REQUIRED)
         String id,
         @Schema(description = "Document title and headings leading to the passage",

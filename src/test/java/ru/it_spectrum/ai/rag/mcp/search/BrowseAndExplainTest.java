@@ -98,7 +98,7 @@ class BrowseAndExplainTest {
 
     @Test
     void aSectionIsRelatedToTheOtherSectionsOfItsDocumentAndToRecordsLikeIt() throws IOException {
-        BrowseService.Related related = browseLexical.related(DOCS, REFUND_STATUSES, 5);
+        BrowseService.Related related = browseLexical.related(DOCS + "/" + REFUND_STATUSES, 5);
 
         assertThat(related.record().id()).isEqualTo(REFUND_STATUSES);
         assertThat(related.sections()).isNotEmpty().allMatch(h -> h.document().equals("article.billing.refunds"))
@@ -111,7 +111,7 @@ class BrowseAndExplainTest {
 
     @Test
     void inAnIndexWithVectorsLikenessIsByVector() throws IOException {
-        BrowseService.Related related = browseVectors.related(DOCS, REFUND_STATUSES, 3);
+        BrowseService.Related related = browseVectors.related(DOCS + "/" + REFUND_STATUSES, 3);
 
         assertThat(related.similarBy()).isEqualTo("vector");
         assertThat(related.similar()).hasSizeLessThanOrEqualTo(3).isNotEmpty()
@@ -125,7 +125,7 @@ class BrowseAndExplainTest {
                 new RagMcpProperties(catalogDir.toString(), null))
                 .search(List.of(LookupTestData.CATALOGS), null, Map.of("method", row), 1, null).hits().getFirst();
 
-        BrowseService.Related related = browseCatalog.related(LookupTestData.CATALOGS, someRow.id(), 5);
+        BrowseService.Related related = browseCatalog.related(someRow.address(), 5);
 
         assertThat(related.sections()).isEmpty();
         assertThat(related.similar()).noneMatch(h -> h.id().equals(someRow.id()));
@@ -134,7 +134,7 @@ class BrowseAndExplainTest {
     @Test
     void anExplanationShowsTheWordsAndWhereRecordsRankInEachList() throws IOException {
         SearchService.Explanation explanation = vectors.explain(List.of(DOCS), "отмена платежей", null, null, null,
-                "article.billing.refunds#когда-возможен-возврат", 5);
+                DOCS + "/article.billing.refunds#когда-возможен-возврат", 5);
 
         assertThat(explanation.mode()).isEqualTo(SearchMode.HYBRID);
         assertThat(explanation.terms()).containsExactly("отм", "платеж");
@@ -153,14 +153,18 @@ class BrowseAndExplainTest {
     @Test
     void aTargetTheFiltersExcludeIsSaidToBeExcluded() throws IOException {
         SearchService.Explanation explanation = lexical.explain(List.of(DOCS), "отмена платежей",
-                Map.of("kind", "playbook"), null, null, "article.billing.payments#отмена-платежа", null);
+                Map.of("kind", "playbook"), null, null, DOCS + "/article.billing.payments#отмена-платежа", null);
 
         assertThat(explanation.mode()).isEqualTo(SearchMode.LEXICAL);
         assertThat(explanation.target().rank()).isNull();
         assertThat(explanation.target().vectorRank()).isNull();
         assertThat(explanation.matchesWords()).isTrue();
         assertThat(explanation.passesFilters()).isFalse();
-        assertThatThrownBy(() -> lexical.explain(List.of(DOCS), "платёж", null, null, null, "no-such", null))
+        assertThatThrownBy(() -> lexical.explain(List.of(DOCS), "платёж", null, null, null, DOCS + "/no-such", null))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("No record 'no-such'");
+        assertThatThrownBy(() -> lexical.explain(List.of(DOCS), "платёж", null, null, null, "no-such", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("<index>/<record id>");
+        assertThatThrownBy(() -> lexical.explain(List.of(DOCS), "платёж", null, null, null, "other/no-such", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("does not cover");
     }
 }

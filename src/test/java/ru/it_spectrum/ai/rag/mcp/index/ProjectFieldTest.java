@@ -86,7 +86,7 @@ class ProjectFieldTest {
         assertThat(none).isEqualTo(store.manifest(API).orElseThrow().records());
         assertThat(billing + none).isEqualTo(all);
         assertThat(search.search(List.of(DOCS, API), null, null, "project IS NULL", 50, null, null).hits())
-                .allSatisfy(hit -> assertThat(hit.collection()).isEqualTo(API));
+                .allSatisfy(hit -> assertThat(hit.index()).isEqualTo(API));
     }
 
     @Test

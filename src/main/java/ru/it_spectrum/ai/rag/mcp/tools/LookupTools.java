@@ -59,7 +59,7 @@ public class LookupTools {
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }
-        List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.collection(), hit.id(),
+        List<SearchHitInfo> hits = page.hits().stream().map(hit -> new SearchHitInfo(hit.address(),
                 hit.breadcrumb(), hit.source(), hit.score(), hit.snippet())).toList();
         return new SearchResult(page.total(), hits, page.nextOffset(), page.truncated(), null, null);
     }

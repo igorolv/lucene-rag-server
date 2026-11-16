@@ -133,7 +133,7 @@ class VectorSearchTest {
     void hybridOverAnIndexWithoutVectorsUsesItsBm25ListOnly() throws IOException {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null, "hybrid");
 
-        assertThat(page.hits()).extracting(SearchHit::collection).contains(DOCS, API);
+        assertThat(page.hits()).extracting(SearchHit::index).contains(DOCS, API);
         assertThatThrownBy(() -> search.search(List.of(DOCS, API), "payment", null, null, null, "vector"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(API + " has no vectors");
         assertThatThrownBy(() -> search.search(List.of(API), "payment", null, null, null, "hybrid"))

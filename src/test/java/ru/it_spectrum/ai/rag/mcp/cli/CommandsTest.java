@@ -121,8 +121,8 @@ class CommandsTest {
         assertThat(search(DOCS + "," + API, "ручная", "привязка", "--limit", "2")).isZero();
 
         assertThat(output())
-                .contains("1. [" + DOCS + "] Платежи › Привязка к счёту")
-                .contains("id: article.billing.payments#привязка-к-счёту   source: payments.md")
+                .contains("1. Платежи › Привязка к счёту")
+                .contains("id: " + DOCS + "/article.billing.payments#привязка-к-счёту   source: payments.md")
                 .contains("### **Ручная** **привязка**")
                 .containsPattern("RESULT: OK \\(\\d+ found, 2 shown, lexical\\)");
 

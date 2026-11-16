@@ -231,7 +231,8 @@ public final class SearchService {
      * for one record by its id, the rank in the fused ranking and in each list fused. The limit of
      * records per document is not applied, so a record dropped by it is still shown.
      *
-     * @param id    a record to explain; {@code null} for none
+     * @param id    a record to explain, {@code <index>/<record id>} (a {@link RecordAddress}); {@code null}
+     *              for none
      * @param limit records of the ranking to show; capped as a page of search is
      * @throws IllegalArgumentException as {@link #search} does, and for an id no index has
      */
@@ -311,19 +312,29 @@ public final class SearchService {
             Boolean matchesWords = null;
             Boolean passesFilters = null;
             if (id != null && !id.isBlank()) {
-                Query byId = new TermQuery(new Term(IndexFields.ID, id.strip()));
-                TopDocs found = searcher.search(byId, 1);
-                if (found.scoreDocs.length == 0) {
-                    throw new IllegalArgumentException("No record '" + id.strip() + "' in "
+                RecordAddress address = RecordAddress.parse(id);
+                if (manifests.stream().noneMatch(m -> m.name().equals(address.index()))) {
+                    throw new IllegalArgumentException("The record " + address + " is in the index '"
+                            + address.index() + "', which this search does not cover; searched: "
                             + String.join(", ", manifests.stream().map(Manifest::name).toList()));
                 }
-                int doc = found.scoreDocs[0].doc;
+                Query byId = new TermQuery(new Term(IndexFields.ID, address.id()));
+                int doc = -1;
+                for (ScoreDoc found : searcher.search(byId, manifests.size()).scoreDocs) {
+                    if (address.index().equals(stored.document(found.doc).get(IndexFields.INDEX))) {
+                        doc = found.doc;
+                    }
+                }
+                if (doc < 0) {
+                    throw new IllegalArgumentException("No record '" + address.id() + "' in index '"
+                            + address.index() + "'");
+                }
                 target = new Ranked(hit(stored.document(doc), scores.getOrDefault(doc, 0f), null, null),
                         fusedRanks.get(doc), lexicalRanks.get(doc), vectorRanks.get(doc));
-                matchesWords = searcher.count(new BooleanQuery.Builder().add(byId, BooleanClause.Occur.MUST)
-                        .add(textQuery, BooleanClause.Occur.MUST).build()) > 0;
-                passesFilters = filter == null || searcher.count(new BooleanQuery.Builder()
-                        .add(byId, BooleanClause.Occur.MUST).add(filter, BooleanClause.Occur.FILTER).build()) > 0;
+                matchesWords = matches(searcher, new BooleanQuery.Builder().add(byId, BooleanClause.Occur.MUST)
+                        .add(textQuery, BooleanClause.Occur.MUST).build(), doc);
+                passesFilters = filter == null || matches(searcher, new BooleanQuery.Builder()
+                        .add(byId, BooleanClause.Occur.MUST).add(filter, BooleanClause.Occur.FILTER).build(), doc);
             }
             return new Explanation(effective, analyzed(IndexFields.TEXT, text), analyzed(IndexFields.TEXT_EN, text),
                     searcher.count(lexical), List.copyOf(ranked), target, matchesWords, passesFilters, notice);
@@ -585,6 +596,40 @@ public final class SearchService {
         }
         int next = skip + hits.size();
         return new SearchPage(total, List.copyOf(hits), next < available ? next : null, truncated, mode);
+    }
+
+    /** Whether a query matches one document; the query matches a few at most. */
+    private static boolean matches(IndexSearcher searcher, Query query, int doc) throws IOException {
+        for (ScoreDoc found : searcher.search(query, 100).scoreDocs) {
+            if (found.doc == doc) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * One record by the id a tool gives, {@code <index>/<record id>}.
+     *
+     * @throws IllegalArgumentException when the id has no index part or names an index that is not built
+     */
+    public Optional<SearchHit> get(String address) throws IOException {
+        RecordAddress parsed = RecordAddress.parse(address);
+        return get(builtIndex(parsed), parsed.id());
+    }
+
+    /**
+     * The index of an address, checked to be built.
+     *
+     * @throws IllegalArgumentException when it is not
+     */
+    String builtIndex(RecordAddress address) {
+        if (store.manifest(address.index()).isEmpty()) {
+            throw new IllegalArgumentException("The id " + address + " names the index '" + address.index()
+                    + "', which is not built here; built: " + available() + ". An id is given as a search hit "
+                    + "gives it, <index>/<record id>, for example " + RecordAddress.EXAMPLE);
+        }
+        return address.index();
     }
 
     /** One record by its id, with the full passage cut to the response size cap. */
