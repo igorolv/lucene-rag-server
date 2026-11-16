@@ -89,7 +89,7 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 |---|---|---|
 | `describeKnowledge` | `knowledge` | The projects and parts of the knowledge with their record counts, descriptions and the fields to filter by, with the values of a field that has few ([docs/search.md](docs/search.md#describing-the-knowledge)) |
 | `search` | `search` | Passages matching a query, filters and a filter expression across all indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
-| `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`) |
+| `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`); with `scope` the whole document or its rest |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 | `listIndexes` | `admin` | The indexes for the operator: built or not, when, records, model problems, configuration errors and import problems ([docs/indexes.md](docs/indexes.md#building)) |
 | `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |

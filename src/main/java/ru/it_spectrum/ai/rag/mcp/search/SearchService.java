@@ -652,6 +652,97 @@ public final class SearchService {
     }
 
     /**
+     * Text of a document read from one of its records (docs/decisions.md D92).
+     *
+     * @param record   the record the reading was asked for, without text
+     * @param text     the sections read, in document order, each after a {@code ## } line with its
+     *                 breadcrumb when that differs from the section before; cut at a section boundary
+     *                 to the response size cap
+     * @param ordinal  position in the document of the first section read
+     * @param sections sections read
+     * @param total    sections of the document
+     * @param nextId   id of the first section left out by the cap, to read with {@code rest};
+     *                 {@code null} when the text reaches the end of the document
+     */
+    public record DocumentText(SearchHit record, String text, int ordinal, int sections, int total, String nextId) {
+    }
+
+    /**
+     * The sections of the document of a record, from its first section or from the record to the end.
+     * A record that stands alone, a row of a catalog or a table, is read alone.
+     *
+     * @param address   the record, {@code <index>/<record id>}
+     * @param fromStart {@code true} to read from the first section, {@code false} from the record
+     * @throws IllegalArgumentException for a wrong id or an index that is not built
+     */
+    public Optional<DocumentText> document(String address, boolean fromStart) throws IOException {
+        RecordAddress parsed = RecordAddress.parse(address);
+        List<Manifest> manifests = resolve(List.of(builtIndex(parsed)));
+        String id = parsed.id();
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("id is required");
+        }
+        try (Opened opened = open(manifests)) {
+            IndexSearcher searcher = new IndexSearcher(opened.reader);
+            var stored = searcher.storedFields();
+            TopDocs found = searcher.search(new TermQuery(new Term(IndexFields.ID, id.strip())), 1);
+            if (found.scoreDocs.length == 0) {
+                return Optional.empty();
+            }
+            Document record = stored.document(found.scoreDocs[0].doc);
+            String key = record.get(IndexFields.DOCUMENT);
+            // A section shares its group with its document; a row is a group of its own (D38).
+            List<Document> sections = new ArrayList<>();
+            if (key != null && key.equals(record.get(IndexFields.STORED_GROUP))) {
+                TopDocs all = searcher.search(new TermQuery(new Term(IndexFields.DOCUMENT, key)), 100_000);
+                for (ScoreDoc scoreDoc : all.scoreDocs) {
+                    sections.add(stored.document(scoreDoc.doc));
+                }
+                sections.sort(Comparator.comparingInt(d -> d.getField(IndexFields.STORED_ORDINAL).numericValue().intValue()));
+            } else {
+                sections.add(record);
+            }
+            int start = 0;
+            if (!fromStart) {
+                for (int i = 0; i < sections.size(); i++) {
+                    if (id.strip().equals(sections.get(i).get(IndexFields.ID))) {
+                        start = i;
+                        break;
+                    }
+                }
+            }
+            int cap = properties.responseMaxChars();
+            StringBuilder text = new StringBuilder();
+            String breadcrumb = null;
+            int read = 0;
+            String nextId = null;
+            for (int i = start; i < sections.size(); i++) {
+                Document section = sections.get(i);
+                String crumb = section.get(IndexFields.STORED_BREADCRUMB);
+                String piece = (crumb == null || crumb.equals(breadcrumb) ? "" : "## " + crumb + "\n\n")
+                        + section.get(IndexFields.STORED_TEXT);
+                int length = (text.isEmpty() ? 0 : 2) + piece.length();
+                if (read > 0 && text.length() + length > cap) {
+                    nextId = section.get(IndexFields.ID);
+                    break;
+                }
+                if (!text.isEmpty()) {
+                    text.append("\n\n");
+                }
+                if (read == 0 && piece.length() > cap) {
+                    piece = piece.substring(0, cap) + "…";
+                }
+                text.append(piece);
+                breadcrumb = crumb;
+                read++;
+            }
+            int ordinal = sections.get(start).getField(IndexFields.STORED_ORDINAL).numericValue().intValue();
+            return Optional.of(new DocumentText(hit(record, 0f, null, null), text.toString(), ordinal, read,
+                    sections.size(), nextId));
+        }
+    }
+
+    /**
      * Record ids of one index that start with a prefix, in id order: at most {@code max} of
      * them, and whether more exist. For completing an id (docs/decisions.md D48).
      */

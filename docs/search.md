@@ -197,6 +197,25 @@ so and shows an example.
 `getDocument` takes a hit's `id` and returns the full passage with the document's fields, its key
 and the record's position in the document.
 
+**Reading a whole document.** Search finds small records; a model with a large context can read
+what is around them (docs/decisions.md D92). `getDocument` takes `scope`:
+
+| `scope` | What `text` holds |
+|---|---|
+| `record` (default) | The record's passage, as above |
+| `document` | Every section of the record's document, in document order, from the first |
+| `rest` | The sections from the record to the end of its document |
+
+- Each section comes after a `## ` line with its breadcrumb; the parts of a record cut by
+  `split.maxChars` (`~2`, `~3`) share the breadcrumb and get the line once.
+- The text is cut to `RAG_MCP_RESPONSE_MAX_CHARS` at a section boundary. `sections` counts the
+  sections in the text and `sectionsInDocument` those of the document; `nextId` names the first
+  section left out, and `getDocument(nextId, scope: rest)` reads on. A first section longer than the
+  cap is cut inside, as `record` cuts it.
+- A row of a catalog or a table (`split.tableRows`) stands alone, as in search results: it is read
+  alone, whatever the scope.
+- `ordinal` is the position of the first section in the text.
+
 **A record as a resource.** The same record is the MCP resource `rag://{index}/{id}`, `rag://`
 followed by the id of a hit, as Markdown: the breadcrumb as the heading, a list of the id, the
 source and the fields (a nested list), then the passage, cut to the response size cap as `getDocument` is. A client can show it
@@ -225,11 +244,20 @@ A snippet is at most about 600 characters. When the size cap ends a page early, 
 a page of 10 hits carried about 4,300 characters of snippets, a page of 5 about 2,000, and 5 hits
 still held the expected record for 14 of 17 questions against 15 for 10. A starting point:
 
-| Variable | Strong model (defaults) | Small context |
-|---|---|---|
-| `RAG_MCP_SEARCH_DEFAULT_LIMIT` | 10 | 5 |
-| `RAG_MCP_SEARCH_MAX_LIMIT` | 50 | 10 |
-| `RAG_MCP_RESPONSE_MAX_CHARS` | 20000 | 4000 |
+| Variable | Strong model (defaults) | Small context | Large context |
+|---|---|---|---|
+| `RAG_MCP_SEARCH_DEFAULT_LIMIT` | 10 | 5 | 20 |
+| `RAG_MCP_SEARCH_MAX_LIMIT` | 50 | 10 | 100 |
+| `RAG_MCP_RESPONSE_MAX_CHARS` | 20000 | 4000 | 100000 |
+
+**For a model with a large context** (hundreds of thousands of tokens): on the first real corpus
+the expected source was within 20 hits for 71 of 75 questions and within 50 for 73, against 64
+within 5; for a developer's questions to the evidence maps, 11 of 12 within 20 against 8 within 5.
+Such a model gains by reading deeper pages and whole documents (`getDocument` with
+`scope: document`), not by larger records: `split.maxChars` follows the input limit of the
+embedding model ([indexes.md](indexes.md#what-is-embedded)) whatever model reads the results. A
+page of 20 hits is about 9,000 characters of snippets; 100,000 characters of a `getDocument` text
+hold a large evidence map whole.
 
 ## Browsing
 

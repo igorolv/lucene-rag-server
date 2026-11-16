@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.rag.mcp.api.DocumentResult;
 import ru.it_spectrum.ai.rag.mcp.api.SearchHitInfo;
 import ru.it_spectrum.ai.rag.mcp.api.SearchResult;
+import ru.it_spectrum.ai.rag.mcp.search.RecordAddress;
 import ru.it_spectrum.ai.rag.mcp.search.SearchHit;
 import ru.it_spectrum.ai.rag.mcp.search.SearchPage;
 import ru.it_spectrum.ai.rag.mcp.search.SearchService;
@@ -16,6 +17,7 @@ import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -89,13 +91,36 @@ public class SearchTools {
 
     @McpTool(
             description = "Read one record in full: the passage, where it comes from and the fields of its " +
-                    "document. Use the id of a search hit.",
+                    "document. Use the id of a search hit. With scope document, read every section of the " +
+                    "record's document in order; with rest, from the record to the end. A long document is cut " +
+                    "at a section boundary and nextId continues it with scope rest.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public DocumentResult getDocument(
-            @McpToolParam(description = "id of the search hit, as it was returned", required = true) String id) {
-        log.info("Tool call: getDocument id={}", id);
+            @McpToolParam(description = "id of the search hit, as it was returned", required = true) String id,
+            @McpToolParam(description = "record (the default): this record; document: all sections of its " +
+                    "document from the first; rest: the sections from this record to the end. A row of a " +
+                    "catalog or a table is read alone", required = false) String scope) {
+        log.info("Tool call: getDocument id={} scope={}", id, scope);
+        String what = scope == null || scope.isBlank() ? "record" : scope.strip().toLowerCase(Locale.ROOT);
+        if (!what.equals("record")) {
+            if (!what.equals("document") && !what.equals("rest")) {
+                throw new IllegalArgumentException("scope is record, document or rest, not '" + scope + "'");
+            }
+            final SearchService.DocumentText read;
+            try {
+                read = search.document(id, what.equals("document")).orElseThrow(() -> new IllegalArgumentException(
+                        "No record '" + id.strip() + "'"));
+            } catch (IOException e) {
+                throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
+            }
+            SearchHit hit = read.record();
+            return new DocumentResult(hit.address(), hit.document(), read.ordinal(), hit.breadcrumb(), hit.source(),
+                    read.text(), hit.fields(), read.sections(), read.total(),
+                    read.nextId() == null ? null : new RecordAddress(
+                            hit.index(), read.nextId()).text());
+        }
         final SearchHit hit;
         try {
             hit = search.get(id).orElseThrow(() -> new IllegalArgumentException(

@@ -158,6 +158,22 @@ class BrowseAndExplainTest {
     }
 
     @Test
+    void aRowIsReadAloneAsAWholeDocument() throws IOException {
+        String method = browseCatalog.fieldValues(List.of(LookupTestData.CATALOGS), "method", null, null, null, 1)
+                .values().getFirst().value();
+        SearchService catalog = new SearchService(new IndexStore(catalogDir),
+                new RagMcpProperties(catalogDir.toString(), null));
+        SearchHit someRow = catalog.search(List.of(LookupTestData.CATALOGS), null, Map.of("method", method), 1, null)
+                .hits().getFirst();
+
+        SearchService.DocumentText read = catalog.document(someRow.address(), true).orElseThrow();
+
+        assertThat(read.sections()).isEqualTo(read.total()).isEqualTo(1);
+        assertThat(read.nextId()).isNull();
+        assertThat(read.record().id()).isEqualTo(someRow.id());
+    }
+
+    @Test
     void anExplanationShowsTheWordsAndWhereRecordsRankInEachList() throws IOException {
         SearchService.Explanation explanation = vectors.explain(List.of(DOCS), "отмена платежей", null, null, null,
                 DOCS + "/article.billing.refunds#когда-возможен-возврат", 5);

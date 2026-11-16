@@ -285,6 +285,56 @@ class SearchServiceTest {
     }
 
     @Test
+    void aWholeDocumentIsReadInOrderFromItsFirstSection() throws IOException {
+        SearchService.DocumentText read = search.document(DOCS + "/article.billing.payments#привязка-к-счёту", true)
+                .orElseThrow();
+
+        assertThat(read.ordinal()).isZero();
+        assertThat(read.sections()).isEqualTo(read.total()).isEqualTo(4);
+        assertThat(read.nextId()).isNull();
+        assertThat(read.record().id()).isEqualTo("article.billing.payments#привязка-к-счёту");
+        String text = read.text();
+        assertThat(text).startsWith("## Платежи\n\nРаздел описывает");
+        assertThat(text.indexOf("## Платежи › Как создаётся платёж"))
+                .isPositive()
+                .isLessThan(text.indexOf("## Платежи › Привязка к счёту"));
+        assertThat(text.indexOf("## Платежи › Привязка к счёту")).isLessThan(text.indexOf("## Платежи › Отмена платежа"));
+    }
+
+    @Test
+    void theRestOfADocumentStartsAtTheRecord() throws IOException {
+        SearchService.DocumentText read = search.document(DOCS + "/article.billing.payments#привязка-к-счёту", false)
+                .orElseThrow();
+
+        assertThat(read.text()).startsWith("## Платежи › Привязка к счёту");
+        assertThat(read.text()).doesNotContain("Как создаётся платёж");
+        assertThat(read.sections()).isEqualTo(2);
+        assertThat(read.total()).isEqualTo(4);
+        assertThat(read.ordinal()).isEqualTo(2);
+    }
+
+    @Test
+    void aCappedDocumentEndsAtASectionAndNamesTheNextOne() throws IOException {
+        var tight = new SearchService(store, new RagMcpProperties(dataDir.toString(), null, null,
+                new RagMcpProperties.Response(500)));
+
+        SearchService.DocumentText first = tight.document(DOCS + "/article.billing.payments#отмена-платежа", true)
+                .orElseThrow();
+
+        assertThat(first.text().length()).isLessThanOrEqualTo(500);
+        assertThat(first.sections()).isLessThan(first.total());
+        assertThat(first.nextId()).isNotNull();
+        SearchService.DocumentText rest = tight.document(DOCS + "/" + first.nextId(), false).orElseThrow();
+        assertThat(rest.ordinal()).isEqualTo(first.sections());
+        assertThat(first.text()).doesNotContain(rest.text().lines().findFirst().orElseThrow());
+    }
+
+    @Test
+    void anUnknownRecordGivesNoDocument() throws IOException {
+        assertThat(search.document(DOCS + "/no-such-id", true)).isEmpty();
+    }
+
+    @Test
     void anIdWithoutAKnownIndexIsAnErrorWithAnExample() {
         assertThatThrownBy(() -> search.get("article.billing.refunds#статусы-возврата"))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -19,7 +19,10 @@ public final class TextParts {
     private TextParts() {
     }
 
-    /** Parts of a text no longer than {@code maxChars}: cut at blank lines, then line ends, then inside a line. */
+    /**
+     * Parts of a text no longer than {@code maxChars}: cut at blank lines, then line ends, then inside a
+     * line at its last blank within the limit (at the limit when the line has none in its second half).
+     */
     public static List<String> split(String text, int maxChars) {
         if (text.length() <= maxChars) {
             return List.of(text);
@@ -53,8 +56,13 @@ public final class TextParts {
                         pieces.add(block.toString());
                         block.setLength(0);
                     }
-                    pieces.add(line.substring(0, maxChars));
-                    line = line.substring(maxChars);
+                    // Cut at the last blank within the limit, so that no word is cut in two.
+                    int cut = line.lastIndexOf(' ', maxChars);
+                    if (cut < maxChars / 2) {
+                        cut = maxChars;
+                    }
+                    pieces.add(line.substring(0, cut).stripTrailing());
+                    line = line.substring(cut).stripLeading();
                     row = false;
                 }
                 if (!block.isEmpty() && block.length() + 1 + line.length() > maxChars) {

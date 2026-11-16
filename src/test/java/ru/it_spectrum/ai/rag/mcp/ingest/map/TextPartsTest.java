@@ -58,6 +58,28 @@ class TextPartsTest {
     }
 
     @Test
+    void aLongLineIsCutBetweenWords() {
+        String line = "Добавить запись в новый пакет обмена с НСПК ".repeat(20).strip();
+
+        List<String> parts = TextParts.split(line, 300);
+
+        assertThat(parts).hasSizeGreaterThan(1);
+        List<String> words = List.of("Добавить", "запись", "в", "новый", "пакет", "обмена", "с", "НСПК");
+        assertThat(parts).allSatisfy(part -> {
+            assertThat(part.length()).isLessThanOrEqualTo(300);
+            assertThat(part.split(" ")).allSatisfy(word -> assertThat(words).contains(word));
+        });
+        assertThat(String.join(" ", parts)).isEqualTo(line);
+    }
+
+    @Test
+    void aLineWithoutBlanksIsCutAtTheLimit() {
+        String line = "x".repeat(650);
+
+        assertThat(TextParts.split(line, 300)).extracting(String::length).containsExactly(300, 300, 50);
+    }
+
+    @Test
     void aHeaderLongerThanHalfOfTheLimitIsNotRepeated() {
         String wide = "| " + "Очень длинное имя столбца | ".repeat(10) + "\n|" + "---|".repeat(10);
         String text = wide + "\n" + IntStream.rangeClosed(1, 30).mapToObj(i -> "| значение " + i + " |")
