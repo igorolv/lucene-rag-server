@@ -227,8 +227,20 @@ class SearchServiceTest {
         assertThatThrownBy(() -> search.search(List.of("nope"), "x", null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("nope").hasMessageContaining(API).hasMessageContaining(DOCS);
-        assertThatThrownBy(() -> search.search(List.of(), "x", null, null, null))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at least one");
+    }
+
+    @Test
+    void withoutNamesEveryBuiltIndexIsSearched() throws IOException {
+        SearchPage all = search.search(null, "payment платёж", null, null, 50, null, null);
+        SearchPage named = search.search(List.of(DOCS, API), "payment платёж", null, null, 50, null, null);
+
+        assertThat(all.hits()).extracting(SearchHit::index).contains(DOCS, API);
+        assertThat(ids(all)).isEqualTo(ids(named));
+        assertThat(search.search(List.of(), "payment платёж", null, null, 50, null, null).total())
+                .isEqualTo(all.total());
+        assertThatThrownBy(() -> new SearchService(new IndexStore(dataDir.resolve("empty")), properties)
+                .search(null, "x", null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("No index is built here");
     }
 
     @Test

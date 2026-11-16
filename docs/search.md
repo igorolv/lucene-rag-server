@@ -4,6 +4,7 @@ How the `search`, `lookup` and `getDocument` tools and the `rag-search` command 
 the server bounds what one call returns, how `fieldValues`, `relatedRecords` and `explainSearch`
 help look around and tune, and how `rag-eval` measures search on a question set.
 
+- [What is searched](#what-is-searched)
 - [Modes](#modes)
 - [Queries](#queries)
 - [Filters](#filters)
@@ -15,6 +16,15 @@ help look around and tune, and how `rag-eval` measures search on a question set.
 - [The rag-search command](#the-rag-search-command)
 - [Measuring search](#measuring-search)
 - [Known limits](#known-limits)
+
+## What is searched
+
+`search`, `lookup` and `explainSearch` take no index: each searches every built index of the
+data directory as one (docs/decisions.md D82). A search is narrowed by [filters](#filters) on the
+fields of records, such as `kind` or `project`, never by naming an index. Records of all indexes
+are ranked together, with shared term statistics, so their BM25 scores are comparable. The
+`rag-search` and `rag-eval` commands still take the names of the indexes to search: they are the
+operator's tools.
 
 ## Modes
 
@@ -28,10 +38,11 @@ help look around and tune, and how `rag-eval` measures search on a question set.
 | `hybrid` | both lists fused by reciprocal rank fusion | either; a passage high in both lists ranks first |
 
 - **Default:** `hybrid` when a searched index has vectors and the call has a query; `lexical`
-  otherwise. `listCollections` shows the modes of each index (`modes`). An index has
-  vectors when its `indexes.json` entry names a model ([indexes.md](indexes.md#vectors)).
-- `vector` needs every searched index to have vectors. In `hybrid`, indexes without
-  vectors take part through the BM25 list only.
+  otherwise. An index has vectors when its `indexes.json` entry names a model
+  ([indexes.md](indexes.md#vectors)).
+- `vector` searches the indexes that have vectors and leaves the others out; it is an error only
+  when no searched index has vectors. In `hybrid`, indexes without vectors take part through the
+  BM25 list only.
 - `vector` and `hybrid` need a query; a call with filters only lists records as in `lexical`.
 - **The model must be at hand.** The query is embedded by the model the index was built
   with, from `<data-dir>/models/<model>/` or the Spring AI bean it names. When the files are
@@ -87,8 +98,11 @@ neither.
 What applies to both:
 
 - Fields are the document fields of the records ([indexes.md](indexes.md#mapping));
-  `listCollections` returns the names available in each index. An unknown field name is an
-  error that lists the known ones. The field `project` is set by the index
+  `listCollections` returns the names available in each index. A field name is known when at
+  least one searched index has it; an unknown field name is an error that lists the known ones.
+- A condition on a field narrows the search to the indexes whose records have that field: a
+  record without the field does not equal any value. `!=`, `nin` and `NOT` hold for a record
+  without the field, so they keep every record of the other indexes. The field `project` is set by the index
   ([indexes.md](indexes.md#the-indexes-file)): `{"project": "billing"}` keeps the records of one
   project, `project IS NULL` those of indexes without a project.
 - A value matches exactly, without regard to case and surrounding blanks. A field with several
@@ -131,9 +145,9 @@ value, as an error text from a screen or a parameter code, and not the words to 
   surrounding blanks and ignoring case, as a filter compares. Words are not matched one by one,
   word forms do not match, and a part of a value finds nothing.
 - The key fields are those the operator listed in `map.keys` of the sources
-  ([indexes.md](indexes.md#mapping)); `listCollections` shows them as `keys`. An
-  index without keys is skipped; naming only such indexes is an error that lists the
-  indexes that have keys.
+  ([indexes.md](indexes.md#mapping)); `listCollections` shows them as `keys`. An index without
+  keys is skipped; when no index has keys, the lookup is an error. `rag-search --lookup` naming
+  only indexes without keys is an error that lists the indexes that have keys.
 - Results come in index order, with the passage as the snippet, and are paged and capped like
   the results of `search`. `getDocument` reads a hit in full.
 - With a field name at hand, `search` with `filters` and no query is the same exact match on that
@@ -175,8 +189,6 @@ or attach it to a conversation without a tool call. The values in the URI are pe
 suggests both values: `index` from the built indexes whose name starts with what is
 typed, ignoring case, and `id` from the ids of the chosen index that start with it, in id
 order, at most 100. The resource and its completion belong to the `search` group.
-
-Several indexes in one call are searched as one index, so their BM25 scores are comparable.
 
 ## Limits
 
@@ -228,7 +240,7 @@ the record:
 ## Explaining a search
 
 **`explainSearch`** of the `debug` group shows why a search finds what it finds. It takes the
-arguments of `search` (`collections`, `query`, `filters`, `filterExpression`, `mode`), an
+arguments of `search` (`query`, `filters`, `filterExpression`, `mode`), an
 optional `id` of a record to explain, as a hit gives it, and `limit`, and returns:
 
 - `terms` and `englishTerms`: the query's words as the Russian and the English analysis index
@@ -273,7 +285,8 @@ java -jar lucene-rag-server.jar rag-search docs@billing "деньги верну
 java -jar lucene-rag-server.jar rag-search catalogs@billing --lookup PAYMENT_STATUS_ENUM
 ```
 
-The first argument is one or more index names separated by commas; the remaining words are the
+Unlike the tools, the command names what it searches: the first argument is one or more index
+names separated by commas; the remaining words are the
 query. Each hit is printed with its breadcrumb, its id (`<index>/<record id>`), source and score,
 and its snippet. `--filter name=value` may be repeated; `--filter-expression` takes one
 [filter expression](#filter-expressions). `--per-document N` shows up to N sections of a document
@@ -329,8 +342,8 @@ details. Other keys are ignored.
   search; the first vector search includes loading the model.
 
 **Options:** `--limit N` sets the depth (default 10, at most 100). `--modes lexical,hybrid`
-chooses the modes; without it every mode the indexes have is measured (`vector` only when
-every index has vectors). `--ref prefix=field` may be repeated. `--per-document N` measures
+chooses the modes; without it `lexical` is measured, and `vector` and `hybrid` too when at
+least one index has vectors. `--ref prefix=field` may be repeated. `--per-document N` measures
 search with that limit instead of the default 1. `--details` adds a line per
 question with its rank in each mode (`-` when not found) and the references that name no record.
 

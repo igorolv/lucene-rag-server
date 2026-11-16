@@ -389,12 +389,10 @@ public final class SearchService {
         if (!hasQuery) {
             throw new IllegalArgumentException("Mode " + requested.id() + " needs a query");
         }
-        List<String> without = manifests.stream().filter(m -> m.vectors() == null).map(Manifest::name).toList();
-        if (requested == SearchMode.VECTOR && !without.isEmpty()) {
-            throw new IllegalArgumentException(String.join(", ", without) + (without.size() == 1 ? " has" : " have")
-                    + " no vectors; search with mode lexical or hybrid");
-        }
+        // vector and hybrid search the indexes that have vectors; hybrid takes the others through
+        // the BM25 list (docs/decisions.md D86).
         if (withVectors.isEmpty()) {
+            List<String> without = manifests.stream().map(Manifest::name).toList();
             throw new IllegalArgumentException(String.join(", ", without) + (without.size() == 1 ? " has" : " have")
                     + " no vectors; search with mode lexical");
         }
@@ -482,7 +480,7 @@ public final class SearchService {
      * Records of which a key field ({@code map.keys}) has the value, compared as filters compare:
      * without surrounding blanks and ignoring case. Results come in index order.
      *
-     * @param indexes names of built indexes; at least one has key fields
+     * @param collections names of built indexes, or {@code null} for all; at least one has key fields
      * @throws IllegalArgumentException for an unknown index, a blank value or indexes
      *                                  without key fields
      */
@@ -496,7 +494,9 @@ public final class SearchService {
             throw new IllegalArgumentException("value is longer than " + MAX_QUERY_CHARS + " characters");
         }
         if (manifests.stream().allMatch(m -> m.keys().isEmpty())) {
-            throw new IllegalArgumentException(String.join(", ", manifests.stream().map(Manifest::name).toList())
+            throw new IllegalArgumentException(collections == null || collections.isEmpty()
+                    ? "No index has key fields to look up (map.keys)"
+                    : String.join(", ", manifests.stream().map(Manifest::name).toList())
                     + " has no key fields to look up (map.keys). Indexes with keys: " + withKeys());
         }
         Query query = new TermQuery(new Term(IndexFields.LOOKUP, IndexBuilder.filterTerm(value)));
@@ -714,9 +714,19 @@ public final class SearchService {
         return resolve(collections).stream().filter(m -> m.vectors() != null).map(Manifest::name).toList();
     }
 
+    /**
+     * The manifests of the named indexes, or of every built index when no name is given
+     * (docs/decisions.md D82).
+     *
+     * @throws IllegalArgumentException for an unknown name, or when no index is built
+     */
     List<Manifest> resolve(List<String> collections) {
         if (collections == null || collections.isEmpty()) {
-            throw new IllegalArgumentException("Name at least one index. Available: " + available());
+            List<Manifest> built = store.built();
+            if (built.isEmpty()) {
+                throw new IllegalArgumentException("No index is built here; build one with rag-index");
+            }
+            return built;
         }
         List<Manifest> manifests = new ArrayList<>();
         for (String name : new LinkedHashSet<>(collections)) {

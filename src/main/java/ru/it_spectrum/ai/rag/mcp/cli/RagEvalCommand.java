@@ -160,9 +160,7 @@ public final class RagEvalCommand {
             if (withVectors.isEmpty()) {
                 return List.of(SearchMode.LEXICAL);
             }
-            return withVectors.size() == new java.util.LinkedHashSet<>(collections).size()
-                    ? List.of(SearchMode.LEXICAL, SearchMode.VECTOR, SearchMode.HYBRID)
-                    : List.of(SearchMode.LEXICAL, SearchMode.HYBRID);
+            return List.of(SearchMode.LEXICAL, SearchMode.VECTOR, SearchMode.HYBRID);
         }
         List<SearchMode> result = new ArrayList<>();
         for (String name : value.split(",")) {
@@ -178,11 +176,7 @@ public final class RagEvalCommand {
         List<String> withVectors = search.withVectors(collections);
         List<String> without = new java.util.LinkedHashSet<>(collections).stream()
                 .filter(c -> !withVectors.contains(c)).toList();
-        if (result.contains(SearchMode.VECTOR) && !without.isEmpty()) {
-            throw new IllegalArgumentException(String.join(", ", without) + (without.size() == 1 ? " has" : " have")
-                    + " no vectors; measure it with lexical or hybrid");
-        }
-        if (result.contains(SearchMode.HYBRID) && withVectors.isEmpty()) {
+        if ((result.contains(SearchMode.VECTOR) || result.contains(SearchMode.HYBRID)) && withVectors.isEmpty()) {
             throw new IllegalArgumentException(String.join(", ", without) + (without.size() == 1 ? " has" : " have")
                     + " no vectors; measure it with lexical");
         }

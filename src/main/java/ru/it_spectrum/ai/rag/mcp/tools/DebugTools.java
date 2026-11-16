@@ -11,12 +11,11 @@ import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 
 /**
  * The {@code debug} tool group (docs/decisions.md D72): why a search finds what it finds, for
- * whoever tunes the collections and the search. A model answering questions does not need it, and
+ * whoever tunes the indexes and the search. A model answering questions does not need it, and
  * a small model may do without it ({@code RAG_MCP_TOOLS_DEBUG=false}).
  */
 @Service
@@ -35,13 +34,11 @@ public class DebugTools {
             description = "Explain a search: the words the query becomes after analysis (a word missing there " +
                     "cannot match), the first records of the ranking with their place in the word list and the " +
                     "vector list, and, for a record given by id, where it ranks in each and whether the words " +
-                    "and filters match it at all. For tuning collections and queries, not for answering.",
+                    "and filters match it at all. For tuning indexes and queries, not for answering.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ExplainResult explainSearch(
-            @McpToolParam(description = "Collection names from listCollections", required = true)
-            List<String> collections,
             @McpToolParam(description = "The query, as for search", required = true) String query,
             @McpToolParam(description = "Exact field values, as for search", required = false)
             Map<String, String> filters,
@@ -55,10 +52,10 @@ public class DebugTools {
             @McpToolParam(description = "Records of the ranking to show; the server applies its page limits",
                     required = false)
             Integer limit) {
-        log.info("Tool call: explainSearch collections={} queryChars={} mode={} id={} limit={}", collections,
+        log.info("Tool call: explainSearch queryChars={} mode={} id={} limit={}",
                 query == null ? 0 : query.length(), mode, id, limit);
         try {
-            SearchService.Explanation explanation = search.explain(collections, query, filters, filterExpression,
+            SearchService.Explanation explanation = search.explain(null, query, filters, filterExpression,
                     mode, id, limit);
             return new ExplainResult(explanation.mode().id(), explanation.terms(), explanation.englishTerms(),
                     explanation.matching(), explanation.ranked().stream().map(DebugTools::hit).toList(),

@@ -134,8 +134,12 @@ class VectorSearchTest {
         SearchPage page = search.search(List.of(DOCS, API), "payment платёж", null, 50, null, "hybrid");
 
         assertThat(page.hits()).extracting(SearchHit::index).contains(DOCS, API);
-        assertThatThrownBy(() -> search.search(List.of(DOCS, API), "payment", null, null, null, "vector"))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining(API + " has no vectors");
+        SearchPage vector = search.search(List.of(DOCS, API), "payment платёж", null, 50, null, "vector");
+        assertThat(vector.hits()).as("vector searches the indexes that have vectors").isNotEmpty()
+                .extracting(SearchHit::index).containsOnly(DOCS);
+        assertThat(search.search(null, "payment платёж", null, 50, null, "vector").hits())
+                .extracting(SearchHit::index).containsOnly(DOCS);
+        assertThat(search.search(null, "payment платёж", null, 50, null, null).mode()).isEqualTo(SearchMode.HYBRID);
         assertThatThrownBy(() -> search.search(List.of(API), "payment", null, null, null, "hybrid"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("mode lexical");
     }

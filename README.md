@@ -88,7 +88,7 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 | Tool | Group | What it does |
 |---|---|---|
 | `listCollections` | `collections` | Indexes of this server, their descriptions and filter fields, and problems of imported indexes files |
-| `search` | `search` | Passages matching a query, filters and a filter expression in one or more indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
+| `search` | `search` | Passages matching a query, filters and a filter expression across all indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`) |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
 | `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |

@@ -35,24 +35,22 @@ public class SearchTools {
     }
 
     @McpTool(
-            description = "Find passages in one or more collections. The query is plain words or a question " +
+            description = "Find passages in all the knowledge of this server. The query is plain words or a question " +
                     "in any language of the texts. Lexical mode matches words: word forms match, \"quoted words\" " +
                     "are a phrase, and records matching more of the words rank higher. Vector mode finds passages " +
-                    "close in meaning even without shared words; hybrid, the default for collections with " +
-                    "vectors, fuses both. By default only the best section of each document is returned; " +
+                    "close in meaning even without shared words; hybrid, the default, fuses both. Narrow the " +
+                    "search with filters on record fields such as kind or project. By default only the best section of each document is returned; " +
                     "pass perDocument for more. Returns snippets; call " +
-                    "getDocument with a hit's collection and id for the full passage. Before concluding " +
+                    "getDocument with a hit's id for the full passage. Before concluding " +
                     "that nothing exists, retry with synonyms or fewer words.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public SearchResult search(
-            @McpToolParam(description = "Collection names from listCollections", required = true)
-            List<String> collections,
             @McpToolParam(description = "Words to look for. May be omitted when filters are given", required = false)
             String query,
             @McpToolParam(description = "Exact field values every result must have, e.g. {\"kind\": \"article\"}. " +
-                    "Field names come from listCollections", required = false)
+                    "listCollections shows the fields and their values", required = false)
             Map<String, String> filters,
             @McpToolParam(description = "Conditions on fields when filters are not enough, in the Spring AI filter " +
                     "syntax: ==, !=, in [...], nin [...], <, <=, >, >= on quoted text, && (or AND), || (or OR), NOT, " +
@@ -63,15 +61,14 @@ public class SearchTools {
             Integer limit,
             @McpToolParam(description = "nextOffset of the previous page", required = false)
             Integer offset,
-            @McpToolParam(description = "lexical, vector or hybrid. Omit for hybrid on collections with vectors " +
-                    "and lexical on the others; listCollections shows the modes of each collection", required = false)
+            @McpToolParam(description = "lexical, vector or hybrid. Omit for the default, hybrid", required = false)
             String mode,
             @McpToolParam(description = "Most sections of one document in the results, default 1. Raise it to " +
                     "read several sections of a document found; rows of catalogs and tables are not limited",
                     required = false)
             Integer perDocument) {
-        log.info("Tool call: search collections={} queryChars={} filters={} filterExpressionChars={} limit={} offset={}"
-                        + " mode={} perDocument={}", collections, query == null ? 0 : query.length(),
+        log.info("Tool call: search queryChars={} filters={} filterExpressionChars={} limit={} offset={}"
+                        + " mode={} perDocument={}", query == null ? 0 : query.length(),
                 filters == null ? List.of() : filters.keySet(), filterExpression == null ? 0 : filterExpression.length(),
                 limit, offset, mode, perDocument);
         if ((query == null || query.isBlank()) && (filters == null || filters.isEmpty())
@@ -80,7 +77,7 @@ public class SearchTools {
         }
         final SearchPage page;
         try {
-            page = search.search(collections, query, filters, filterExpression, limit, offset, mode, perDocument);
+            page = search.search(null, query, filters, filterExpression, limit, offset, mode, perDocument);
         } catch (IOException e) {
             throw new UncheckedIOException("The index could not be read: " + e.getMessage(), e);
         }

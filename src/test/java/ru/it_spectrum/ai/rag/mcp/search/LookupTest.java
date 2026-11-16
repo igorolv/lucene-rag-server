@@ -86,6 +86,7 @@ class LookupTest {
     @Test
     void indexesWithoutKeysAreSkippedOrRefused() throws IOException {
         assertThat(search.lookup(List.of(CATALOGS, NOTES), "2003", null, null).total()).isEqualTo(1);
+        assertThat(search.lookup(null, "2003", null, null).total()).as("without names: every index").isEqualTo(1);
         assertThatThrownBy(() -> search.lookup(List.of(NOTES), "2003", null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("has no key fields", "Indexes with keys: " + CATALOGS);

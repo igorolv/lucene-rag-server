@@ -84,9 +84,10 @@ class RagEvalCommandTest {
                 .contains("References that name no record: 1 (spec: 1)")
                 .containsPattern("lexical +\\d/3 +\\d/3 +3/3")
                 .containsPattern("hybrid +\\d/3")
-                .doesNotContainPattern("\\bvector ")
-                .containsPattern("q-0003: lexical \\d+ hybrid \\d+; names no record: spec:billing-payments/payment-queue")
-                .contains("RESULT: OK (3 questions measured in 2 modes, depth 10)");
+                .containsPattern("vector +\\d/3")
+                .containsPattern("q-0003: lexical \\d+ vector [-\\d]+ hybrid \\d+; names no record: "
+                        + "spec:billing-payments/payment-queue")
+                .contains("RESULT: OK (3 questions measured in 3 modes, depth 10)");
     }
 
     @Test
