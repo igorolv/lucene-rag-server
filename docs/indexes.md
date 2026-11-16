@@ -57,6 +57,14 @@ to rename the file and its key `collections` to `indexes`.
   to 64 characters, not starting with a dot; `logs`, `models` and `cache` are reserved. The
   suggested form is `<part>@<project>`.
 - `description` is shown to the model by `listCollections`; say what the index holds.
+- `project` names the project the index belongs to: letters, digits, `.`, `_` and `-`, for
+  example `"project": "billing"`. Every record of the index gets it as the field `project`, so a
+  search over several projects can be [narrowed](search.md#filters) to one, and the
+  [manifest](#what-a-built-index-is) records it. The `@<project>` part of a name is only a
+  convention and does not set it. An index without `project` has no such field; its records are
+  found by `project IS NULL`. The indexes file has no `project` at its top, as it may hold the
+  indexes of several projects; an [imported file](#importing-the-indexes-of-projects) may have
+  one.
 - A missing or empty file means no indexes can be built. A file that is not valid JSON is an
   error. A single wrong entry is reported for that index (`configError` in `listCollections`,
   a failure in `rag-index`) and does not affect the others.
@@ -160,6 +168,7 @@ changes with it.
 
 ```json
 {
+  "project": "billing",
   "indexes": {
     "docs@billing": {
       "description": "Billing: articles and troubleshooting playbooks",
@@ -173,10 +182,12 @@ changes with it.
 - An entry of `import` is a path, or an object with `file` and `commands`. A relative path is
   resolved against the directory of the indexes file; `~` and [`${name}`](#variables) work
   as in `path`.
-- An imported file holds `indexes` and `readers` only; `models`, `import` or `vars` in it makes the
-  whole file a problem of its import. Its relative paths and the working directory of its
+- An imported file holds `indexes`, `readers` and `project` only; `models`, `import` or `vars` in
+  it makes the whole file a problem of its import. Its relative paths and the working directory of its
   commands are its own directory, so the file works in any checkout of the project. Its `readers`
   are its own: neither file sees the readers of the other.
+- `project` at the top of an imported file is the project of all its indexes, written once; an
+  index of the file may set its own `project` instead.
 - Its indexes take the models of the indexes file. `"vectors": true` takes the model
   marked as the [default](#vectors), so a project says whether an index has vectors and the
   machine says which model computes them; an index that names a model, `{ "model": "…" }`,
@@ -585,7 +596,7 @@ symptoms, of error codes or of settings kept as a table in a document.
 | `breadcrumb` | document title, parent headings, title | Array of templates; empty parts are dropped and the rest joined with ` › ` |
 | `text` | `{body}` | The passage. A unit whose text comes out empty yields no record |
 | `id` | `{document.key}#{slug}` | Record id. Ids are still made unique: a repeated id gets `-2`, `-3`, and the parts of a split text get `~2`, `~3` |
-| `fields` | none | Object of field name to template. A template without placeholders is a constant. A field whose template gives nothing is absent. Names starting with `rag.` are reserved: a record with such a field, written or inherited, fails the build |
+| `fields` | none | Object of field name to template. A template without placeholders is a constant. A field whose template gives nothing is absent. Names starting with `rag.` and the name `project`, which the index's [`project`](#the-indexes-file) sets, are reserved: a record with such a field, written or inherited, fails the build |
 | `keys` | none | Field names, from `fields` or inherited, whose values the `lookup` tool finds the record by ([search.md](search.md#exact-lookup)). A listed field a record does not have is skipped |
 | `inheritFields` | `["*"]` | Front matter fields copied to the record as they are: a list of names, `["*"]` for all, `[]` for none. A field of the same name in `fields` replaces the inherited one |
 
@@ -1078,11 +1089,17 @@ build may outlast the time a client waits for a tool; `rag-index` has no such li
   models/e5-small/        model.onnx, tokenizer.json
   cache/                  embedding cache and the tokenizer's native code; derived
   docs@billing/
-    manifest.json         name, description, build time, counts, field names,
-                          sources with their command, convert, split, map and join settings,
+    manifest.json         name, description, project, build time, counts, field names,
+                          the values of each field, sources with their command, convert,
+                          split, map and join settings,
                           the model with its parameters and the SHA-256 of its files
     index/                Lucene index, with the vectors
 ```
+
+For each field the manifest records how many different values it has (`fieldValues`), compared
+as filters compare them, ignoring case; a field of at most 15 values also lists them, each as the
+first record writes it, with the number of records that have it. These numbers are what an
+assistant is told about the index without opening it.
 
 An index directory is self-contained. To serve it elsewhere, copy the directory under that
 machine's data directory, keeping its name ([Delivering indexes](#delivering-indexes)); neither the sources nor `indexes.json` are needed

@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.index;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
@@ -10,6 +11,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.DocumentWriter;
@@ -42,9 +44,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
@@ -197,7 +203,7 @@ public final class IndexBuilder {
         try (var directory = FSDirectory.open(dir.resolve(Manifest.INDEX_DIR));
              var writer = new IndexWriter(directory, new IndexWriterConfig(Analyzers.analyzer()))) {
             Batch batch = new Batch(definition.name(), writer, model, cache);
-            Records records = new Records(batch);
+            Records records = new Records(batch, definition.project());
             for (SourceDefinition source : definition.sources()) {
                 SourcePipeline pipeline = registry.pipeline(source);
                 List<String> keys = source.map().keys() == null ? List.of() : source.map().keys();
@@ -228,9 +234,9 @@ public final class IndexBuilder {
                         batch.truncated, parameters.pooling());
             }
             Manifest manifest = new Manifest(Manifest.SCHEMA, definition.name(), definition.description(),
-                    Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
-                    files, documents, records.count, List.copyOf(records.fieldNames), List.copyOf(records.keyNames),
-                    List.copyOf(sources), vectors);
+                    definition.project(), Instant.now().truncatedTo(ChronoUnit.SECONDS).toString(), serverVersion,
+                    files, documents, records.count, List.copyOf(records.fieldNames), records.fieldValues(),
+                    List.copyOf(records.keyNames), List.copyOf(sources), vectors);
             manifest.write(dir);
             return new Built(manifest, batch.embedded, batch.cached);
         } catch (UncheckedIOException e) {
@@ -239,8 +245,9 @@ public final class IndexBuilder {
     }
 
     /**
-     * The records of an index written as Spring AI documents: checks that ids are unique,
-     * collects the field and key names for the manifest and hands each record to the batch.
+     * The records of an index written as Spring AI documents: checks that ids are unique, adds
+     * the project of the index as a field, collects the field and key names and the values of
+     * the fields for the manifest and hands each record to the batch.
      * {@link #accept} throws {@link UncheckedIOException} when the index cannot be written.
      */
     private static final class Records implements DocumentWriter {
@@ -249,13 +256,17 @@ public final class IndexBuilder {
         private final Map<String, String> ids = new HashMap<>();
         final TreeSet<String> fieldNames = new TreeSet<>();
         final TreeSet<String> keyNames = new TreeSet<>();
+        /** Per field, per filter term: the value as first written and the number of records. */
+        private final Map<String, Map<String, Manifest.Value>> values = new HashMap<>();
+        private final String project;
         int count;
         private String location = "";
         private List<String> keys = List.of();
         private boolean sections;
 
-        Records(Batch batch) {
+        Records(Batch batch, String project) {
             this.batch = batch;
+            this.project = project;
         }
 
         /** Where the next documents come from, for messages, and the key fields of their source. */
@@ -268,7 +279,7 @@ public final class IndexBuilder {
         @Override
         public void accept(List<org.springframework.ai.document.Document> documents) {
             for (var document : documents) {
-                ChunkRecord record = RecordDocuments.toRecord(document);
+                ChunkRecord record = withProject(RecordDocuments.toRecord(document));
                 String other = ids.putIfAbsent(record.id(), location);
                 if (other != null) {
                     throw new IllegalArgumentException("Two records share the id '" + record.id()
@@ -276,6 +287,7 @@ public final class IndexBuilder {
                             + ". Make the document keys or the map.id template distinguish them");
                 }
                 fieldNames.addAll(record.fields().keySet());
+                count(record);
                 for (String key : keys) {
                     if (record.fields().containsKey(key)) {
                         keyNames.add(key);
@@ -289,6 +301,46 @@ public final class IndexBuilder {
                 count++;
             }
         }
+
+        private ChunkRecord withProject(ChunkRecord record) {
+            if (project == null) {
+                return record;
+            }
+            Map<String, List<String>> fields = new LinkedHashMap<>(record.fields());
+            fields.put(IndexFields.PROJECT, List.of(project));
+            return new ChunkRecord(record.id(), record.document(), record.title(), record.breadcrumb(),
+                    record.text(), record.source(), record.ordinal(), fields);
+        }
+
+        /** Adds the values of a record, each different value of a field once. */
+        private void count(ChunkRecord record) {
+            for (var field : record.fields().entrySet()) {
+                Map<String, Manifest.Value> known = values.computeIfAbsent(field.getKey(), name -> new HashMap<>());
+                Set<String> seen = new HashSet<>();
+                for (String value : field.getValue()) {
+                    String term = filterTerm(value);
+                    if (seen.add(term)) {
+                        known.merge(term, new Manifest.Value(value.strip(), 1),
+                                (old, one) -> new Manifest.Value(old.value(), old.records() + 1));
+                    }
+                }
+            }
+        }
+
+        /** The values of each field for the manifest: listed when few, counted otherwise. */
+        Map<String, Manifest.FieldValues> fieldValues() {
+            Map<String, Manifest.FieldValues> result = new TreeMap<>();
+            for (var field : values.entrySet()) {
+                Map<String, Manifest.Value> known = field.getValue();
+                List<Manifest.Value> listed = known.size() > Manifest.FEW_VALUES ? null
+                        : known.values().stream()
+                                .sorted(Comparator.comparingInt(Manifest.Value::records).reversed()
+                                        .thenComparing(Manifest.Value::value))
+                                .toList();
+                result.put(field.getKey(), new Manifest.FieldValues(known.size(), listed));
+            }
+            return result;
+        }
     }
 
     /**
@@ -300,7 +352,7 @@ public final class IndexBuilder {
 
         private static final int SIZE = 64;
 
-        private final String collection;
+        private final String index;
         private final IndexWriter writer;
         private final VectorModel model;
         private final EmbeddingCache cache;
@@ -314,8 +366,8 @@ public final class IndexBuilder {
         int cached;
         int truncated;
 
-        Batch(String collection, IndexWriter writer, VectorModel model, EmbeddingCache cache) {
-            this.collection = collection;
+        Batch(String index, IndexWriter writer, VectorModel model, EmbeddingCache cache) {
+            this.index = index;
             this.writer = writer;
             this.model = model;
             this.cache = cache;
@@ -340,7 +392,7 @@ public final class IndexBuilder {
             }
             float[][] vectors = model == null ? null : vectors();
             for (int i = 0; i < records.size(); i++) {
-                Document doc = document(collection, records.get(i), keys.get(i));
+                Document doc = document(index, records.get(i), keys.get(i));
                 doc.add(new StoredField(IndexFields.STORED_GROUP, groups.get(i)));
                 if (vectors != null) {
                     doc.add(new KnnFloatVectorField(IndexFields.VECTOR, vectors[i], VectorSimilarityFunction.COSINE));
@@ -388,11 +440,11 @@ public final class IndexBuilder {
         }
     }
 
-    private static Document document(String collection, ChunkRecord record, List<String> keys) {
+    private static Document document(String index, ChunkRecord record, List<String> keys) {
         Document doc = new Document();
         doc.add(new StringField(IndexFields.ID, record.id(), Field.Store.YES));
         doc.add(new StringField(IndexFields.DOCUMENT, record.document(), Field.Store.YES));
-        doc.add(new StoredField(IndexFields.COLLECTION, collection));
+        doc.add(new StoredField(IndexFields.INDEX, index));
         doc.add(new TextField(IndexFields.TEXT, record.text(), Field.Store.NO));
         doc.add(new TextField(IndexFields.TEXT_EN, record.text(), Field.Store.NO));
         doc.add(new TextField(IndexFields.TITLE, record.breadcrumb(), Field.Store.NO));
@@ -406,6 +458,8 @@ public final class IndexBuilder {
             for (String value : field.getValue()) {
                 doc.add(new StringField(IndexFields.FILTER_PREFIX + field.getKey(), filterTerm(value),
                         Field.Store.NO));
+                doc.add(new SortedSetDocValuesField(IndexFields.FILTER_PREFIX + field.getKey(),
+                        new BytesRef(filterTerm(value))));
                 doc.add(new StoredField(IndexFields.VALUE_PREFIX + field.getKey(), value));
             }
         }

@@ -535,7 +535,7 @@ public final class SearchService {
         List<ScoreDoc> kept = new ArrayList<>();
         Map<String, Integer> seen = new HashMap<>();
         var stored = searcher.storedFields();
-        Set<String> fields = Set.of(IndexFields.STORED_GROUP, IndexFields.COLLECTION);
+        Set<String> fields = Set.of(IndexFields.STORED_GROUP, IndexFields.INDEX);
         for (ScoreDoc scoreDoc : ranked) {
             if (kept.size() >= wanted) {
                 break;
@@ -543,7 +543,7 @@ public final class SearchService {
             if (perGroup != Integer.MAX_VALUE) {
                 Document doc = stored.document(scoreDoc.doc, fields);
                 String group = doc.get(IndexFields.STORED_GROUP);
-                String key = doc.get(IndexFields.COLLECTION) + "\u0000" + (group == null ? "#" + scoreDoc.doc : group);
+                String key = doc.get(IndexFields.INDEX) + "\u0000" + (group == null ? "#" + scoreDoc.doc : group);
                 if (seen.merge(key, 1, Integer::sum) > perGroup) {
                     continue;
                 }
@@ -735,7 +735,7 @@ public final class SearchService {
             }
         }
         Number ordinal = doc.getField(IndexFields.STORED_ORDINAL).numericValue();
-        return new SearchHit(doc.get(IndexFields.COLLECTION), doc.get(IndexFields.ID),
+        return new SearchHit(doc.get(IndexFields.INDEX), doc.get(IndexFields.ID),
                 doc.get(IndexFields.DOCUMENT), doc.get(IndexFields.STORED_TITLE),
                 doc.get(IndexFields.STORED_BREADCRUMB), doc.get(IndexFields.STORED_SOURCE),
                 ordinal.intValue(), score, snippet, text, fields);

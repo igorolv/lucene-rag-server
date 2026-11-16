@@ -41,8 +41,14 @@ import java.util.regex.Pattern;
  * file and of the files it imports; they are looked up before the environment
  * (docs/decisions.md D79).
  *
+ * <p>An index may name its project, {@code "project": "billing"}; the records get it as the field
+ * {@code project} (docs/decisions.md D83). An imported file may name it once at its top level for
+ * all its indexes, and an index of it may override it (D85); the main file has no such key, as it
+ * may hold the indexes of several projects.
+ *
  * <p>A top-level {@code import} array names other indexes files, usually kept with the
- * sources they describe. An imported file holds {@code collections} and {@code readers} only;
+ * sources they describe. An imported file holds {@code indexes}, {@code readers} and
+ * {@code project} only;
  * its relative paths and the working directory of its commands are its own directory, its
  * indexes name the models of the main file, and its commands run only when its entry of
  * {@code import} allows them (docs/decisions.md D78). What goes wrong with an import is reported
@@ -65,6 +71,7 @@ public final class IndexesLoader {
     private static final Pattern VAR_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}");
+    private static final Pattern PROJECT = Pattern.compile("[A-Za-z0-9._-]+");
 
     private IndexesLoader() {
     }
@@ -108,7 +115,12 @@ public final class IndexesLoader {
             }
             models = models(modelsNode);
             defaultModel = defaultModel(modelsNode, file);
-            result = new ArrayList<>(collections(root, file, models, defaultModel, env));
+            if (root.has("project") && !root.get("project").isNull()) {
+                throw new IllegalArgumentException("\"project\" at the top of " + file + " is not read: "
+                        + "this file may hold the indexes of several projects, so set \"project\" "
+                        + "on each index; a file it imports may set it at its top");
+            }
+            result = new ArrayList<>(collections(root, file, models, defaultModel, env, null));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(e.getMessage(), e);
         }
@@ -203,7 +215,8 @@ public final class IndexesLoader {
      * @throws IllegalArgumentException when {@code collections} or {@code readers} is not an object
      */
     private static List<IndexDefinition> collections(JsonNode root, Path file, Map<String, Object> models,
-                                                          String defaultModel, UnaryOperator<String> env) {
+                                                     String defaultModel, UnaryOperator<String> env,
+                                                     JsonNode fileProject) {
         JsonNode collections = root.get("indexes");
         if (collections == null || collections.isNull()) {
             return List.of();
@@ -221,6 +234,9 @@ public final class IndexesLoader {
         List<IndexDefinition> result = new ArrayList<>();
         for (var entry : collections.properties()) {
             IndexDefinition definition = collection(entry.getKey(), entry.getValue(), readers, baseDir, env);
+            if (definition.usable()) {
+                definition = withProject(definition, entry.getValue(), fileProject);
+            }
             result.add(definition.usable() ? withVectors(definition, entry.getValue(), models, defaultModel) : definition);
         }
         return result;
@@ -228,8 +244,8 @@ public final class IndexesLoader {
 
     /**
      * Adds the indexes of one entry of {@code import}: a file path, or an object with
-     * {@code file} and {@code commands}. An imported file holds {@code collections} and
-     * {@code readers}; its indexes name the models of the main file.
+     * {@code file} and {@code commands}. An imported file holds {@code indexes}, {@code readers}
+     * and {@code project}; its indexes name the models of the main file.
      *
      * @throws IllegalArgumentException when the entry or its file cannot be used
      */
@@ -259,10 +275,10 @@ public final class IndexesLoader {
         for (String key : List.of("models", "import", "vars")) {
             if (root.has(key) && !root.get(key).isNull()) {
                 throw new IllegalArgumentException(file + " has \"" + key + "\"; an imported file holds only "
-                        + "\"indexes\" and \"readers\"");
+                        + "\"indexes\", \"readers\" and \"project\"");
             }
         }
-        for (IndexDefinition definition : collections(root, file, models, defaultModel, env)) {
+        for (IndexDefinition definition : collections(root, file, models, defaultModel, env, root.get("project"))) {
             Path owner = owners.putIfAbsent(definition.name(), file);
             if (owner != null) {
                 problems.add(where + ": the index '" + definition.name() + "' of " + file
@@ -344,6 +360,25 @@ public final class IndexesLoader {
     }
 
     /**
+     * The index with its project: its own {@code project}, else the one at the top of its file,
+     * else none. A value of other characters than those of a name part is a configuration error.
+     */
+    private static IndexDefinition withProject(IndexDefinition definition, JsonNode node, JsonNode fileProject) {
+        JsonNode own = node.get("project");
+        boolean ownSet = own != null && !own.isNull();
+        JsonNode value = ownSet ? own : fileProject;
+        if (value == null || value.isNull()) {
+            return definition;
+        }
+        String where = ownSet ? "\"project\"" : "\"project\" at the top of its file";
+        if (!value.isString() || !PROJECT.matcher(value.asString()).matches()) {
+            return definition.withError(where + " must be a string of letters, digits, '.', '_' and '-'; found "
+                    + value);
+        }
+        return definition.withProject(value.asString());
+    }
+
+    /**
      * The index with the model its {@code vectors} names, or broken when that is wrong.
      * {@code "vectors": true} names the model marked {@code "default": true}; {@code false} or no
      * {@code vectors} leaves the index lexical.
@@ -376,8 +411,8 @@ public final class IndexesLoader {
         if (entry instanceof String error) {
             return definition.withError(error);
         }
-        return new IndexDefinition(definition.name(), definition.description(), definition.sources(),
-                (ModelDefinition) entry, null);
+        return new IndexDefinition(definition.name(), definition.description(), definition.project(),
+                definition.sources(), (ModelDefinition) entry, null);
     }
 
     /**

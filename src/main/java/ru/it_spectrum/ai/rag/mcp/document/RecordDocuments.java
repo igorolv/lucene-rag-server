@@ -27,6 +27,8 @@ public final class RecordDocuments {
 
     /** Prefix of the metadata names of the record's parts. */
     public static final String RESERVED_PREFIX = "rag.";
+    /** A field name a source may not give: the index sets it (docs/decisions.md D83). */
+    public static final String PROJECT = "project";
     public static final String DOCUMENT = RESERVED_PREFIX + "document";
     public static final String TITLE = RESERVED_PREFIX + "title";
     public static final String BREADCRUMB = RESERVED_PREFIX + "breadcrumb";
@@ -45,6 +47,10 @@ public final class RecordDocuments {
             if (field.getKey().startsWith(RESERVED_PREFIX)) {
                 throw new IllegalArgumentException("Record " + record.id() + ": the field name '" + field.getKey()
                         + "' starts with '" + RESERVED_PREFIX + "', which is reserved; rename it in map.fields");
+            }
+            if (field.getKey().equals(PROJECT)) {
+                throw new IllegalArgumentException("Record " + record.id() + ": the field name '" + PROJECT
+                        + "' is reserved for the project of the index; rename it in map.fields");
             }
             metadata.put(field.getKey(), List.copyOf(field.getValue()));
         }

@@ -174,8 +174,8 @@ implemented except `language`, which nothing reads yet:
     index/                    Lucene index
 ```
 
-Implemented: `<index>/manifest.json` (schema, name, description, build time, server version,
-counts, field names, key fields, sources with their chunking parameters, and for an index with
+Implemented: `<index>/manifest.json` (schema, name, description, project, build time, server
+version, counts, field names, the values of each field (D89), key fields, sources with their chunking parameters, and for an index with
 vectors the model name, parameters, vector size, file hashes and the number of records cut to the
 input limit) and `<index>/index/`. The analyzer description and the source revision are not
 in the manifest.

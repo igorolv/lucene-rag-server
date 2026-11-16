@@ -92,7 +92,7 @@ class ImportTest {
         assertThat(loaded.importProblems()).hasSize(6);
         assertThat(loaded.importProblems().get(0)).startsWith("import[0]: ").contains("does not exist");
         assertThat(loaded.importProblems().get(1)).startsWith("import[1]: ").contains("not valid JSON");
-        assertThat(loaded.importProblems().get(2)).contains("has \"models\"", "only \"indexes\" and \"readers\"");
+        assertThat(loaded.importProblems().get(2)).contains("has \"models\"", "only \"indexes\", \"readers\" and \"project\"");
         assertThat(loaded.importProblems().get(3)).contains("has \"import\"");
         assertThat(loaded.importProblems().get(4)).startsWith("import[4]: ").contains("a file path or");
         assertThat(loaded.importProblems().get(5)).startsWith("import[5]: ").contains("a file path or");

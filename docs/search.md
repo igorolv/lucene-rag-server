@@ -88,7 +88,9 @@ What applies to both:
 
 - Fields are the document fields of the records ([indexes.md](indexes.md#mapping));
   `listCollections` returns the names available in each index. An unknown field name is an
-  error that lists the known ones.
+  error that lists the known ones. The field `project` is set by the index
+  ([indexes.md](indexes.md#the-indexes-file)): `{"project": "billing"}` keeps the records of one
+  project, `project IS NULL` those of indexes without a project.
 - A value matches exactly, without regard to case and surrounding blanks. A field with several
   values matches when one of them equals the value.
 - With filters or an expression the query may be omitted: the call then lists the matching records

@@ -11,7 +11,12 @@ public final class IndexFields {
     /** Key of the document the record belongs to, indexed and stored. */
     public static final String DOCUMENT = "document";
     /** Name of the index, stored: tells records apart when several indexes are searched. */
-    public static final String COLLECTION = "collection";
+    public static final String INDEX = "index";
+    /**
+     * The document field that holds the project of the index (docs/decisions.md D83); a source
+     * may not name a field so.
+     */
+    public static final String PROJECT = "project";
 
     /** Passage, Russian analysis; not stored. */
     public static final String TEXT = "text";
@@ -34,12 +39,15 @@ public final class IndexFields {
      */
     public static final String STORED_GROUP = "s.group";
 
-    /** Prefix of a document field indexed as one lower-cased exact term per value. */
+    /**
+     * Prefix of a document field indexed as one lower-cased exact term per value, and kept with
+     * the same terms as sorted-set doc values for counting values under a filter.
+     */
     public static final String FILTER_PREFIX = "f.";
     /** Every value of the key fields of the record ({@code map.keys}) as one lower-cased exact term. */
     public static final String LOOKUP = "k";
     /**
-     * Unit-length embedding of the breadcrumb and the passage, compared by cosine; only in a
+     * Unit-length embedding of the breadcrumb and the passage, compared by cosine; only in an
      * index with vectors.
      */
     public static final String VECTOR = "vector";

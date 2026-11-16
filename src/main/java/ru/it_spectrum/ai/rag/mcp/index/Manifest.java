@@ -21,27 +21,57 @@ import java.util.Map;
  * @param schema        index schema the index was built with; see {@link #SCHEMA}
  * @param name          index name; equals the directory name
  * @param description   what the index holds, from {@code indexes.json}
+ * @param project       the project of the index, also the field {@code project} of each record,
+ *                      or {@code null} for none (docs/decisions.md D83)
  * @param builtAt       build time, ISO-8601 UTC
  * @param serverVersion version of the server that built the index
  * @param files         source files read
  * @param documents     documents that produced at least one record
  * @param records       records in the index
  * @param fields        names of the document fields usable as filters, sorted
+ * @param fieldValues   what values each field of {@code fields} has, by field name
  * @param keys          names of the fields the {@code lookup} tool searches, sorted; empty for none
  * @param sources       what the index was built from
  * @param vectors       the model the records were embedded with, or {@code null} for an index
  *                      searched lexically only
  */
-public record Manifest(int schema, String name, String description, String builtAt, String serverVersion,
-                       int files, int documents, int records, List<String> fields, List<String> keys,
-                       List<Source> sources, Vectors vectors) {
+public record Manifest(int schema, String name, String description, String project, String builtAt,
+                       String serverVersion, int files, int documents, int records, List<String> fields,
+                       Map<String, FieldValues> fieldValues, List<String> keys, List<Source> sources,
+                       Vectors vectors) {
 
     public Manifest {
         keys = keys == null ? List.of() : List.copyOf(keys);
+        fieldValues = fieldValues == null ? Map.of() : Map.copyOf(fieldValues);
     }
 
     /** Raised whenever fields or their analysis change in a way an old index cannot serve. */
-    public static final int SCHEMA = 10;
+    public static final int SCHEMA = 11;
+
+    /**
+     * How many values of a field are few enough to be listed in {@link FieldValues#values()}. A
+     * first guess (docs/decisions.md D89).
+     */
+    public static final int FEW_VALUES = 15;
+
+    /**
+     * The values of one field over the records of the index. Values are told apart as filters
+     * compare them: ignoring case and surrounding spaces.
+     *
+     * @param distinct how many different values the field has
+     * @param values   each value as the first record that has it writes it, with the number of
+     *                 records that have it, most records first; {@code null} when there are more
+     *                 than {@link #FEW_VALUES}
+     */
+    public record FieldValues(int distinct, List<Value> values) {
+
+        public FieldValues {
+            values = values == null ? null : List.copyOf(values);
+        }
+    }
+
+    /** A value of a field and the number of records that have it. */
+    public record Value(String value, int records) { }
 
     /**
      * The embedding model of an index with vectors: everything search needs to embed a query
