@@ -107,6 +107,26 @@ class RagEvalCommandTest {
     }
 
     @Test
+    void measuresAreGroupedByAKeyOfTheQuestions() {
+        Run run = eval(DOCS + "," + DATA + "," + QUEUE, questions, "--ref", "data=table", "--ref", "symptom=number",
+                "--modes", "lexical", "--group-by", "type", "--group-by", "subsystem");
+
+        assertThat(run.code()).as(run.out()).isZero();
+        assertThat(run.out())
+                .containsPattern("type +mode +@1")
+                // A question with two values counts in both groups, one without the key in (none).
+                .containsPattern("diagnostics +lexical +\\d/1")
+                .containsPattern("how-to +lexical +\\d/1")
+                .containsPattern("status +lexical +\\d/1")
+                .containsPattern("\\(none\\) +lexical +\\d/1")
+                .containsPattern("subsystem +mode")
+                .containsPattern("billing +lexical +\\d/3 +\\d/3 +3/3");
+        assertThat(run.out().indexOf("diagnostics")).isLessThan(run.out().indexOf("how-to"));
+        assertThat(run.out().indexOf("status")).isLessThan(run.out().indexOf("(none)"));
+        assertThat(eval(DOCS, questions, "--group-by", " ").code()).isEqualTo(2);
+    }
+
+    @Test
     void usageAndBadInputAreReported() throws IOException {
         assertThat(eval().code()).isEqualTo(2);
         assertThat(eval(DOCS).code()).isEqualTo(2);
@@ -134,6 +154,14 @@ class RagEvalCommandTest {
         assertThat(QuestionSet.read(file)).containsExactly(
                 new QuestionSet.Question("line 1", "Почему?", List.of("article.billing.refunds")),
                 new QuestionSet.Question("7", "Где?", List.of("a", "5")));
+        Files.writeString(file, """
+                {"question": "Q", "type": ["how-to", 2, {"x": 1}, ""], "subsystem": " ssv ", "meta": {"a": 1}, "no": []}
+                """);
+        QuestionSet.Question question = QuestionSet.read(file).getFirst();
+        assertThat(question.values()).containsOnlyKeys("type", "subsystem");
+        assertThat(question.values("type")).containsExactly("how-to", "2");
+        assertThat(question.values("subsystem")).containsExactly("ssv");
+        assertThat(question.values("origin")).isEmpty();
         Files.writeString(file, "not json\n");
         assertThatThrownBy(() -> QuestionSet.read(file)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("line 1 is not valid JSON");

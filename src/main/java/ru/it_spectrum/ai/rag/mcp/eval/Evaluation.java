@@ -8,8 +8,10 @@ import ru.it_spectrum.ai.rag.mcp.search.SearchService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Measures how well search finds what a question set expects: every question is searched in
@@ -38,9 +40,11 @@ public final class Evaluation {
      * @param unreachable its references that name none
      * @param ranks       per mode, the rank of the first match from 1, or 0 when none is within the depth
      * @param found       per mode, how many reachable references a record within the depth matches
+     * @param nanos       per mode, how long its search took
      */
     public record Outcome(QuestionSet.Question question, List<String> reachable, List<String> unreachable,
-                          Map<SearchMode, Integer> ranks, Map<SearchMode, Integer> found) {
+                          Map<SearchMode, Integer> ranks, Map<SearchMode, Integer> found,
+                          Map<SearchMode, Long> nanos) {
     }
 
     /**
@@ -62,9 +66,36 @@ public final class Evaluation {
     /**
      * @param depth    how many records of each search are looked at
      * @param outcomes one per question, in the order of the set
+     * @param modes    the modes measured, in the order asked
      * @param measures one per mode, in the order asked
      */
-    public record Report(int depth, List<Outcome> outcomes, List<Measures> measures) {
+    public record Report(int depth, List<Outcome> outcomes, List<SearchMode> modes, List<Measures> measures) {
+
+        /** A group's name for the questions that have no value of the key. */
+        public static final String NO_VALUE = "(none)";
+
+        /**
+         * The measures of each group of questions that share a value of {@code key}, by value in
+         * alphabetical order and {@link #NO_VALUE} last. A question with several values of the key
+         * counts in each of their groups.
+         */
+        public Map<String, List<Measures>> groups(String key) {
+            Map<String, List<Outcome>> byValue = new TreeMap<>();
+            List<Outcome> without = new ArrayList<>();
+            for (Outcome outcome : outcomes) {
+                List<String> values = outcome.question().values(key);
+                if (values.isEmpty()) {
+                    without.add(outcome);
+                }
+                new LinkedHashSet<>(values).forEach(v -> byValue.computeIfAbsent(v, k -> new ArrayList<>()).add(outcome));
+            }
+            Map<String, List<Measures>> result = new LinkedHashMap<>();
+            byValue.forEach((value, group) -> result.put(value, measure(group, modes)));
+            if (!without.isEmpty()) {
+                result.put(NO_VALUE, measure(without, modes));
+            }
+            return result;
+        }
 
         public long measured() {
             return outcomes.stream().filter(o -> !o.reachable().isEmpty()).count();
@@ -104,8 +135,6 @@ public final class Evaluation {
     public Report run(List<String> collections, List<QuestionSet.Question> questions, List<SearchMode> modes,
                       int depth, Integer perDocument) throws IOException {
         List<SearchHit> all = search.all(collections);
-        Map<SearchMode, Long> nanos = new LinkedHashMap<>();
-        Map<SearchMode, Integer> searches = new LinkedHashMap<>();
         List<Outcome> outcomes = new ArrayList<>();
         for (QuestionSet.Question question : questions) {
             List<String> reachable = new ArrayList<>();
@@ -115,13 +144,13 @@ public final class Evaluation {
             }
             Map<SearchMode, Integer> ranks = new LinkedHashMap<>();
             Map<SearchMode, Integer> found = new LinkedHashMap<>();
+            Map<SearchMode, Long> nanos = new LinkedHashMap<>();
             if (!reachable.isEmpty()) {
                 for (SearchMode mode : modes) {
                     long start = System.nanoTime();
                     SearchPage page = search.search(collections, question.question(), null, null, depth, 0,
                             mode.id(), perDocument);
-                    nanos.merge(mode, System.nanoTime() - start, Long::sum);
-                    searches.merge(mode, 1, Integer::sum);
+                    nanos.put(mode, System.nanoTime() - start);
                     List<SearchHit> hits = page.hits();
                     int rank = 0;
                     for (int i = 0; i < hits.size(); i++) {
@@ -135,8 +164,14 @@ public final class Evaluation {
                             .filter(ref -> hits.stream().anyMatch(hit -> references.matches(ref, hit))).count());
                 }
             }
-            outcomes.add(new Outcome(question, List.copyOf(reachable), List.copyOf(unreachable), ranks, found));
+            outcomes.add(new Outcome(question, List.copyOf(reachable), List.copyOf(unreachable), ranks, found,
+                    nanos));
         }
+        return new Report(depth, List.copyOf(outcomes), List.copyOf(modes), measure(outcomes, modes));
+    }
+
+    /** The measures of each mode over the measured questions of {@code outcomes}. */
+    static List<Measures> measure(List<Outcome> outcomes, List<SearchMode> modes) {
         List<Measures> measures = new ArrayList<>();
         for (SearchMode mode : modes) {
             int measured = 0;
@@ -145,6 +180,7 @@ public final class Evaluation {
             int top = 0;
             double rr = 0;
             double recall = 0;
+            long nanos = 0;
             for (Outcome outcome : outcomes) {
                 if (outcome.reachable().isEmpty()) {
                     continue;
@@ -158,11 +194,11 @@ public final class Evaluation {
                     top5 += rank <= 5 ? 1 : 0;
                 }
                 recall += (double) outcome.found().get(mode) / outcome.reachable().size();
+                nanos += outcome.nanos().get(mode);
             }
-            int count = searches.getOrDefault(mode, 0);
             measures.add(new Measures(mode, measured, first, top5, top, measured == 0 ? 0 : rr / measured,
-                    measured == 0 ? 0 : recall / measured, count == 0 ? 0 : nanos.get(mode) / 1e6 / count));
+                    measured == 0 ? 0 : recall / measured, measured == 0 ? 0 : nanos / 1e6 / measured));
         }
-        return new Report(depth, List.copyOf(outcomes), List.copyOf(measures));
+        return List.copyOf(measures);
     }
 }

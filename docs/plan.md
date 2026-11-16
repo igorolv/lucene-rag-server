@@ -354,7 +354,7 @@ done here. A stage is taken only when the user asks for it.
 | 3 | Vectors and hybrid search | ONNX embedding model; vector field; `vector` and `hybrid` modes with RRF; model check against the manifest; embedding cache | done 2026-11-15 |
 | 3a | Spring AI alignment (section 3.7) | `EmbeddingModel` as the model interface (D29); filter expressions (D30); `Document` at the boundaries (D31); Spring AI readers as formats (D32) | D29–D31 done 2026-11-15; D32 for PDF done 2026-11-15, Tika and Jsoup when a corpus needs them |
 | 3b | Spring AI alignment, second pass (section 3.7) | Records embedded as documents (D44); every command in a Spring context (D42), then model types as Spring AI beans (D43); observations of the in-process model (D46). The HTTP transport of D45 belongs to stage 5 | done 2026-11-15 (D42–D46; D45 ahead of stage 5) |
-| 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
+| 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15, `--group-by` 2026-11-17 |
 | 5 | Delivery | Atomic rebuild and `rebuildIndex` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/indexes.md`, "Delivering indexes"); Docker image not needed for now (D51) | done 2026-11-15 |
 | 6 | Convenience and release | `browse` and `debug` groups (D72); CI and release workflow, JBang alias, Glama file, third-party notices (D73); the MCP Registry waits for a Docker image | done 2026-11-15; no release made yet |
 | 7 | Indexes and search without choosing one | A collection is named an index and its name leaves the assistant's tools: one record id (D84); `search`, `lookup` and `explainSearch` over every built index (D82, D86); the field `project` (D83, D85); `fieldValues` over every index (D87); `describeKnowledge` and `listIndexes` instead of `listCollections` (D89); a glossary in the examples (D88, D91). Raises the index schema once | done 2026-11-16 |
@@ -437,8 +437,28 @@ Stage 4, in progress:
      With 60 measured questions the misses are still gaps of the indexes, so D41 keeps the
      reranker out; 15 questions rank 2 to 9 in hybrid with `e5-small`, which a reranker could
      only move up within the page a client already reads.
-7. Next: grow the set further (its authors aim at several hundred questions) and close the gaps
-   it shows in the corpus. The default model stays `e5-small` (D75).
+7. Done 2026-11-17: `rag-eval --group-by` (D96). The first corpus's set, 124 questions over six
+   indexes, each tagged with a `type`, measured in hybrid:
+
+   | Group | Questions | @1 | @10 | MRR |
+   |---|---|---|---|---|
+   | all | 124 | 70 | 115 | 0.69 |
+   | diagnostics | 55 | 35 | 50 | 0.74 |
+   | how-to | 26 | 13 | 25 | 0.66 |
+   | message | 16 | 8 | 16 | 0.66 |
+   | navigation | 11 | 6 | 9 | 0.65 |
+   | values | 10 | 6 | 10 | 0.71 |
+   | access | 4 | 1 | 3 | 0.43 |
+
+   - "How-to" questions are where the modes part: lexical puts 6 of 26 first, vector 18, hybrid
+     13 (MRR 0.34, 0.77, 0.66). The fusion lets weak lexical lists pull down what vector ranks
+     first; a record that one list ranks first and the other misses can drop out of the first ten
+     (seen on two questions). A weighted fusion is a candidate for the next tuning pass.
+   - The 49 questions about shared mechanisms measure MRR 0.64 in hybrid against 0.77 for the 54
+     of one subsystem; the overall number mixes both.
+8. Next: grow the set further (its authors aim at several hundred questions), complete the
+   expected records of the questions that miss, and close the gaps it shows in the corpus. The
+   default model stays `e5-small` (D75).
 
 Stage 3, done 2026-11-15 (D24–D27):
 

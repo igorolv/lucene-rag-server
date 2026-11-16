@@ -13,7 +13,7 @@ real corpus the server is built for (`docs/decisions.md` D20).
 | `knowledge/data/` | YAML descriptions: enumerations with a list of `values`, a table with a mapping of columns, `logs.yaml` with a list of `sources` |
 | `knowledge/glossary/` | `glossary.md`: a Russian glossary in one file, a term per `### Term: <name>` heading with `**ID:**`, `**Сокращение:**` and other lines as a list; a term without an abbreviation has `—` |
 | `knowledge/queue/` | `symptoms.md`: a Russian list of user symptoms as two Markdown tables under `##` sections, numbered across both, with an escaped `\|` in a cell |
-| `knowledge/eval/` | A JSONL question set; `expected` holds document keys and references of the corpus's kinds: `data:<table>`, `spec:<capability>/<requirement>`, `symptom:<number>` (a row of `queue/symptoms.md`); requirements are not indexed, as in the real corpus |
+| `knowledge/eval/` | A JSONL question set; `expected` holds document keys and references of the corpus's kinds: `data:<table>`, `spec:<capability>/<requirement>`, `symptom:<number>` (a row of `queue/symptoms.md`); requirements are not indexed, as in the real corpus. `subsystem` and `type` (one value or a list) are the keys `rag-eval --group-by` groups by; one question has no `type` |
 | `knowledge/queries/<area>/` | SQL queries with a header of `-- key: value` lines |
 
 Tests assert on the wording of these files (word forms, `ё`, phrases, field values): change a file

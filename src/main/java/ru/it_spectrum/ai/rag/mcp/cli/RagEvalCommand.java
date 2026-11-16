@@ -70,6 +70,7 @@ public final class RagEvalCommand {
         boolean details = false;
         Integer perDocument = null;
         Map<String, String> refs = new LinkedHashMap<>();
+        List<String> groupBy = new ArrayList<>();
         List<String> positional = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -79,7 +80,7 @@ public final class RagEvalCommand {
             }
             if ("--details".equals(arg)) {
                 details = true;
-            } else if (List.of("--limit", "--modes", "--ref", "--per-document").contains(arg)) {
+            } else if (List.of("--limit", "--modes", "--ref", "--per-document", "--group-by").contains(arg)) {
                 if (i + 1 >= args.length) {
                     usage(out);
                     return 2;
@@ -87,6 +88,14 @@ public final class RagEvalCommand {
                 String value = args[++i];
                 if ("--modes".equals(arg)) {
                     modes = value;
+                } else if ("--group-by".equals(arg)) {
+                    if (value.isBlank()) {
+                        usage(out);
+                        return 2;
+                    }
+                    if (!groupBy.contains(value.strip())) {
+                        groupBy.add(value.strip());
+                    }
                 } else if ("--per-document".equals(arg)) {
                     try {
                         perDocument = Integer.valueOf(value);
@@ -149,7 +158,7 @@ public final class RagEvalCommand {
             out.println("RESULT: FAILED (" + e.getMessage() + ")");
             return 4;
         }
-        print(report, details, out);
+        print(report, groupBy, details, out);
         return 0;
     }
 
@@ -183,7 +192,7 @@ public final class RagEvalCommand {
         return result;
     }
 
-    private static void print(Evaluation.Report report, boolean details, PrintStream out) {
+    private static void print(Evaluation.Report report, List<String> groupBy, boolean details, PrintStream out) {
         List<Evaluation.Outcome> outcomes = report.outcomes();
         long measured = report.measured();
         out.println("Questions: " + outcomes.size() + " read, " + measured + " measured, "
@@ -199,12 +208,10 @@ public final class RagEvalCommand {
         }
         out.println();
         int depth = report.depth();
-        out.println(String.format(Locale.ROOT, "%-8s %7s %7s %7s %6s %9s %9s", "mode", "@1", "@5", "@" + depth,
-                "MRR", "recall@" + depth, "ms/query"));
-        for (Evaluation.Measures m : report.measures()) {
-            out.println(String.format(Locale.ROOT, "%-8s %7s %7s %7s %6.2f %9.2f %9.0f", m.mode().id(),
-                    m.first() + "/" + m.measured(), m.top5() + "/" + m.measured(), m.top() + "/" + m.measured(),
-                    m.mrr(), m.recall(), m.millis()));
+        table(null, Map.of("", report.measures()), depth, out);
+        for (String key : groupBy) {
+            out.println();
+            table(key, report.groups(key), depth, out);
         }
         if (details) {
             out.println();
@@ -227,14 +234,36 @@ public final class RagEvalCommand {
                 + (report.measures().size() == 1 ? "" : "s") + ", depth " + depth + ")");
     }
 
+    /**
+     * The measures of each mode, a line each; with a key, the measures of each group of it, the
+     * value of the key in the first column.
+     */
+    private static void table(String key, Map<String, List<Evaluation.Measures>> groups, int depth, PrintStream out) {
+        String group = key == null ? "" : "%-" + Math.max(key.length(),
+                groups.keySet().stream().mapToInt(String::length).max().orElse(0)) + "s  ";
+        List<Object> header = new ArrayList<>(key == null ? List.of() : List.of(key));
+        header.addAll(List.of("mode", "@1", "@5", "@" + depth, "MRR", "recall@" + depth, "ms/query"));
+        out.println(String.format(Locale.ROOT, group + "%-8s %7s %7s %7s %6s %9s %9s", header.toArray()));
+        groups.forEach((value, measures) -> {
+            for (Evaluation.Measures m : measures) {
+                List<Object> line = new ArrayList<>(key == null ? List.of() : List.of(value));
+                line.addAll(List.of(m.mode().id(), m.first() + "/" + m.measured(), m.top5() + "/" + m.measured(),
+                        m.top() + "/" + m.measured(), m.mrr(), m.recall(), m.millis()));
+                out.println(String.format(Locale.ROOT, group + "%-8s %7s %7s %7s %6.2f %9.2f %9.0f",
+                        line.toArray()));
+            }
+        });
+    }
+
     private static void usage(PrintStream out) {
         out.println("Usage: java -jar lucene-rag-server.jar rag-eval <index>[,<index>...] <questions.jsonl>"
                 + " [--limit N] [--modes lexical,vector,hybrid] [--ref prefix=field]... [--per-document N]"
-                + " [--details]");
+                + " [--group-by key]... [--details]");
         out.println("Searches every question of a JSONL question set (\"question\", \"expected\", \"id\") and reports");
         out.println("how high the expected records rank in each mode. A reference is a document key, a record id,");
         out.println("a source path, or prefix:value matching a field; --ref maps a prefix to a field name.");
         out.println("--limit is the depth looked at (default " + DEFAULT_DEPTH + ", at most " + MAX_DEPTH
                 + "); without --modes every mode the indexes have.");
+        out.println("--group-by adds the measures of each value of a key of the questions, such as subsystem.");
     }
 }

@@ -367,7 +367,9 @@ hybrid      9/17   15/17   17/17   0.69      0.76        23
 
 **The question set** is a JSONL file, one question per line: `question` is the text searched,
 `expected` a list of references to the records that answer it, `id` names the question in the
-details. Other keys are ignored.
+details. Any other key whose value is a string, a number or a list of them is a value of the
+question that `--group-by` groups by, such as `"subsystem": "billing"` or
+`"type": ["how-to", "status"]`; other keys are ignored.
 
 **A reference names a record** when it is
 - the record's document key or id (`article.billing.refunds`);
@@ -391,7 +393,10 @@ details. Other keys are ignored.
 **Options:** `--limit N` sets the depth (default 10, at most 100). `--modes lexical,hybrid`
 chooses the modes; without it `lexical` is measured, and `vector` and `hybrid` too when at
 least one index has vectors. `--ref prefix=field` may be repeated. `--per-document N` measures
-search with that limit instead of the default 1. `--details` adds a line per
+search with that limit instead of the default 1. `--group-by key` adds a table after the first
+with the measures of each value of that key, by value in alphabetical order; a question with a
+list of values counts in each of their groups, and the questions without the key make the group
+`(none)`. It may be repeated, a table per key. `--details` adds a line per
 question with its rank in each mode (`-` when not found) and the references that name no record.
 
 Exit codes: 0 measured, 1 unexpected error, 2 wrong usage, an unknown index or mode, or a
