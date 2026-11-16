@@ -14,6 +14,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static ru.it_spectrum.ai.rag.mcp.TestKnowledge.API;
@@ -112,6 +113,60 @@ class CommandsTest {
         assertThat(dataDir.resolve("gone")).doesNotExist();
         assertThat(index("odd")).isEqualTo(2);
         assertThat(output()).contains("format \"docx\" is not supported");
+    }
+
+    @Test
+    void previewPrintsRecordsAndWritesNothing() throws IOException {
+        TestKnowledge.writeIndexesFile(dataDir, true);
+
+        assertThat(index("--preview", DOCS)).isZero();
+
+        String output = output();
+        assertThat(output).contains("Preview " + DOCS + ": nothing is embedded or written",
+                "articles (markdown)", "playbooks (markdown)", "files 2, documents 2, records ",
+                "longest record ", "fields: ", "breadcrumb: ", "text, ",
+                "total: files 3, documents 3", "RESULT: OK (1 index previewed; nothing written)");
+        assertThat(output).doesNotContain("vectors:");
+        try (var children = Files.list(dataDir)) {
+            assertThat(children.map(p -> p.getFileName().toString())).containsExactly("indexes.json");
+        }
+    }
+
+    @Test
+    void previewSpreadsItsRecordsOverTheFiles() throws IOException {
+        TestKnowledge.writeIndexesFile(dataDir);
+
+        assertThat(index("--records", "2", "--preview", DOCS)).isZero();
+
+        List<String> documents = output().lines().filter(line -> line.startsWith("      document: ")).toList();
+        // Two articles give one record each, the single playbook gives two.
+        assertThat(documents).hasSize(4);
+        assertThat(documents.get(0)).isNotEqualTo(documents.get(1));
+        assertThat(documents.get(2)).isEqualTo(documents.get(3));
+        assertThat(output().lines().filter(line -> line.startsWith("    record "))).hasSize(4);
+    }
+
+    @Test
+    void previewReportsUsageAndProblemsAsABuildDoes() throws IOException {
+        TestKnowledge.writeIndexesFile(dataDir);
+        assertThat(index("--records", "2", DOCS)).isEqualTo(2);
+        assertThat(output()).contains("Usage:");
+        assertThat(index("--preview", "--records", "51", DOCS)).isEqualTo(2);
+        assertThat(index("--preview", "--records", "x", DOCS)).isEqualTo(2);
+        assertThat(index("--preview", "--verbose", DOCS)).isEqualTo(2);
+
+        assertThat(index("--preview", "--records", "0", "--all")).isZero();
+        assertThat(output()).contains("RESULT: OK (2 indexes previewed; nothing written)")
+                .doesNotContain("    record ");
+
+        Files.writeString(dataDir.resolve("indexes.json"),
+                "{\"indexes\": {\"gone\": {\"sources\": [{\"path\": \"missing-dir\"}]},"
+                        + " \"twice\": {\"sources\": [{\"path\": \"" + TestKnowledge.root().toString().replace('\\', '/')
+                        + "/articles\", \"map\": {\"id\": \"same\"}}]}}}");
+        assertThat(index("--preview", "gone")).isEqualTo(4);
+        assertThat(output()).contains("Source path does not exist");
+        assertThat(index("--preview", "twice")).isEqualTo(2);
+        assertThat(output()).contains("Two records share the id 'same'");
     }
 
     @Test

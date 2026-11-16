@@ -15,7 +15,7 @@ instead of guessing. The commands below are written as `rag-index …`; run them
 - [2. Survey the knowledge](#2-survey-the-knowledge)
 - [3. Decide on the indexes](#3-decide-on-the-indexes)
 - [4. Write one source at a time](#4-write-one-source-at-a-time)
-- [5. Build and read the report](#5-build-and-read-the-report)
+- [5. Preview, then build](#5-preview-then-build)
 - [6. Check search](#6-check-search)
 - [7. Hand over](#7-hand-over)
 - [Pitfalls](#pitfalls)
@@ -81,8 +81,10 @@ its first screen is often not the shape of all of them.
 ## 4. Write one source at a time
 
 Create `rag-indexes.yaml` next to the knowledge, usually at the root of its directory, so that
-`path` values are short and relative ([YAML](indexes.md#yaml)). Start with one index and one
-source, build it, look at the records, then add the next.
+`path` values are short and relative ([YAML](indexes.md#yaml)), and make it reachable at once:
+an entry in `import` of the machine's indexes file, for example
+`- ${projects}/billing/knowledge/rag-indexes.yaml`. Start with one index and one source, preview
+it (step 5), then add the next.
 
 ```yaml
 # Billing knowledge for lucene-rag-server; imported by the machine's indexes file.
@@ -122,7 +124,7 @@ For each source, take the first row of this table that fits and add only what it
 Rules that save a rebuild:
 
 - **Prefer the defaults.** Write a `map` key only when its default gives a wrong result you have
-  seen in a built index. A Markdown `map` with `fields` keeps the front matter fields, since
+  seen in a preview. A Markdown `map` with `fields` keeps the front matter fields, since
   `inheritFields` defaults to all.
 - **Stable ids.** Base `map.id` and `map.document` on an identifier from the content, with an
   alternative for a unit that lacks it: `'spec:{body.id|slug}'`.
@@ -134,35 +136,48 @@ Rules that save a rebuild:
   imported file they work only when the operator's import says `"commands": true`; ask before
   relying on one. They are an argument array without a shell ([Commands](indexes.md#commands)).
 
-Finally, make the project's file reachable: an entry in `import` of the machine's indexes file,
-for example `- ${projects}/billing/knowledge/rag-indexes.yaml`.
+## 5. Preview, then build
 
-## 5. Build and read the report
+Preview after every change of a source: it reads the sources as a build does and prints the
+counts, the fields and a few records in full, without computing vectors or writing anything
+([Previewing an index](indexes.md#previewing-an-index)).
+
+```bash
+rag-index --preview docs@billing
+```
+
+```bash
+rag-index --preview --records 10 docs@billing
+```
+
+Read the whole output, not only `RESULT:`:
+
+- **Exit code 2 or an `IMPORT:` line**: a configuration error, with the key and the reason. Fix
+  and preview again. A problem of another index or import does not concern yours, but say so to
+  the user. **Exit code 4**: a file could not be read or a command failed; the message names it.
+- **Counts.** Compare `files` of each source with the number of files you counted in step 2:
+  fewer means `include`, `exclude`, `format` or `where` left some out. `records` far above
+  `documents` with the default `split` usually means long sections cut by `maxChars`; `records`
+  equal to `documents` for Markdown usually means the files have no headings at the split level.
+- **`longest record`** above about 2,000 characters in an index with vectors: lower
+  `split.maxChars`.
+- **Fields.** Every value of `kind` and of the other filter fields is listed with its count: a
+  misspelled value, a field missing from some records or a field you did not mean shows here.
+- **Records.** For each printed record: does its title say what it is about, and does its
+  breadcrumb place it? Does the text start where the unit starts, without the heading of the
+  next one? Is the id stable, made of an identifier rather than a position? A title such as `1` or
+  a text of one value means a `map` template names a value the unit does not have.
+- **A key with no effect.** Unknown keys are ignored: when the preview did not change after you
+  added a key, check its spelling.
+
+When the preview looks right, build:
 
 ```bash
 rag-index docs@billing
 ```
 
-Read the whole output ([Building](indexes.md#building)), not only `RESULT:`:
-
-- **Exit code 2 or an `IMPORT:` line**: a configuration error, with the key and the reason. Fix
-  and build again. A problem of another index or import does not concern yours, but say so to the
-  user.
-- **Counts.** Compare `files` with the number of files you counted in step 2: fewer means
-  `include`, `exclude`, `format` or `where` left some out. `records` far above `documents` with
-  the default `split` usually means long sections cut by `maxChars`; `records` equal to
-  `documents` for Markdown usually means the files have no headings at the split level.
-- **`cut to N tokens`** above a handful of records: lower `split.maxChars`.
-- **Exit code 4**: a file could not be read or a command failed; the message names it.
-
-Then look at the records themselves. With `RAG_MCP_TOOLS_ADMIN` on, `listIndexes` shows the index
-as built; `fieldValues` lists the values of a field across records, which shows a misspelled or
-missing `kind` at once ([Browsing](search.md#browsing)). Read a few records whole with
-`getDocument`, or with `rag-search` on a word you know they contain:
-
-- Does every record have a title that says what it is about, and a breadcrumb that places it?
-- Does the text start where the unit starts, without the heading of the next one?
-- Are the fields there, with the values you expected, and no field you did not mean?
+The build prints the same counts, and for an index with vectors `cut to N tokens`: above a
+handful of records, lower `split.maxChars` ([Building](indexes.md#building)).
 
 ## 6. Check search
 

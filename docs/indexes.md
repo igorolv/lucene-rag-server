@@ -25,6 +25,7 @@ another machine.
 - [Vectors](#vectors)
 - [Examples](#examples)
 - [Building](#building)
+  - [Previewing an index](#previewing-an-index)
 - [What a built index is](#what-a-built-index-is)
 - [Delivering indexes](#delivering-indexes)
 
@@ -1161,7 +1162,7 @@ RESULT: OK (1 index built)
 
 | Exit code | Meaning |
 |---|---|
-| 0 | built |
+| 0 | built, or with `--preview` read |
 | 1 | unexpected error |
 | 2 | wrong usage, unknown index, wrong configuration, or with `--all` a problem of an import |
 | 4 | a source could not be read, a command failed, the model could not be loaded or the index could not be written |
@@ -1192,6 +1193,49 @@ their project, build time, record count, `model` and `modelProblem`, and those o
 `notice` names an indexes file of the old name (`collections.json`) that is not read, as the
 `NOTICE:` line of `rag-index` does. What an assistant needs to narrow a search is in
 `describeKnowledge` instead ([search.md](search.md#describing-the-knowledge)).
+
+### Previewing an index
+
+`--preview` reads the sources as a build does and prints what the index would hold, without
+loading the model, computing vectors or writing anything. Use it while writing `split` and `map`:
+it takes seconds where a build with vectors takes minutes.
+
+```bash
+java -jar lucene-rag-server.jar rag-index --preview docs@billing
+```
+
+```bash
+java -jar lucene-rag-server.jar rag-index --preview --records 10 --all
+```
+
+```
+Preview docs@billing, project billing: nothing is embedded or written
+  source 1: C:/projects/billing/knowledge/articles (markdown)
+    files 2, documents 2, records 7, longest record 359 characters
+    fields: kind: article 7; subsystem: billing 7; tags: invoices 4, payments 4, refunds 3
+    record article.billing.payments#платежи
+      document: article.billing.payments
+      title: Платежи
+      breadcrumb: Платежи
+      fields: kind=article; subsystem=billing; tags=payments, invoices
+      text, 69 characters:
+        Раздел описывает, как система принимает и учитывает платежи клиентов.
+  total: files 2, documents 2, records 7
+RESULT: OK (1 index previewed; nothing written)
+```
+
+- For each source: its path or command and format; the counts a build prints; the length of the
+  longest record as it is embedded, breadcrumb and text, to compare with the model's limit
+  ([What is embedded](#what-is-embedded)); and each field with its values and the number of
+  records of each, or only the number of values when there are more than five.
+- `--records N` (default 3, at most 50, `0` for none) records of each source are printed in full,
+  with the first 300 characters of their text: the first record of each file, then the second,
+  so the files of a source are seen before the sections of one file.
+- `where`, `join` and every check of a build apply: two records with one id, a reserved field
+  name or a file that does not fit its format fail the preview as they fail a build, with the same
+  exit codes. Commands (`command`, `convert`, a `join` with a command) run, since their output is
+  what is read.
+- The `project` of the index is named in the first line and not repeated as a field.
 
 ## What a built index is
 
