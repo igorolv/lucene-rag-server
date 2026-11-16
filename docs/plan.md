@@ -41,11 +41,12 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the `models` object and `vectors` per index, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
   manifest and the embedding cache. User documents: `docs/indexes.md`, `docs/search.md`.
-- Verified by `gradlew build` (214 tests on the synthetic knowledge in `testdata/`, vectors from a
+- Verified by `gradlew build` (253 tests on the synthetic knowledge in `testdata/`, vectors from a
   deterministic test model; one of them runs the real model and only when `RAG_MCP_TEST_MODEL_DIR` is
   set) and by running the jar: `rag-index` writes nothing but its report, and a stdio session lists
-  the four tools, answers `lookup` and `search` in every mode and drops `lookup` with
-  `RAG_MCP_TOOLS_LOOKUP=false`. Every format, `where`, `lookup` and the vectors were checked by
+  the nine tools, answers `search` without index names, `getDocument` by `<index>/<record id>`,
+  `lookup` and `describeKnowledge`, and drops `listIndexes` and `rebuildIndex` with
+  `RAG_MCP_TOOLS_ADMIN=false` (stage 7, 2026-11-16). Every format, `where`, `lookup` and the vectors were checked by
   building indexes from the first real corpus (numbers in section 4, stages 2 and 3). Requirement files without front matter (stage 1: 141 files, 601 records) have not
   been rebuilt on the pipeline.
 - Measured: one question set of the first corpus with `rag-eval` (stage 4, section 4); tuning is
@@ -356,7 +357,20 @@ done here. A stage is taken only when the user asks for it.
 | 4 | Measurement | Question set with expected sources; recall and rank per mode; tuning of chunk size and limits for a small-context model; decision on a reranker (D12) | in progress: `rag-eval` done 2026-11-15 |
 | 5 | Delivery | Atomic rebuild and `rebuildIndex` (both done 2026-11-15); streamable HTTP transport for MCP, Spring AI's (D45, done ahead of the stage); delivery procedure for indexes and models (`docs/indexes.md`, "Delivering indexes"); Docker image not needed for now (D51) | done 2026-11-15 |
 | 6 | Convenience and release | `browse` and `debug` groups (D72); CI and release workflow, JBang alias, Glama file, third-party notices (D73); the MCP Registry waits for a Docker image | done 2026-11-15; no release made yet |
-| 7 | Indexes and search without choosing one | A collection is named an index and its name leaves the assistant's tools: one record id (D84); `search`, `lookup` and `explainSearch` over every built index (D82, D86); the field `project` (D83, D85); `fieldValues` over every index (D87); `describeKnowledge` and `listIndexes` instead of `listCollections` (D89); a glossary in the examples (D88). Raises the index schema once | not started |
+| 7 | Indexes and search without choosing one | A collection is named an index and its name leaves the assistant's tools: one record id (D84); `search`, `lookup` and `explainSearch` over every built index (D82, D86); the field `project` (D83, D85); `fieldValues` over every index (D87); `describeKnowledge` and `listIndexes` instead of `listCollections` (D89); a glossary in the examples (D88, D91). Raises the index schema once | done 2026-11-16 |
+
+Stage 7, done 2026-11-16: the operator's word is index (`docs/indexes.md`); an assistant's tools
+search every built index and address a record by `<index>/<record id>` (`docs/search.md`); records
+carry `project`, and `describeKnowledge` and `listIndexes` replace `listCollections`. Checked on
+the first corpus after the one rebuild of index schema 11: on its 63 questions `rag-eval` over all
+five indexes gives the numbers of the baseline taken before the stage (lexical 53 of 63 within 10,
+MRR 0.68; hybrid 61 of 63, MRR 0.76); over the three indexes that hold the answers lexical stays at
+59 and MRR 0.74, hybrid gives 60 instead of 61 with MRR 0.76, one symptom moving from rank 10 to
+11. One document per glossary term (D88) changes none of these numbers: no question of the set
+expects a term, and the same build with one document for the glossary measures the same; the
+move comes from the corpus, 321 of whose records were embedded anew. A stdio session lists the nine
+tools, seven with `RAG_MCP_TOOLS_ADMIN=false`, and answers `search` without index names,
+`getDocument` by the composite id, `lookup` and `describeKnowledge` (6,875 characters, D89).
 
 Stage 4, in progress:
 

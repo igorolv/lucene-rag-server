@@ -8,7 +8,7 @@ index. It retrieves; it does not generate answers. User-facing overview: `README
 YAML, JSONL, SQL, PDF (by pages or outline), HTML and Office indexes with configurable `split` and `map`, built by the five-step source
 pipeline in `ingest/`, external commands as an origin and as `convert` steps, named readers,
 `where`, vectors from an in-process ONNX model with an embedding cache, `lexical`, `vector` and
-`hybrid` search, the `rag-index`, `rag-search` and `rag-model` commands and the tools `listCollections`,
+`hybrid` search, the `rag-index`, `rag-search` and `rag-model` commands and the tools `describeKnowledge`,
 `search`, `getDocument` and `lookup`. Embedding models are used through Spring AI's
 `EmbeddingModel`, search filters take Spring AI filter expressions, records reach the index as
 Spring AI documents and PDF is read by Spring AI's reader (`docs/plan.md` section 3.7).
@@ -18,8 +18,11 @@ A second pass of the Spring AI alignment (stage 3b: D42–D46) is implemented, t
 of MCP among it. Stage 5 (delivery) is done: a rebuild swaps an index in whole,
 `rebuildIndex` rebuilds through MCP, a record is also an MCP resource, and the delivery of
 indexes and models is described in `docs/indexes.md`; no Docker image (D51). Stage 6 is
-done: the `browse` and `debug` tool groups, CI, the release workflow and the third-party notices;
-no release has been made yet.
+done: the `browse` and `debug` tool groups, CI, the release workflow and the third-party notices.
+Stage 7 is done: an assistant searches every built index without naming one and addresses a
+record by `<index>/<record id>`, records carry `project`, and `describeKnowledge` (group
+`knowledge`) and `listIndexes` (group `admin`) replace `listCollections` (D82–D91). No release has
+been made yet.
 
 ## Repository contents
 
