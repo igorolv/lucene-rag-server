@@ -7,7 +7,9 @@ import java.util.function.UnaryOperator;
  * path can differ between machines without editing the file. A missing variable is a hard error
  * naming both the variable and the field.
  *
- * <p>Copied from mail-mcp-server {@code connections/EnvironmentPlaceholders} @ {@code 0.1.1}.
+ * <p>Copied from mail-mcp-server {@code connections/EnvironmentPlaceholders} @ {@code 0.1.1}; the
+ * lookup here is the {@code vars} of the collections file, then the environment, and the message
+ * says so.
  */
 public final class EnvironmentPlaceholders {
 
@@ -43,8 +45,8 @@ public final class EnvironmentPlaceholders {
             }
             String resolved = lookup.apply(name);
             if (resolved == null) {
-                throw new IllegalStateException("Environment variable '" + name + "' referenced by "
-                        + field + " is not set");
+                throw new IllegalStateException("Variable '" + name + "' referenced by "
+                        + field + " is not set, neither in \"vars\" nor in the environment");
             }
             out.append(resolved);
             i = end + 1;

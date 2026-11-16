@@ -36,6 +36,10 @@ import java.util.regex.Pattern;
  * {@code "vectors": {"model": "<name>"}} is embedded with one of them, a collection without
  * {@code vectors} is searched lexically only.
  *
+ * <p>A top-level {@code vars} object names values for the {@code ${name}} placeholders of the
+ * file and of the files it imports; they are looked up before the environment
+ * (docs/decisions.md D79).
+ *
  * <p>A top-level {@code import} array names other collections files, usually kept with the
  * sources they describe. An imported file holds {@code collections} and {@code readers} only;
  * its relative paths and the working directory of its commands are its own directory, its
@@ -56,6 +60,8 @@ public final class CollectionsLoader {
     static final List<String> READER_KEYS = List.of("convert", "format", "split", "map", "join");
 
     private static final Pattern JOIN_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9]*");
+
+    private static final Pattern VAR_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     private static final Pattern MODEL_NAME = Pattern.compile("[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}");
 
@@ -93,6 +99,7 @@ public final class CollectionsLoader {
             if (root == null) {
                 return LoadedCollections.EMPTY;
             }
+            env = withVars(root.get("vars"), file, env);
             JsonNode modelsNode = root.get("models");
             if (modelsNode != null && !modelsNode.isNull() && !modelsNode.isObject()) {
                 throw new IllegalArgumentException("\"models\" in " + file + " must be a JSON object");
@@ -107,6 +114,7 @@ public final class CollectionsLoader {
             owners.put(definition.name(), file);
         }
         List<String> problems = new ArrayList<>();
+        UnaryOperator<String> lookup = env;
         JsonNode imports = root.get("import");
         if (imports != null && !imports.isNull()) {
             if (!imports.isArray()) {
@@ -117,13 +125,42 @@ public final class CollectionsLoader {
             for (JsonNode entry : imports) {
                 String where = "import[" + index++ + "]";
                 try {
-                    imported(entry, where, baseDir, models, env, result, owners, problems);
+                    imported(entry, where, baseDir, models, lookup, result, owners, problems);
                 } catch (IllegalStateException | IllegalArgumentException e) {
                     problems.add(where + ": " + e.getMessage());
                 }
             }
         }
         return new LoadedCollections(result, problems);
+    }
+
+    /**
+     * The lookup of {@code ${name}} placeholders: the {@code vars} of the collections file first,
+     * then the environment. A value of {@code vars} may itself name environment variables, not
+     * other entries of {@code vars}.
+     *
+     * @throws IllegalArgumentException when {@code vars} is not an object of names to strings
+     */
+    private static UnaryOperator<String> withVars(JsonNode node, Path file, UnaryOperator<String> env) {
+        if (node == null || node.isNull()) {
+            return env;
+        }
+        if (!node.isObject()) {
+            throw new IllegalArgumentException("\"vars\" in " + file + " must be a JSON object of name to value");
+        }
+        Map<String, String> vars = new LinkedHashMap<>();
+        for (var entry : node.properties()) {
+            String name = entry.getKey();
+            if (!VAR_NAME.matcher(name).matches()) {
+                throw new IllegalArgumentException("vars." + name + ": a name is letters, digits and '_', not "
+                        + "starting with a digit");
+            }
+            if (!entry.getValue().isString()) {
+                throw new IllegalArgumentException("vars." + name + " must be a string");
+            }
+            vars.put(name, EnvironmentPlaceholders.resolve(entry.getValue().asString(), "vars." + name, env));
+        }
+        return name -> vars.containsKey(name) ? vars.get(name) : env.apply(name);
     }
 
     /**
@@ -211,7 +248,7 @@ public final class CollectionsLoader {
         if (root == null) {
             return;
         }
-        for (String key : List.of("models", "import")) {
+        for (String key : List.of("models", "import", "vars")) {
             if (root.has(key) && !root.get(key).isNull()) {
                 throw new IllegalArgumentException(file + " has \"" + key + "\"; an imported file holds only "
                         + "\"collections\" and \"readers\"");

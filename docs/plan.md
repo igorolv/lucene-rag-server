@@ -1,7 +1,7 @@
 # docs/plan.md — idea, architecture and stages
 
 Read this for any design question and when starting or finishing a stage. Decisions and their
-reasons are in `docs/decisions.md` (cited here as D1…D78; agent proposals as P30 onwards).
+reasons are in `docs/decisions.md` (cited here as D1…D79; agent proposals as P30 onwards).
 
 ## 1. Idea
 
@@ -103,7 +103,7 @@ origin ─► convert ─► format ─┬─► section tree ─► split ─�
 ### 3.2 Collections file
 
 `<data-dir>/collections.json`, overridden by `RAG_MCP_COLLECTIONS_FILE`. What is implemented is
-described in `docs/collections.md`, which owns the format: `models`, `import` (the collections files of projects, D78), `readers`, `description`,
+described in `docs/collections.md`, which owns the format: `vars` (D79), `models`, `import` (the collections files of projects, D78), `readers`, `description`,
 `vectors` and `sources` with `path` or `command`, `timeoutSeconds`, `include`, `exclude`,
 `convert`, `format`, `split`, `map`, `join`, `where` and `reader`. Everything in the sketch below is
 implemented except `language`, which nothing reads yet:
@@ -152,8 +152,9 @@ implemented except `language`, which nothing reads yet:
 - `where` selects records by field values.
 - A collection without `vectors` is lexical only (catalogs of codes and names). The files of a
   model are in `<data-dir>/models/<name>/` on every machine (D26).
-- Relative paths resolve against the directory of `collections.json`. String values may reference
-  `${VAR}`.
+- Relative paths resolve against the directory of `collections.json`, or of the imported file.
+  `path` and `import` entries may reference `${name}`: the top-level `vars`, then the environment
+  (D79).
 - A file with commands is executable configuration: do not use one from an untrusted
   origin.
 
@@ -467,7 +468,7 @@ Stage 2 in more detail:
    `collections.json`, output read as UTF-8. A `convert` step names its converter by a key and is
    resolved by the registry; a converter prepares a checked step from its settings. `{file}` in
    an argument is the path of the item's file; without it the text so far goes to standard
-   input. The manifest keeps `command` and `convert`. `${VAR}` is resolved in `path` only.
+   input. The manifest keeps `command` and `convert`. `${name}` is resolved in `path` and `import` only.
    Checked with `java` as the command in the tests; Pandoc is a documented example only.
 5. Done 2026-11-15: `where`: selection of records by field values, applied after `map` in
    `SourcePipeline`; equality and `not`, compared as filters compare. The manifest keeps the

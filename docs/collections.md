@@ -4,6 +4,7 @@ How to describe collections in `collections.json`, build them and move a built c
 another machine.
 
 - [The collections file](#the-collections-file)
+  - [Variables](#variables)
 - [Importing the collections of projects](#importing-the-collections-of-projects)
 - [Sources](#sources)
 - [Named readers](#named-readers)
@@ -58,6 +59,32 @@ A collection is a named, indexed set of sources. Collections are described in on
 - The file is needed only to build. A [built collection](#what-a-built-collection-is) is served
   without it.
 
+### Variables
+
+`${name}` in a `path`, or in an entry of [`import`](#importing-the-collections-of-projects), is
+replaced by a variable. The top-level `vars` object of the collections file names variables of its
+own, so a root that every path shares is written once and the file needs nothing from the
+environment:
+
+```json
+{
+  "vars": { "projects": "C:/projects" },
+  "collections": {
+    "docs@billing": { "sources": [ { "path": "${projects}/billing/knowledge/articles" } ] }
+  }
+}
+```
+
+- A name is looked up in `vars` first, then among the environment variables, so an entry of
+  `vars` hides an environment variable of the same name. A name that is in neither is an error
+  of the collection, or of the import, that uses it.
+- A name is letters, digits and `_`, not starting with a digit. A value is a string; it may name
+  environment variables, such as `${USERPROFILE}/projects`, but not other entries of `vars`.
+- `vars` that is not an object of names to strings, or a value naming a variable that is not set,
+  makes the whole file unusable.
+- The variables apply to the files the collections file imports as well; an imported file may not
+  have `vars` of its own.
+
 ## Importing the collections of projects
 
 When knowledge lives in several projects, each project can describe its own collections in a file
@@ -67,13 +94,14 @@ changes with it.
 
 ```json
 {
+  "vars": { "projects": "C:/projects" },
   "models": {
     "e5-small": { "type": "onnx", "queryPrefix": "query: ", "passagePrefix": "passage: " }
   },
   "import": [
-    "C:/projects/billing/knowledge/rag-collections.json",
-    "C:/projects/billing/openspec/rag-collections.json",
-    { "file": "C:/projects/crm/knowledge/rag-collections.json", "commands": true }
+    "${projects}/billing/knowledge/rag-collections.json",
+    "${projects}/billing/openspec/rag-collections.json",
+    { "file": "${projects}/crm/knowledge/rag-collections.json", "commands": true }
   ]
 }
 ```
@@ -93,8 +121,9 @@ changes with it.
 ```
 
 - An entry of `import` is a path, or an object with `file` and `commands`. A relative path is
-  resolved against the directory of the collections file; `~` and `${VAR}` work as in `path`.
-- An imported file holds `collections` and `readers` only; `models` or `import` in it makes the
+  resolved against the directory of the collections file; `~` and [`${name}`](#variables) work
+  as in `path`.
+- An imported file holds `collections` and `readers` only; `models`, `import` or `vars` in it makes the
   whole file a problem of its import. Its relative paths and the working directory of its
   commands are its own directory, so the file works in any checkout of the project. Its `readers`
   are its own: neither file sees the readers of the other.
@@ -121,7 +150,7 @@ Each entry of `sources`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`, or of the [imported file](#importing-the-collections-of-projects) the source is in; `~` is the home directory; `${VAR}` is replaced by an environment variable, and an unset variable is an error |
+| `path` | required, unless `command` | A directory or one file. A relative path is resolved against the directory of `collections.json`, or of the [imported file](#importing-the-collections-of-projects) the source is in; `~` is the home directory; `${name}` is replaced by a [variable](#variables) of `vars` or of the environment, and an unset one is an error |
 | `include` | the format's: `**/*.md`, `**/*.tsv`, `**/*.yaml`, `**/*.jsonl`, `**/*.sql`, `**/*.pdf`, `**/*.{html,htm}`, `**/*.{docx,doc,xlsx,xls,pptx,ppt,odt,ods,odp,rtf}` | Glob on the path relative to `path`, with `/` separators. A pattern starting with `**/` also matches files directly in `path` |
 | `exclude` | none | Glob of files to skip |
 | `format` | by extension, else `markdown` | How a file is parsed: `markdown`, `tsv`, `yaml`, `jsonl`, `sql`, `pdf`, `html` or `office`. Without it the extension of `include`, or of `path` when it is one file, decides (`.md`, `.markdown`, `.tsv`, `.yaml`, `.yml`, `.jsonl`, `.sql`, `.pdf`, `.html`, `.htm`, and the Office extensions); a directory without `include` is read as Markdown |

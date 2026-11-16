@@ -144,6 +144,43 @@ class ImportTest {
     }
 
     @Test
+    void varsOfTheMainFileAreLookedUpBeforeTheEnvironmentInItAndInTheFilesItImports() throws IOException {
+        write("projects/billing/knowledge/rag-collections.json", """
+                {"collections": {"docs@billing": {"sources": [{"path": "articles"},
+                                                              {"path": "${shared}/glossary"}]}}}""");
+
+        LoadedCollections loaded = read("""
+                {"vars": {"projects": "${ROOT}/projects", "shared": "${projects}-not-a-var", "HOME": "overridden"},
+                 "import": ["${projects}/billing/knowledge/rag-collections.json"],
+                 "collections": {"notes@home": {"sources": [{"path": "${HOME}/notes"}]}}}""",
+                Map.of("ROOT", dir.toString(), "HOME", "from-environment", "projects", "env-projects"));
+
+        assertThat(loaded.importProblems()).isEmpty();
+        assertThat(named(loaded, "notes@home").sources().getFirst().path()).isEqualTo(dir.resolve("data/overridden/notes"));
+        List<SourceDefinition> docs = named(loaded, "docs@billing").sources();
+        assertThat(docs.get(0).path()).isEqualTo(dir.resolve("projects/billing/knowledge/articles"));
+        // A value of vars names environment variables only, not other entries of vars.
+        assertThat(docs.get(1).path().toString()).endsWith("env-projects-not-a-var" + java.io.File.separator + "glossary");
+    }
+
+    @Test
+    void wrongVarsFailTheFileAndVarsInAnImportedFileAreAProblem() throws IOException {
+        for (String vars : List.of("\"vars\": [\"a\"]", "\"vars\": {\"1a\": \"x\"}", "\"vars\": {\"a\": 1}",
+                "\"vars\": {\"a\": \"${UNSET}\"}")) {
+            Path file = write("data/collections.json", "{" + vars + "}");
+            assertThatThrownBy(() -> CollectionsLoader.read(file, name -> null))
+                    .as(vars).isInstanceOf(IllegalStateException.class).hasMessageContaining("vars");
+        }
+        Path file = write("data/collections.json", "{\"collections\": {\"c\": {\"sources\": [{\"path\": \"${nope}\"}]}}}");
+        assertThat(CollectionsLoader.read(file, name -> null).collections().getFirst().configError())
+                .contains("'nope'", "neither in \"vars\" nor in the environment");
+
+        write("p/rag-collections.json", "{\"vars\": {\"a\": \"b\"}, \"collections\": {}}");
+        assertThat(read("{\"import\": [\"../p/rag-collections.json\"]}").importProblems().getFirst())
+                .contains("has \"vars\"");
+    }
+
+    @Test
     void aWrongImportKeyOfTheMainFileFailsTheWholeFile() throws IOException {
         Path file = write("data/collections.json", "{\"import\": \"one.json\"}");
 
