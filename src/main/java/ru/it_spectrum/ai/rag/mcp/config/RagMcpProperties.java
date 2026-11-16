@@ -3,8 +3,11 @@ package ru.it_spectrum.ai.rag.mcp.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Top-level server settings: where local data lives, where the collections file is and how much
@@ -66,10 +69,27 @@ public record RagMcpProperties(String dataDir, String collectionsFile, Search se
         return Paths.get(expandHome(dir.trim())).toAbsolutePath().normalize();
     }
 
-    /** Path of the collections file: the configured one, or {@code <data-dir>/collections.json}. */
+    /**
+     * Path of the collections file: the configured one, else {@code <data-dir>/collections.json},
+     * else {@code collections.yaml} or {@code collections.yml} there when that one exists.
+     *
+     * @throws IllegalStateException when the data directory holds more than one of them
+     */
     public Path resolvedCollectionsFile() {
         if (collectionsFile == null || collectionsFile.isBlank()) {
-            return resolvedDataDir().resolve("collections.json");
+            Path dataDir = resolvedDataDir();
+            List<Path> present = new ArrayList<>();
+            for (String name : List.of("collections.json", "collections.yaml", "collections.yml")) {
+                if (Files.isRegularFile(dataDir.resolve(name))) {
+                    present.add(dataDir.resolve(name));
+                }
+            }
+            if (present.size() > 1) {
+                throw new IllegalStateException("The data directory " + dataDir + " has "
+                        + String.join(" and ", present.stream().map(p -> p.getFileName().toString()).toList())
+                        + "; keep one collections file");
+            }
+            return present.isEmpty() ? dataDir.resolve("collections.json") : present.getFirst();
         }
         return Paths.get(expandHome(collectionsFile.trim())).toAbsolutePath().normalize();
     }

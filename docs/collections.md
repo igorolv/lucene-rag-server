@@ -5,6 +5,7 @@ another machine.
 
 - [The collections file](#the-collections-file)
   - [Variables](#variables)
+  - [YAML](#yaml)
 - [Importing the collections of projects](#importing-the-collections-of-projects)
 - [Sources](#sources)
 - [Named readers](#named-readers)
@@ -28,9 +29,12 @@ another machine.
 
 ## The collections file
 
-A collection is a named, indexed set of sources. Collections are described in one JSON file,
+A collection is a named, indexed set of sources. Collections are described in one file,
 `<data-dir>/collections.json` (`RAG_MCP_DATA_DIR` sets the data directory, default
-`~/.lucene-rag-server`; `RAG_MCP_COLLECTIONS_FILE` points at another file).
+`~/.lucene-rag-server`; `RAG_MCP_COLLECTIONS_FILE` points at another file). The file may be
+written in [YAML](#yaml) instead: `collections.yaml` or `collections.yml` is used when the data
+directory has no `collections.json`, and a data directory with more than one of them is an error.
+The examples in this document are JSON.
 
 ```json
 {
@@ -84,6 +88,49 @@ environment:
   makes the whole file unusable.
 - The variables apply to the files the collections file imports as well; an imported file may not
   have `vars` of its own.
+
+### YAML
+
+A file whose name ends with `.yaml` or `.yml`, the collections file or an
+[imported](#importing-the-collections-of-projects) one, is read as YAML into the same structure as
+JSON; each file may use either. YAML allows comments, regular expressions without doubled
+backslashes and templates on several lines:
+
+```yaml
+# Requirements: one record per requirement, its identifier from the text.
+collections:
+  specs@billing:
+    description: Billing requirements
+    vectors: true
+    sources:
+      - path: specs
+        include: '**/spec.md'
+        split:
+          level: h3
+          headingPattern: '^Requirement: (?<name>.+)$'
+          maxChars: 1000            # below the 512 tokens of the model
+        map:
+          bodyPattern: '(?m)^\*\*ID:\*\* (?<id>\S+)'
+          title: '{heading.name}'
+          text: |-
+            {breadcrumb}
+
+            {body}
+          fields: { kind: spec, requirement: '{body.id}' }
+```
+
+- **Quote a template that starts with `{`.** Unquoted, `title: {heading.name}` is a YAML mapping,
+  not text; the file is then rejected with the line and the advice to quote it. A template that
+  starts with other text, such as `title: Requirement {heading.name}`, needs no quotes.
+- **Quote a glob that starts with `*`.** Unquoted, `include: **/spec.md` is a YAML alias; the file
+  is rejected with the same kind of advice.
+- Single quotes keep backslashes as they are, which suits regular expressions; inside them a `'`
+  is written twice. `|-` keeps the lines of a block and drops the last line end.
+- Values are typed as in JSON, not as YAML 1.1 types them: only a plain `true` or `false` is a
+  boolean, so `on`, `off`, `yes` and `no` are text (and `on` of a [join](#joining-values-from-another-file)
+  is a key); only a whole number written as JSON writes one is a number, so a code such as `0123`
+  or `+7` stays text; a plain `null`, `~` or nothing is no value.
+- A repeated key is an error with its line. Anchors and aliases work.
 
 ## Importing the collections of projects
 
@@ -143,7 +190,8 @@ changes with it.
   The other collections load. `rag-index` prints each problem as an `IMPORT:` line, and
   `listCollections` returns them as `importProblems`. A wrong `import` key of the collections file
   itself, not an array, fails the whole file.
-- Imports are not nested. The name `rag-collections.json` is a convention; any file name works.
+- Imports are not nested. The name `rag-collections.json` (or `.yaml`) is a convention; any file
+  name works, and its extension says whether it is [YAML](#yaml).
 - One project may have several files, for example one in each directory that holds sources, so
   that the paths in each are short. A collection is described in one file.
 

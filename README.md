@@ -104,7 +104,7 @@ suggest its collection and id ([docs/search.md](docs/search.md#results)).
 | Variable | Default | Meaning |
 |---|---|---|
 | `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per collection, plus `models/` (embedding model files, [docs/collections.md](docs/collections.md#vectors)), `cache/` and `logs/` |
-| `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json` | Collection definitions, which may import the collections files of projects; needed to build, not to serve |
+| `RAG_MCP_COLLECTIONS_FILE` | `<data-dir>/collections.json`, or `collections.yaml` | Collection definitions, in JSON or YAML, which may import the collections files of projects; needed to build, not to serve |
 | `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |

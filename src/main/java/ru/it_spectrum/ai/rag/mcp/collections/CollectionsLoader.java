@@ -178,15 +178,20 @@ public final class CollectionsLoader {
             if (text.isBlank()) {
                 return null;
             }
-            root = JSON.readTree(text);
+            root = YamlTree.isYaml(file.getFileName().toString()) ? YamlTree.read(text, file.toString())
+                    : JSON.readTree(text);
         } catch (IOException e) {
             throw new IllegalArgumentException("Cannot read the collections file " + file + ": " + e.getMessage(), e);
         } catch (JacksonException e) {
             throw new IllegalArgumentException("The collections file " + file + " is not valid JSON: "
                     + e.getOriginalMessage(), e);
         }
-        if (root == null || !root.isObject()) {
-            throw new IllegalArgumentException("The collections file " + file + " must be a JSON object");
+        if (root == null) {
+            return null;
+        }
+        if (!root.isObject()) {
+            throw new IllegalArgumentException("The collections file " + file + " must be "
+                    + (YamlTree.isYaml(file.getFileName().toString()) ? "a YAML mapping" : "a JSON object"));
         }
         return root;
     }
