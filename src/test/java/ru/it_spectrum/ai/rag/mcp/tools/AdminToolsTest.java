@@ -3,6 +3,7 @@ package ru.it_spectrum.ai.rag.mcp.tools;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import ru.it_spectrum.ai.rag.mcp.TestKnowledge;
+import ru.it_spectrum.ai.rag.mcp.api.ListIndexesResult;
 import ru.it_spectrum.ai.rag.mcp.api.RebuildResult;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
@@ -58,6 +59,30 @@ class AdminToolsTest {
         assertThatThrownBy(() -> tools(false).rebuildIndex("other@billing"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("'other@billing' is not in").hasMessageContaining(DOCS);
+    }
+
+    @Test
+    void listIndexesShowsBuiltAndUnbuiltIndexesAndAnOldFile() throws IOException {
+        AdminTools tools = tools(true);
+        tools.rebuildIndex(API);
+
+        ListIndexesResult listed = tools.listIndexes();
+        assertThat(listed.indexes()).extracting(ListIndexesResult.IndexInfo::name).containsExactly(API, DOCS);
+        ListIndexesResult.IndexInfo api = listed.indexes().getFirst();
+        assertThat(api.built()).isTrue();
+        assertThat(api.records()).isPositive();
+        assertThat(api.builtAt()).endsWith("Z");
+        assertThat(api.model()).isNull();
+        ListIndexesResult.IndexInfo docs = listed.indexes().get(1);
+        assertThat(docs.built()).isFalse();
+        assertThat(docs.model()).isEqualTo("fake");
+        assertThat(listed.importProblems()).isNull();
+        assertThat(listed.notice()).isNull();
+
+        Files.move(dataDir.resolve("indexes.json"), dataDir.resolve("collections.json"));
+        ListIndexesResult old = tools.listIndexes();
+        assertThat(old.indexes()).extracting(ListIndexesResult.IndexInfo::name).containsExactly(API);
+        assertThat(old.notice()).contains("collections.json is not read", "rename it to indexes.json");
     }
 
     @Test

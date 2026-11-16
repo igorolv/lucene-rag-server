@@ -35,8 +35,8 @@ Spring AI documents (D31); PDF files are read by Spring AI's PDF reader (D32).
   the template mapper as step beans; `where`; the index with its manifest; BM25 search with
   filters, filter expressions and snippets; exact lookup by key fields; server-side response limits; the commands
   `rag-index`, `rag-search`, `rag-eval` and `rag-model` (D70), each in a Spring context without the MCP server (D42); the tool groups
-  `collections` (`listCollections`), `search` (`search`, `getDocument`, the record resource),
-  `lookup` (`lookup`), `admin` (`rebuildIndex`), `browse` (`fieldValues`, `relatedRecords`) and
+  `knowledge` (`describeKnowledge`), `search` (`search`, `getDocument`, the record resource),
+  `lookup` (`lookup`), `admin` (`listIndexes`, `rebuildIndex`), `browse` (`fieldValues`, `relatedRecords`) and
   `debug` (`explainSearch`);
   the `models` object and `vectors` per index, the ONNX embedding model, the vector field, the
   modes `lexical`, `vector` and `hybrid` with reciprocal rank fusion, the model check against the
@@ -215,10 +215,10 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 
 | Group | Tools | Stage |
 |---|---|---|
-| `collections` | `listCollections` | done |
+| `knowledge` | `describeKnowledge`: projects, parts and the fields to narrow a search by, from the manifests (D89) | done |
 | `search` | `search`, `getDocument`; the resource `rag://{index}/{id}` and its completion (D48) | done |
 | `lookup` | `lookup`: exact lookups by the key fields of catalog indexes (D23) | done |
-| `admin` | `rebuildIndex` (D50) | done |
+| `admin` | `listIndexes` (D89), `rebuildIndex` (D50) | done |
 | `browse` | `fieldValues`, `relatedRecords` (D72); listing by filters is `search` without a query | done |
 | `debug` | `explainSearch` (D72) | done |
 
@@ -226,7 +226,7 @@ Tool groups, each switched by `RAG_MCP_TOOLS_<GROUP>` (D53):
 
 | | Site with a weak local model | Development with a strong model |
 |---|---|---|
-| Tool groups | `collections`, `search`, `lookup` | all |
+| Tool groups | `knowledge`, `search`, `lookup` | all |
 | Limits | few results, snippets, small size cap | defaults |
 | Instances | one per audience, each with its own data directory (D8, D49) | one |
 | Index | delivered ready (D7) | built in place, `rebuildIndex` available |
@@ -238,7 +238,7 @@ Root `ru.it_spectrum.ai.rag.mcp`. Dependencies flow downward only:
 
 ```
 tools/ ──► search/ ──► index/
-  └──────► definition/, ingest/     (listCollections shows indexes that are not built)
+  └──────► definition/, ingest/     (listIndexes shows indexes that are not built)
 cli/ ───► definition/, ingest/, index/, search/, embedding/, eval/
 eval/ ──► search/                              (question sets, references, measures)
 index/ ──► document/ ──► ingest/ ──► definition/   (build: list, convert, parse, split, map, write)
@@ -263,7 +263,7 @@ config/  — Spring wiring, properties, MCP customizer
 | `embedding/` | Models as Spring AI `EmbeddingModel` (D29): `OnnxEmbeddingModel` (ONNX Runtime and the DJL tokenizer, pooling), `EmbeddingModels` (models by type, loaded once, checked against a manifest), `ModelType` with `OnnxModelType` and `BeanModelType` (D43), `VectorModel` (a model with its name, prefixes and identity; the only thing the indexer and search call), `ModelParameters`, `ModelInfo`, `Embeddings` (vectors and which inputs were cut, read from a response), `CountBatchingStrategy` (D44), `EmbeddingCache`, `ModelUnavailableException` |
 | `eval/` | `QuestionSet` (a JSONL question set), `References` (which records a reference names), `Evaluation` (ranks per mode and the measures) |
 | `cli/` | `RagIndexCommand`, `RagSearchCommand`, `RagEvalCommand`, dispatched by the main class before the server starts; `Cli.context` starts the application context without the MCP server (D42) |
-| `tools/` | One `@Service` per tool group: `CollectionTools`, `SearchTools`, `LookupTools`, `AdminTools`, `BrowseTools`, `DebugTools`; `RecordResources` (the record resource and its completion, D48) |
+| `tools/` | One `@Service` per tool group: `KnowledgeTools`, `SearchTools`, `LookupTools`, `AdminTools`, `BrowseTools`, `DebugTools`; `RecordResources` (the record resource and its completion, D48) |
 | `api/` | Response records with `@Schema` |
 | `config/` | `RagMcpProperties`, `RagConfig` (the registry bean among others), `McpServerConfig`, `TransportSettings` (stdio or HTTP, D45) |
 

@@ -50,7 +50,7 @@ public class SearchTools {
             @McpToolParam(description = "Words to look for. May be omitted when filters are given", required = false)
             String query,
             @McpToolParam(description = "Exact field values every result must have, e.g. {\"kind\": \"article\"}. " +
-                    "listCollections shows the fields and their values", required = false)
+                    "describeKnowledge shows the fields and their values", required = false)
             Map<String, String> filters,
             @McpToolParam(description = "Conditions on fields when filters are not enough, in the Spring AI filter " +
                     "syntax: ==, !=, in [...], nin [...], <, <=, >, >= on quoted text, && (or AND), || (or OR), NOT, " +

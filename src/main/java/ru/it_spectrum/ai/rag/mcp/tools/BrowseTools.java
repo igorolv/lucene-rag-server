@@ -36,7 +36,7 @@ public class BrowseTools {
     @McpTool(
             description = "List the values a field has over all the knowledge, or over the records that pass " +
                     "the filters, with the number of records of each, most frequent first. Use a value as a " +
-                    "filter of search to narrow it down. Field names come from listCollections.",
+                    "filter of search to narrow it down. Field names come from describeKnowledge.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )

@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Records related to one record, as {@code relatedRecords} returns them. Every field carries
- * {@code nullable = true} and an explicit {@code requiredMode}, as {@link CollectionInfo} explains.
+ * {@code nullable = true} and an explicit {@code requiredMode}, as {@link KnowledgeResult} explains.
  */
 @Schema(description = "Records related to one record")
 public record RelatedResult(

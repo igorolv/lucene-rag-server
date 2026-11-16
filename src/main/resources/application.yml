@@ -55,9 +55,9 @@ rag-mcp:
   # turn groups off to shrink the manifest for a small-context model. Each flag toggles one
   # @Service. Groups are added here together with their tools (docs/plan.md section 3.4).
   tools:
-    collections: ${RAG_MCP_TOOLS_COLLECTIONS:true}       # listCollections
+    knowledge: ${RAG_MCP_TOOLS_KNOWLEDGE:true}           # describeKnowledge
     search: ${RAG_MCP_TOOLS_SEARCH:true}                 # search, getDocument, resource rag://{index}/{id}
     lookup: ${RAG_MCP_TOOLS_LOOKUP:true}                 # lookup
-    admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # rebuildIndex
+    admin: ${RAG_MCP_TOOLS_ADMIN:true}                   # listIndexes, rebuildIndex
     browse: ${RAG_MCP_TOOLS_BROWSE:true}                 # fieldValues, relatedRecords
     debug: ${RAG_MCP_TOOLS_DEBUG:true}                   # explainSearch

@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * The values of a field, as {@code fieldValues} returns them. Every field carries
- * {@code nullable = true} and an explicit {@code requiredMode}, as {@link CollectionInfo} explains.
+ * {@code nullable = true} and an explicit {@code requiredMode}, as {@link KnowledgeResult} explains.
  */
 @Schema(description = "Values of a field with the number of records of each, most frequent first")
 public record FieldValuesResult(

@@ -5,6 +5,7 @@ the server bounds what one call returns, how `fieldValues`, `relatedRecords` and
 help look around and tune, and how `rag-eval` measures search on a question set.
 
 - [What is searched](#what-is-searched)
+- [Describing the knowledge](#describing-the-knowledge)
 - [Modes](#modes)
 - [Queries](#queries)
 - [Filters](#filters)
@@ -25,6 +26,22 @@ fields of records, such as `kind` or `project`, never by naming an index. Record
 are ranked together, with shared term statistics, so their BM25 scores are comparable. The
 `rag-search` and `rag-eval` commands still take the names of the indexes to search: they are the
 operator's tools.
+
+## Describing the knowledge
+
+**`describeKnowledge`** (group `knowledge`) tells an assistant what is here and how to narrow a
+search; calling it is not required, since every search covers everything. It returns:
+
+- `projects`: each value of the field `project` with the number of records that have it.
+- `sections`: one per built index, with `label` (the index name, a label and not an argument of
+  any tool), `project`, the `description` the operator wrote, `records`, the `keys` that `lookup`
+  matches, and `fields`: each field with `distinct`, how many different values it has, and for a
+  field of at most 15 values the `values` themselves with the number of records of each.
+
+It reads only the manifests of the built indexes ([indexes.md](indexes.md#what-a-built-index-is)),
+so it opens no index and needs no indexes file. What only an operator acts on, such as indexes
+that are not built, configuration errors and model problems, is in `listIndexes` of the `admin`
+group ([indexes.md](indexes.md#building)).
 
 ## Modes
 
@@ -52,7 +69,7 @@ operator's tools.
     (`rag-search` prints it as a `NOTE:` line);
   - a call that asks for `vector` or `hybrid` is an error that says so.
 
-  `listCollections` shows the model of each index (`model`) and, in `modelProblem`, why it
+  `listIndexes` shows the model of each index (`model`) and, in `modelProblem`, why it
   cannot be used as far as is known without loading it: a type the server lacks or missing files;
   once loaded, also other files than the index was built with. The first search that needs
   the model loads it, which takes a few seconds; a model whose files are replaced is seen after a
@@ -98,7 +115,7 @@ neither.
 What applies to both:
 
 - Fields are the document fields of the records ([indexes.md](indexes.md#mapping));
-  `listCollections` returns the names available in each index. A field name is known when at
+  [`describeKnowledge`](#describing-the-knowledge) returns them with their values. A field name is known when at
   least one searched index has it; an unknown field name is an error that lists the known ones.
 - A condition on a field narrows the search to the indexes whose records have that field: a
   record without the field does not equal any value. `!=`, `nin` and `NOT` hold for a record
@@ -145,7 +162,7 @@ value, as an error text from a screen or a parameter code, and not the words to 
   surrounding blanks and ignoring case, as a filter compares. Words are not matched one by one,
   word forms do not match, and a part of a value finds nothing.
 - The key fields are those the operator listed in `map.keys` of the sources
-  ([indexes.md](indexes.md#mapping)); `listCollections` shows them as `keys`. An index without
+  ([indexes.md](indexes.md#mapping)); `describeKnowledge` shows them as `keys`. An index without
   keys is skipped; when no index has keys, the lookup is an error. `rag-search --lookup` naming
   only indexes without keys is an error that lists the indexes that have keys.
 - Results come in index order, with the passage as the snippet, and are paged and capped like

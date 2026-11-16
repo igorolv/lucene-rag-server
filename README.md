@@ -87,10 +87,11 @@ machines, set `RAG_MCP_HTTP_ADDRESS` and put the server behind something that co
 
 | Tool | Group | What it does |
 |---|---|---|
-| `listCollections` | `collections` | Indexes of this server, their descriptions and filter fields, and problems of imported indexes files |
+| `describeKnowledge` | `knowledge` | The projects and parts of the knowledge with their record counts, descriptions and the fields to filter by, with the values of a field that has few ([docs/search.md](docs/search.md#describing-the-knowledge)) |
 | `search` | `search` | Passages matching a query, filters and a filter expression across all indexes, by words, by vectors or both ([docs/search.md](docs/search.md#modes)) |
 | `getDocument` | `search` | One record in full, by the id a hit gives (`<index>/<record id>`) |
 | `lookup` | `lookup` | Catalog records whose key fields have an exact value ([docs/search.md](docs/search.md#exact-lookup)) |
+| `listIndexes` | `admin` | The indexes for the operator: built or not, when, records, model problems, configuration errors and import problems ([docs/indexes.md](docs/indexes.md#building)) |
 | `rebuildIndex` | `admin` | Rebuild an index of `indexes.json` from its sources, as `rag-index` does ([docs/indexes.md](docs/indexes.md#building)) |
 | `fieldValues` | `browse` | Values of a field over all indexes, or over the records that pass filters, with the number of records of each, to filter by ([docs/search.md](docs/search.md#browsing)) |
 | `relatedRecords` | `browse` | Other sections of a record's document and the records most like it |
@@ -105,10 +106,10 @@ A record is also the MCP resource `rag://` followed by its id, `<index>/<record 
 |---|---|---|
 | `RAG_MCP_DATA_DIR` | `~/.lucene-rag-server` | Root of local data: one directory per index, plus `models/` (embedding model files, [docs/indexes.md](docs/indexes.md#vectors)), `cache/` and `logs/` |
 | `RAG_MCP_INDEXES_FILE` | `<data-dir>/indexes.json`, or `indexes.yaml` | Index definitions, in JSON or YAML, which may import the indexes files of projects; needed to build, not to serve |
-| `RAG_MCP_TOOLS_COLLECTIONS` | `true` | Expose the `collections` tool group |
+| `RAG_MCP_TOOLS_KNOWLEDGE` | `true` | Expose the `knowledge` tool group (`describeKnowledge`) |
 | `RAG_MCP_TOOLS_SEARCH` | `true` | Expose the `search` tool group |
 | `RAG_MCP_TOOLS_LOOKUP` | `true` | Expose the `lookup` tool group |
-| `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`rebuildIndex`) |
+| `RAG_MCP_TOOLS_ADMIN` | `true` | Expose the `admin` tool group (`listIndexes`, `rebuildIndex`) |
 | `RAG_MCP_TOOLS_BROWSE` | `true` | Expose the `browse` tool group (`fieldValues`, `relatedRecords`) |
 | `RAG_MCP_TOOLS_DEBUG` | `true` | Expose the `debug` tool group (`explainSearch`) |
 | `RAG_MCP_SEARCH_DEFAULT_LIMIT` | `10` | Hits per page when a call names no limit |

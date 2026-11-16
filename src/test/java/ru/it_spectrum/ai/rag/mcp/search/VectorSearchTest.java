@@ -193,7 +193,7 @@ class VectorSearchTest {
                 .contains("another version of model 'fake'");
         assertThat(lexical.notice()).isNull();
 
-        // What listCollections reports: nothing known before loading, the mismatch once loaded.
+        // What listIndexes reports: nothing known before loading, the mismatch once loaded.
         Manifest.Vectors vectors = store.manifest(DOCS).orElseThrow().vectors();
         assertThat(other.problem(DOCS, "fake", vectors.parameters(), vectors.dimension(), vectors.files()))
                 .hasValueSatisfying(p -> assertThat(p).contains("another version of model 'fake'"));

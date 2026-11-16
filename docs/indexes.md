@@ -56,7 +56,7 @@ to rename the file and its key `collections` to `indexes`.
   its directory under the data directory. Letters, digits, `.`, `_`, `-` and at most one `@`, up
   to 64 characters, not starting with a dot; `logs`, `models` and `cache` are reserved. The
   suggested form is `<part>@<project>`.
-- `description` is shown to the model by `listCollections`; say what the index holds.
+- `description` is shown to the model by `describeKnowledge`; say what the index holds.
 - `project` names the project the index belongs to: letters, digits, `.`, `_` and `-`, for
   example `"project": "billing"`. Every record of the index gets it as the field `project`, so a
   search over several projects can be [narrowed](search.md#filters) to one, and the
@@ -66,7 +66,7 @@ to rename the file and its key `collections` to `indexes`.
   indexes of several projects; an [imported file](#importing-the-indexes-of-projects) may have
   one.
 - A missing or empty file means no indexes can be built. A file that is not valid JSON is an
-  error. A single wrong entry is reported for that index (`configError` in `listCollections`,
+  error. A single wrong entry is reported for that index (`configError` in `listIndexes`,
   a failure in `rag-index`) and does not affect the others.
 - Unknown keys are ignored without a warning: check spelling when a setting has no effect. Inside
   `map`, a misspelled value name is an error.
@@ -201,7 +201,7 @@ changes with it.
 - **Problems.** A file that does not exist, cannot be read or is not valid JSON gives no
   indexes; it, and an index left out, is a problem of the import and not of an index.
   The other indexes load. `rag-index` prints each problem as an `IMPORT:` line, and
-  `listCollections` returns them as `importProblems`. A wrong `import` key of the indexes file
+  `listIndexes` returns them as `importProblems`. A wrong `import` key of the indexes file
   itself, not an array, fails the whole file.
 - Imports are not nested. The name `rag-indexes.json` (or `.yaml`) is a convention; any file
   name works, and its extension says whether it is [YAML](#yaml).
@@ -1081,6 +1081,14 @@ builds as `rag-index` does, commands included. It answers when the build is done
 taken from the cache and cut. A second call for an index already being rebuilt fails. A long
 build may outlast the time a client waits for a tool; `rag-index` has no such limit.
 
+The tool `listIndexes` of the same group shows the operator every index: the built ones with
+their project, build time, record count, `model` and `modelProblem`, and those only described in
+`indexes.json` with `built: false` and, when their configuration is wrong, `configError`.
+`importProblems` lists the problems of [imports](#importing-the-indexes-of-projects), and
+`notice` names an indexes file of the old name (`collections.json`) that is not read, as the
+`NOTICE:` line of `rag-index` does. What an assistant needs to narrow a search is in
+`describeKnowledge` instead ([search.md](search.md#describing-the-knowledge)).
+
 ## What a built index is
 
 ```
@@ -1182,7 +1190,7 @@ java -jar lucene-rag-server.jar rag-search docs@billing "payment was not matched
 
 Exit code 5 means the model is missing or is not the one the index was built with; without
 `--mode`, a missing model gives a `NOTE:` line and a search by words. Through MCP,
-`listCollections` shows every index with `built: true`, its record count, its build time,
+`listIndexes` shows every index with `built: true`, its record count, its build time,
 its `model` and, when something is known to be wrong with it, `modelProblem`.
 
 An index with a remote model needs no files: set the same Spring AI settings on the serving

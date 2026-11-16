@@ -7,7 +7,7 @@ import org.springframework.context.ApplicationContext;
 import ru.it_spectrum.ai.rag.mcp.tools.AdminTools;
 import ru.it_spectrum.ai.rag.mcp.tools.BrowseTools;
 import ru.it_spectrum.ai.rag.mcp.tools.DebugTools;
-import ru.it_spectrum.ai.rag.mcp.tools.CollectionTools;
+import ru.it_spectrum.ai.rag.mcp.tools.KnowledgeTools;
 import ru.it_spectrum.ai.rag.mcp.tools.LookupTools;
 import ru.it_spectrum.ai.rag.mcp.tools.RecordResources;
 import ru.it_spectrum.ai.rag.mcp.tools.SearchTools;
@@ -28,7 +28,7 @@ class ToolBeansTest {
 
     @Test
     void everyToolGroupIsABean() {
-        for (Class<?> type : new Class<?>[]{CollectionTools.class, SearchTools.class, RecordResources.class,
+        for (Class<?> type : new Class<?>[]{KnowledgeTools.class, SearchTools.class, RecordResources.class,
                 LookupTools.class, AdminTools.class, BrowseTools.class, DebugTools.class}) {
             assertThat(context.getBeanNamesForType(type)).as(type.getSimpleName()).hasSize(1);
         }

@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Why a search ranks records as it does, as {@code explainSearch} returns it. Every field carries
- * {@code nullable = true} and an explicit {@code requiredMode}, as {@link CollectionInfo} explains.
+ * {@code nullable = true} and an explicit {@code requiredMode}, as {@link KnowledgeResult} explains.
  */
 @Schema(description = "How a search treats the query and why records rank where they do")
 public record ExplainResult(

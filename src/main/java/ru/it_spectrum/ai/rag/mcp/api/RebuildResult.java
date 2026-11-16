@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * An index rebuilt by {@code rebuildIndex}: what {@code rag-index} prints for it.
  *
  * <p>Every field carries {@code nullable = true} and an explicit {@code requiredMode}, as
- * {@link CollectionInfo} explains.
+ * {@link KnowledgeResult} explains.
  */
 @Schema(description = "An index rebuilt from its sources")
 public record RebuildResult(

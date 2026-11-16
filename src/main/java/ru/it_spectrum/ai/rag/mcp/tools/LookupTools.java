@@ -35,7 +35,7 @@ public class LookupTools {
     @McpTool(
             description = "Find catalog records by an exact value: a code, an identifier, a class or table " +
                     "name, a message text. The value is compared whole with the key fields of the records " +
-                    "(listCollections shows them as keys), ignoring case; words are not matched one by " +
+                    "(describeKnowledge shows them as keys), ignoring case; words are not matched one by " +
                     "one, so use search for questions and descriptions. getDocument reads a hit in full by " +
                     "its id.",
             generateOutputSchema = true,

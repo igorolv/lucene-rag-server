@@ -7,6 +7,7 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import ru.it_spectrum.ai.rag.mcp.api.ListIndexesResult;
 import ru.it_spectrum.ai.rag.mcp.api.RebuildResult;
 import ru.it_spectrum.ai.rag.mcp.definition.IndexDefinition;
 import ru.it_spectrum.ai.rag.mcp.definition.IndexesLoader;
@@ -14,18 +15,23 @@ import ru.it_spectrum.ai.rag.mcp.definition.LoadedIndexes;
 import ru.it_spectrum.ai.rag.mcp.config.RagMcpProperties;
 import ru.it_spectrum.ai.rag.mcp.embedding.EmbeddingModels;
 import ru.it_spectrum.ai.rag.mcp.index.IndexBuilder;
+import ru.it_spectrum.ai.rag.mcp.index.IndexStore;
 import ru.it_spectrum.ai.rag.mcp.index.Manifest;
 import ru.it_spectrum.ai.rag.mcp.ingest.StepRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.UnaryOperator;
 
 /**
- * The {@code admin} tool group: rebuild an index from its sources, as {@code rag-index} does,
+ * The {@code admin} tool group, for the operator (docs/decisions.md D89): list the indexes with
+ * what only an operator acts on, and rebuild an index from its sources, as {@code rag-index} does,
  * without leaving the client. The index must be described in {@code indexes.json}, which
  * the server reads on each call; the argument only names an index of that file, so nothing a
  * client sends reaches a command line (docs/decisions.md D10). The group is on by default, as every
@@ -60,6 +66,45 @@ public class AdminTools {
     }
 
     @McpTool(
+            description = "List the indexes of this server for its operator: built ones with their build time, " +
+                    "record count, embedding model and modelProblem, and those only described in the indexes " +
+                    "file, with configError when their configuration is wrong. importProblems says which " +
+                    "imported files could not be used. Not needed for searching.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public ListIndexesResult listIndexes() {
+        log.info("Tool call: listIndexes");
+        List<ListIndexesResult.IndexInfo> infos = new ArrayList<>();
+        List<Manifest> built = new IndexStore(properties.resolvedDataDir()).built();
+        for (Manifest manifest : built) {
+            Manifest.Vectors vectors = manifest.vectors();
+            infos.add(new ListIndexesResult.IndexInfo(manifest.name(), manifest.project(), true, manifest.builtAt(),
+                    manifest.records(), vectors == null ? null : vectors.model(),
+                    vectors == null ? null : models.problem(manifest.name(), vectors.model(), vectors.parameters(),
+                            vectors.dimension(), vectors.files()).orElse(null), null));
+        }
+        Set<String> builtNames = built.stream().map(Manifest::name).collect(Collectors.toSet());
+        List<String> importProblems = null;
+        try {
+            LoadedIndexes loaded = IndexesLoader.read(properties, env);
+            if (!loaded.importProblems().isEmpty()) {
+                importProblems = loaded.importProblems();
+            }
+            for (IndexDefinition definition : registry.checked(loaded.indexes())) {
+                if (!builtNames.contains(definition.name())) {
+                    infos.add(new ListIndexesResult.IndexInfo(definition.name(), definition.project(), false, null,
+                            null, definition.vectors() == null ? null : definition.vectors().name(), null,
+                            definition.configError()));
+                }
+            }
+        } catch (IllegalStateException e) {
+            importProblems = List.of("The indexes file cannot be used: " + e.getMessage());
+        }
+        return new ListIndexesResult(List.copyOf(infos), importProblems, properties.oldFileNotice().orElse(null));
+    }
+
+    @McpTool(
             description = "Rebuild one index from its sources, as described in the server's indexes " +
                     "file, so that search sees changed files. Takes from seconds to minutes; the old index is " +
                     "served until the new one is complete, and a failed build keeps it.",
@@ -68,7 +113,7 @@ public class AdminTools {
                     idempotentHint = true, openWorldHint = false)
     )
     public RebuildResult rebuildIndex(
-            @McpToolParam(description = "Name of an index from listCollections", required = true)
+            @McpToolParam(description = "Name of an index from listIndexes", required = true)
             String index) {
         log.info("Tool call: rebuildIndex index={}", index);
         String name = index == null ? "" : index.strip();
